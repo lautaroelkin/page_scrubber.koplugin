@@ -62,6 +62,27 @@ local function paintTopSquareBottomRounded(bb, x, y, w, h, r, color)
     if r > 0 and h > r and w > 0 then bb:paintRect(x, y, w, r, color) end
 end
 
+-- NUEVA FUNCIÓN: Rompe el límite matemático para permitir curvas extremas
+local function paintBottomRoundedTab(bb, x, y, w, h, r, color)
+    if w <= 0 or h <= 0 then return end
+    r = math.min(r, h, math.floor(w / 2)) 
+    if r <= 0 then bb:paintRect(x, y, w, h, color); return end
+    
+    bb:paintRect(x + r, y, w - 2*r, h, color)
+    local flat_h = h - r
+    if flat_h > 0 then
+        bb:paintRect(x, y, r, flat_h, color)
+        bb:paintRect(x + w - r, y, r, flat_h, color)
+    end
+    for j = 0, r - 1 do
+        local arc = math.ceil(math.sqrt(r*r - (r-j-0.5)*(r-j-0.5)))
+        if arc > 0 then
+            bb:paintRect(x + r - arc, y + h - 1 - j, arc, 1, color)
+            bb:paintRect(x + w - r,   y + h - 1 - j, arc, 1, color)
+        end
+    end
+end
+
 local function drawBookmarkRibbon(bb, x, y, w, h, color)
     local cut = math.floor(w / 2)
     local straight = h - cut
@@ -89,6 +110,13 @@ end
 local PageScrubber = InputContainer:extend{ name = "page_scrubber", transparent = true }
 
 function PageScrubber:init()
+    -- ESCUDO ANTI-GHOST TAP (Versión a prueba de fallos)
+    -- Bloqueamos los toques al nacer y le decimos al sistema que los habilite en 0.4 segundos
+    self._anti_ghost_ready = false
+    require("ui/uimanager"):scheduleIn(0.4, function() 
+        self._anti_ghost_ready = true 
+    end)
+    
     local ui  = self.ui
     local doc = ui.document
 
@@ -199,23 +227,92 @@ function PageScrubber:init()
     self:_invalidateBookmarksCache()
     local slider_h = self._slider:getSize().h
 
-    self.tw_lib       = TextWidget:new{ text = "\u{E344}", face = Font:getFace("cfont", S(24)), fgcolor = Blitbuffer.COLOR_BLACK }
+        local PLUGIN_DIR = debug.getinfo(1, "S").source:gsub("^@(.*)/[^/]*", "%1")
+
+    local function createSafeIcon(icon_char, svg_filename, sz, custom_color)
+        local fg = custom_color or Blitbuffer.COLOR_BLACK
+        local base_path = PLUGIN_DIR .. "/icons/" .. svg_filename
+        local ok, widget = pcall(function()
+            local ImageWidget = require("ui/widget/imagewidget")
+            return ImageWidget:new{ 
+                file = base_path, width = sz, height = sz, 
+                alpha = true, fgcolor = fg 
+            }
+        end)
+        if ok and widget then return widget end
+        return TextWidget:new{ text = icon_char, face = Font:getFace("cfont", sz), fgcolor = fg }
+    end
+
+    local top_icon_sz = S(28)
+
+    self.tw_lib       = createSafeIcon("\u{E344}", "arrow-left.svg", top_icon_sz)
     self.tw_lib_label = TextWidget:new{ text = "Library", face = Font:getFace("cfont", S_MEDIANO), fgcolor = Blitbuffer.COLOR_BLACK }
     
-    self.tw_fn        = TextWidget:new{ text = "⚙",   face = Font:getFace("cfont", S(20)), fgcolor = Blitbuffer.COLOR_BLACK }
-    self.tw_bm        = TextWidget:new{ text = "\u{F044}", face = Font:getFace("cfont", S(19)), fgcolor = Blitbuffer.COLOR_BLACK }
-    self.tw_toc       = TextWidget:new{ text = "\u{F0CA}", face = Font:getFace("cfont", S(17)), fgcolor = Blitbuffer.COLOR_BLACK } 
-    self.tw_x         = TextWidget:new{ text = "✕",   face = Font:getFace("cfont", S(22)), fgcolor = Blitbuffer.COLOR_BLACK }
+    self.tw_fn        = createSafeIcon("⚙", "settings-2.svg", top_icon_sz)
+    self.tw_bm        = createSafeIcon("\u{F044}", "notebook-pen.svg", top_icon_sz)
+    self.tw_gallery   = createSafeIcon("\u{F009}", "gallery-horizontal.svg", top_icon_sz)
+    self.tw_toc       = createSafeIcon("\u{F0CA}", "table-of-contents.svg", top_icon_sz)
+    self.tw_x         = createSafeIcon("✕", "x.svg", top_icon_sz)
 
-    self.tw_ch_l      = TextWidget:new{ text = "\u{EBAD}",  face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
-    self.tw_ch_r      = TextWidget:new{ text = "\u{EBAC}",  face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
+    self.tw_ch_l      = createSafeIcon("\u{EBAD}", "skip-back.svg", S(32))
+    self.tw_ch_r      = createSafeIcon("\u{EBAC}", "skip-forward.svg", S(32))
 
     local font_ctrl_carets = Font:getFace("cfont", S(20))
-    local font_ctrl_mark   = Font:getFace("cfont", S(24))
+    local mark_icon_sz = S(42) 
     
     self.tw_ctrl_prev = TextWidget:new{ text = "\u{F0D9}", face = font_ctrl_carets, fgcolor = Blitbuffer.COLOR_BLACK }
-    self.tw_ctrl_mark = TextWidget:new{ text = "\u{F097}", face = font_ctrl_mark,   fgcolor = Blitbuffer.COLOR_BLACK }
+    self.icon_mark_empty = createSafeIcon("\u{F097}", "gravity-ui--bookmark.svg", mark_icon_sz)
+    self.icon_mark_filled = createSafeIcon("\u{F02E}", "gravity-ui--bookmark-fill.svg", mark_icon_sz)
+    self.tw_ctrl_mark = self.icon_mark_empty 
     self.tw_ctrl_next = TextWidget:new{ text = "\u{F0DA}", face = font_ctrl_carets, fgcolor = Blitbuffer.COLOR_BLACK }
+
+    -- Cargamos TUS 3 SVGs en el orden exacto (ya sin el maldito _2):
+    local tab_icon_sz = S(24) -- ¡Íconos más grandes para el Kindle!
+    self.icon_tab_bm   = createSafeIcon("\u{E7B9}", "majesticons--book.svg", tab_icon_sz)
+    self.icon_tab_hl   = createSafeIcon("\u{E931}", "majesticons--filter.svg", tab_icon_sz)
+    self.icon_tab_note = createSafeIcon("\u{F075}", "majesticons--chat-2-text.svg", tab_icon_sz)
+
+    -- Cargamos los 2 íconos para el botón de ordenar
+    self.icon_sort_asc  = createSafeIcon("\u{EBBB}", "arrow-up-wide-narrow.svg", tab_icon_sz)
+    self.icon_sort_desc = createSafeIcon("\u{EBBC}", "arrow-down-wide-narrow.svg", tab_icon_sz)
+
+    -- Cargamos los íconos de la Polaroid (Actualizados a las versiones rellenas)
+    local pol_icon_sz = S(20) 
+    self.icon_pol_note = createSafeIcon("\u{F448}", "gravity-ui--pencil-to-square.svg", pol_icon_sz)
+    self.icon_pol_hl   = createSafeIcon("\u{ED51}", "boxicons--highlight-filled.svg", pol_icon_sz)
+    self.icon_pol_bm   = createSafeIcon("\u{F02E}", "gravity-ui--bookmark-fill.svg", pol_icon_sz)
+
+    -- Cargamos los 4 SVGs para el menú lateral (Pre-cargamos la versión negra y la gris)
+    local filter_icon_sz = S(14)
+    self.icon_filter_hl_on  = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_hl_off = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    
+    self.icon_filter_inv_on  = createSafeIcon("\u{F043}", "contrast.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_inv_off = createSafeIcon("\u{F043}", "contrast.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    
+    self.icon_filter_ul_on  = createSafeIcon("\u{E932}", "underline.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_ul_off = createSafeIcon("\u{E932}", "underline.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    
+    self.icon_filter_st_on  = createSafeIcon("\u{F0CC}", "strikethrough.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_st_off = createSafeIcon("\u{F0CC}", "strikethrough.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+
+    -- Íconos para los botones de las cajas (Cargamos solo la versión pura, sin duplicar)
+    local box_icon_sz = S(22)
+    self.icon_box_plus       = createSafeIcon("\u{002B}", "square-plus.svg", box_icon_sz)
+    self.icon_box_minus_fill = createSafeIcon("\u{2212}", "square-minus-filled.svg", box_icon_sz)
+    self.icon_box_minus      = createSafeIcon("\u{2212}", "square-minus.svg", box_icon_sz)
+    self.icon_box_arrow      = createSafeIcon("\u{003E}", "square-arrow-right-enter.svg", box_icon_sz)
+    
+    self.icon_chevron_left   = createSafeIcon("‹", "chevron-left.svg", box_icon_sz)
+    self.icon_chevron_right  = createSafeIcon("›", "chevron-right.svg", box_icon_sz)
+
+    -- Íconos gigantes y X ajustada exclusivamente para el Simple Grid
+    local gs_chevron_sz = S(44) -- Exactamente el doble del original (22)
+    self.icon_gs_chevron_left  = createSafeIcon("‹", "chevron-left.svg", gs_chevron_sz)
+    self.icon_gs_chevron_right = createSafeIcon("›", "chevron-right.svg", gs_chevron_sz)
+    
+    local gs_x_sz = S(36) -- Un chiquitín más grande que el original de arriba
+    self.icon_gs_x = createSafeIcon("✕", "x.svg", gs_x_sz)
 
     self.tw_fb_l = TextWidget:new{ text = "‹", face = Font:getFace("cfont", S(48)), fgcolor = Blitbuffer.COLOR_BLACK }
     self.tw_fb_r = TextWidget:new{ text = "›", face = Font:getFace("cfont", S(48)), fgcolor = Blitbuffer.COLOR_BLACK }
@@ -280,8 +377,8 @@ function PageScrubber:init()
 
     self:_updateTexts()
 
-    local btn_sz = S(38)
-    local spacing = S(8)
+    local btn_sz = S(42)
+    local spacing = S(10)
     local left_base = S(16)
     local right_base = sw - S(14)
     local top_y = top_bar_y + math.floor((top_h - btn_sz) / 2)
@@ -432,7 +529,8 @@ function PageScrubber:_extractAnnotations()
     self._cached_hl = {}
     self._cached_notes = {}
     self._page_data = {}
-    self._hl_types_present = { normal = false, invert = false, underline = false }
+    -- ¡Ahora con los 4 tipos declarados!
+    self._hl_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
     local hl_map = {}
     local note_map = {}
     local tp = self._total_pages or 1
@@ -440,7 +538,8 @@ function PageScrubber:_extractAnnotations()
     local function drawer_to_filter(drawer)
         if not drawer or drawer == "lighten" then return "normal"
         elseif drawer == "invert" then return "invert"
-        elseif drawer == "underscore" or drawer == "strikeout" then return "underline"
+        elseif drawer == "underscore" then return "underline"
+        elseif drawer == "strikeout" then return "strikethrough"
         end
         return "normal"
     end
@@ -1113,8 +1212,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     local shadow_offset = S(4)
     local box_radius = S(12)
-    local font_sz_chiquito = S(12)
-    local S_MEDIANO = S(13)
+    local font_sz_chiquito = S(15) -- Letras de filtros y "Pag" más legibles
+    local S_MEDIANO = S(17) -- Números de página mucho más grandes
     
     -- 1. LAYOUT MATEMÁTICO: 65/35 Y BLOQUE UNIFICADO
     -- Usamos TODO el espacio real de la pantalla (desde la barra superior hasta la inferior)
@@ -1125,7 +1224,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local fx_h = S(56)
     local gap_x = S(28)
     local target_gap = S(12)
-    local tab_h = S(28)
+    local tab_h = S(36) -- Pestañas más altas para acomodar los nuevos íconos
     local tab_sp_y = S(8)
     
     -- EL VERDADERO LÍMITE: Restamos las pestañas al espacio disponible ANTES de medir
@@ -1209,67 +1308,71 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local note_count = #(self._cached_notes or {})
 
     local tab_sp = S(6)
-    
     local current_tab_x = pr_x
     local r = math.floor(tab_h / 2)
 
-    local sort_icon = (self._sort_order == "asc") and "\u{EBBB}" or "\u{EBBC}"
-    self._tw_tab_sort:setText(sort_icon)
-    local sort_tsz = self._tw_tab_sort:getSize()
-    -- Achicamos el margen del sort para que acompañe el nuevo tamaño
+    -- Tab de Ordenar (¡Ahora con SVGs dinámicos!)
+    local active_sort_icon = (self._sort_order == "asc") and self.icon_sort_asc or self.icon_sort_desc
+    local sort_tsz = active_sort_icon and active_sort_icon:getSize() or {w = S(18), h = S(18)}
     local sort_tab_w = sort_tsz.w + S(16)
 
+    -- Fondo del botón (usamos S(1) para el borde blanco interno, que quede prolijo)
     paintRoundRect(bb, current_tab_x, tab_draw_y, sort_tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, current_tab_x + S(2), tab_draw_y + S(2), sort_tab_w - S(4), tab_h - S(4), math.max(1, r - S(2)), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, current_tab_x + S(1), tab_draw_y + S(1), sort_tab_w - S(2), tab_h - S(2), math.max(1, r - S(1)), Blitbuffer.COLOR_WHITE)
 
-    self._tw_tab_sort.fgcolor = Blitbuffer.COLOR_BLACK
     local stx = current_tab_x + math.floor((sort_tab_w - sort_tsz.w) / 2)
     local sty = tab_draw_y + math.floor((tab_h - sort_tsz.h) / 2)
 
-    self._tw_tab_sort:paintTo(bb, stx, sty)
-    self._tw_tab_sort:paintTo(bb, stx + 1, sty)
-    self._tw_tab_sort:paintTo(bb, stx, sty + 1)
-    self._tw_tab_sort:paintTo(bb, stx + 1, sty + 1)
+    -- Dibujamos el SVG correspondiente
+    if active_sort_icon then
+        active_sort_icon:paintTo(bb, stx, sty)
+        -- Hacemos una doble pasada para engrosar apenitas el trazo, como hacía el texto
+        active_sort_icon:paintTo(bb, stx + 1, sty)
+    end
 
     self._tab_sort_dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = sort_tab_w, h = tab_h }
     current_tab_x = current_tab_x + sort_tab_w + tab_sp
 
-    local function drawTabWithShift(id, icon_char, count_num, icon_sz)
+    -- Función limpia, sin bugs y 100% segura para los SVGs
+    local function drawTabWithSVG(id, icon_widget, count_num)
         local is_active = (self._active_tab == id)
-        local bg = is_active and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
-        local fg = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
 
-        local tw_ic = TextWidget:new{ text = icon_char, face = Font:getFace("cfont", icon_sz or S(11)), fgcolor = fg }
-        -- Forzamos la fuente del número a S(10) para que sea un pelín más chica que el ícono
-        local tw_cnt = TextWidget:new{ text = "(" .. tostring(count_num) .. ")", face = Font:getFace("cfont", S(10)), fgcolor = fg }
-        local isz = tw_ic:getSize()
+        local tw_cnt = TextWidget:new{ text = "(" .. tostring(count_num) .. ")", face = Font:getFace("cfont", S(15)), fgcolor = Blitbuffer.COLOR_BLACK }
+        
+        -- HACK DE SEGURIDAD: Evita que crashee si KOReader pierde el widget
+        local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
         local csz = tw_cnt:getSize()
         local gap = S(4)
         local content_w = isz.w + gap + csz.w
-        -- Margen lateral ajustado a la nueva altura
         local tab_w = content_w + S(16)
 
-        paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-        if not is_active then
-            paintRoundRect(bb, current_tab_x + S(2), tab_draw_y + S(2), tab_w - S(4), tab_h - S(4), math.max(1, r - S(2)), Blitbuffer.COLOR_WHITE)
+        -- 1. Pintamos los fondos PRIMERO. Grueso si activo, fino si inactivo. Siempre blanco adentro.
+        if is_active then
+            paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, current_tab_x + S(3), tab_draw_y + S(3), tab_w - S(6), tab_h - S(6), math.max(1, r - S(3)), Blitbuffer.COLOR_WHITE)
+        else
+            paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, current_tab_x + S(1), tab_draw_y + S(1), tab_w - S(2), tab_h - S(2), math.max(1, r - S(1)), Blitbuffer.COLOR_WHITE)
         end
 
         local ix = current_tab_x + math.floor((tab_w - content_w) / 2)
         local cx = ix + isz.w + gap
-
         local iy = tab_draw_y + math.floor((tab_h - isz.h) / 2)
         local cy = tab_draw_y + math.floor((tab_h - csz.h) / 2) - S(1)
 
-        tw_ic:paintTo(bb, ix, iy)
-        tw_ic:paintTo(bb, ix + 1, iy)
-        tw_ic:paintTo(bb, ix, iy + 1)
-        tw_ic:paintTo(bb, ix + 1, iy + 1)
-        tw_ic:free()
+        -- 2. Pintamos el SVG (POR ENCIMA DEL FONDO)
+        if icon_widget then
+            icon_widget:paintTo(bb, ix, iy)
+            -- Le metemos doble pasada si está activo para que resalte
+            if is_active then
+                icon_widget:paintTo(bb, ix + 1, iy) 
+            end
+        end
 
         tw_cnt:paintTo(bb, cx, cy)
-        tw_cnt:paintTo(bb, cx + 1, cy)
-        tw_cnt:paintTo(bb, cx, cy + 1)
-        tw_cnt:paintTo(bb, cx + 1, cy + 1)
+        if is_active then
+            tw_cnt:paintTo(bb, cx + 1, cy)
+        end
         tw_cnt:free()
 
         local dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
@@ -1277,11 +1380,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         return dimen
     end
     
-    -- Tamaños unificados para que los íconos se vean iguales
-    self._tab_bm_dimen   = drawTabWithShift("bookmarks", "\u{E7B9}", bm_count, S(11))
-    -- Le bajamos un puntito al highlight y a la nota para equilibrar el peso visual
-    self._tab_hl_dimen   = drawTabWithShift("highlights", "\u{E931}", hl_count, S(10))
-    self._tab_note_dimen = drawTabWithShift("notes", "\u{F075}", note_count, S(10))
+    self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
+    self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)
+    self._tab_note_dimen = drawTabWithSVG("notes", self.icon_tab_note, note_count)
 
     -- 3. RENDERIZADO POLAROID
     local card_x = pr_x
@@ -1291,7 +1392,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     paintTopSquareBottomRounded(bb, card_x + shadow_offset, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
     paintTopSquareBottomRounded(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    local b_thick = S(2)
+    local b_thick = S(3) -- Igualamos al grosor S(3) de la solapa y la barra inferior
     paintTopSquareBottomRounded(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local tile = self._grid_tiles[2] or {}
@@ -1347,7 +1448,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         bb:paintRect(card_x + math.floor(card_w / 2) - 1, card_y + math.floor(pr_h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
     end
     
-    local icon_char = "\u{F02E}"
+    local active_pol_icon = nil
     local text_str = "—"
     local pd = self._page_data[self._cur_page]
     
@@ -1357,13 +1458,13 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     end
 
     if self._active_tab == "highlights" then
-        icon_char = "\u{ED51}"
+        active_pol_icon = self.icon_pol_hl
         if pd and pd.text then text_str = '“' .. safe_string(pd.text, 500) .. '”' end
     elseif self._active_tab == "notes" then
-        icon_char = "\u{F448}"
+        active_pol_icon = self.icon_pol_note
         if pd and pd.note then text_str = safe_string(pd.note, 500) end
     elseif self._active_tab == "bookmarks" then
-        icon_char = "\u{F02E}"
+        active_pol_icon = self.icon_pol_bm
         local is_bmed = false
         local raw_date = nil
         
@@ -1426,12 +1527,11 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         end
     end
 
-    local icon_sz = S(12)
     local pad_x = S(14)
     local gap = S(8)
     
-    local icon_tw = TextWidget:new{ text = icon_char, face = Font:getFace("cfont", icon_sz), fgcolor = Blitbuffer.COLOR_BLACK }
-    local isz = icon_tw:getSize()
+    -- Leemos el tamaño directamente del SVG 
+    local isz = active_pol_icon and active_pol_icon:getSize() or {w = S(20), h = S(20)}
     
     local text_max_w = card_w - (pad_x * 2) - isz.w - gap
     local clean_str = text_str:gsub("\n", " "):gsub("\r", "")
@@ -1481,14 +1581,18 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     end
     
     local ix = card_x + pad_x
-    local iy = card_y + pr_h + math.floor((status_h - isz.h) / 2) - S(1)
-    icon_tw:paintTo(bb, ix, iy)
-    icon_tw:free()
+    -- Centrado vertical puro sin parches artificiales
+    local iy = card_y + pr_h + math.floor((status_h - isz.h) / 2)
+    
+    if active_pol_icon then
+        active_pol_icon:paintTo(bb, ix, iy)
+    end
     
     local tx = ix + isz.w + gap
     local tw_st = TextWidget:new{ text = print_str, face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK, max_width = text_max_w }
     local tsz = tw_st:getSize()
-    local ty = card_y + pr_h + math.floor((status_h - tsz.h) / 2) - S(2)
+    -- Centrado vertical puro también para el texto que acompaña al ícono
+    local ty = card_y + pr_h + math.floor((status_h - tsz.h) / 2)
     
     tw_st:paintTo(bb, tx, ty)
     tw_st:paintTo(bb, tx + 1, ty)
@@ -1515,10 +1619,16 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         paintRoundRect(bb, lm_x + S(4), fx_y + S(4), lm_w - S(8), fx_h - S(8), S(8), Blitbuffer.COLOR_BLACK)
     end
     
+    -- Calculamos PRIMERO el ícono para saber cuánto espacio nos deja (con las variables limpias)
+    local active_fixed_icon = is_page_bmed and self.icon_box_minus_fill or self.icon_box_plus
+    
+    local bsz_f = active_fixed_icon and active_fixed_icon:getSize() or {w = S(22), h = S(22)}
+    local btn_xf = lm_x + lm_w - bsz_f.w - S(12)
+    
+    -- Ahora calculamos el texto y lo alineamos a la izquierda EXACTAMENTE igual que la lista superior
     local tw_pg_f = TextWidget:new{ text = tostring(fixed_page), face = Font:getFace("cfont", S_MEDIANO), fgcolor = fg_f }
     local pt_sz = tw_pg_f:getSize()
-    -- Lo empujamos más a la derecha para que respire (de 6 a 12)
-    local ptx = lm_x + S(12)
+    local ptx = lm_x + S(15) -- Alineación perfecta en columna
     local pty = fx_y + math.floor((fx_h - pt_sz.h) / 2) + S(2)
     
     tw_pg_f:paintTo(bb, ptx, pty)
@@ -1529,14 +1639,20 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     end
     tw_pg_f:free()
 
-    local btn_icon = is_page_bmed and "\u{F146}" or "\u{F196}"
-    -- ACÁ ESTABA EL BUG: Lo bajamos de un brutal S(22) a un equilibrado S(16).
-    local tw_btn_f = TextWidget:new{ text = btn_icon, face = Font:getFace("cfont", S(16)), fgcolor = fg_f }
-    local bsz_f = tw_btn_f:getSize()
-    -- Restauramos un margen derecho prolijo ahora que el ícono no ocupa media caja
-    local btn_xf = lm_x + lm_w - bsz_f.w - S(10)
-    tw_btn_f:paintTo(bb, btn_xf, fx_y + math.floor((fx_h - bsz_f.h)/2) + S(1) + 1)
-    tw_btn_f:free()
+    -- Finalmente dibujamos el ícono
+    if active_fixed_icon then
+        local ix = btn_xf
+        local iy = fx_y + math.floor((fx_h - bsz_f.h)/2)
+        
+        if is_f_sel then
+            -- TRUCO DE MAGIA: Dibujamos un fondo blanco invisible, pegamos el SVG negro y lo invertimos.
+            bb:paintRect(ix, iy, bsz_f.w, bsz_f.h, Blitbuffer.COLOR_WHITE)
+            active_fixed_icon:paintTo(bb, ix, iy)
+            bb:invertRect(ix, iy, bsz_f.w, bsz_f.h)
+        else
+            active_fixed_icon:paintTo(bb, ix, iy)
+        end
+    end
 
     local row_clickable_w = (btn_xf - S(10)) - lm_x
     self._split_fixed_row_dimen = Geom:new{ x = lm_x, y = fx_y, w = row_clickable_w, h = fx_h }
@@ -1544,9 +1660,11 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
     -- 5. RENDERIZADO DEL MENÚ DERECHO
     local filter_defs = {
-        { key = "normal",    icon = "\u{E932}", sz = S(10) }, -- Fibrón de Highlight (-2)
-        { key = "underline", icon = nil }, 
-        { key = "invert",    icon = "\u{F043}", sz = S(9) },  -- Gotita (-3)
+        -- ÍCONOS NORMALIZADOS: Ya no hace falta parchear la altura
+        { key = "normal",        icon_on = self.icon_filter_hl_on,  icon_off = self.icon_filter_hl_off },
+        { key = "underline",     icon_on = self.icon_filter_ul_on,  icon_off = self.icon_filter_ul_off },
+        { key = "invert",        icon_on = self.icon_filter_inv_on, icon_off = self.icon_filter_inv_off },
+        { key = "strikethrough", icon_on = self.icon_filter_st_on,  icon_off = self.icon_filter_st_off },
     }
     local present_filters = {}
     if self._active_tab == "highlights" then
@@ -1596,138 +1714,89 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
     self._split_rows = {}
 
-    local is_multi_hl = (self._active_tab == "highlights" and #present_filters >= 2)
-    local main_label_str = is_multi_hl and "P" or "Pag"
+    -- REDISEÑO: FONDO UNIFICADO (Tarjeta completa con bordes redondeados)
+    paintRoundRect(bb, lm_x + shadow_offset, menu_y, lm_w, exact_menu_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
+    paintRoundRect(bb, lm_x, menu_y, lm_w, exact_menu_h, box_radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, lm_x + S(2), menu_y + S(2), lm_w - S(4), exact_menu_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
 
-    local tw_hdr = TextWidget:new{ text = main_label_str, face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
+    -- Línea separadora sutil debajo del header
+    bb:paintRect(lm_x + S(2), menu_y + header_h - S(1), lm_w - S(4), S(1), Blitbuffer.COLOR_BLACK)
+
+    -- TEXTO "Pag"
+    local tw_hdr = TextWidget:new{ text = "Pag", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
     local hsz = tw_hdr:getSize()
-    local has_active_filter = (self._active_tab == "highlights" and self._hl_filter ~= nil)
-
-    local hdr_left_pad = is_multi_hl and S(11) or S(10)
-    local hdr_right_pad = is_multi_hl and (has_active_filter and S(8) or S(11)) or S(8)
-
-    local active_icon_w = 0
-    local active_fd = nil
-    if has_active_filter then
-        for _, fd in ipairs(filter_defs) do
-            if fd.key == self._hl_filter then active_fd = fd; break end
-        end
-        if active_fd then active_icon_w = S(13) + S(4) end
-    end
-
-    local pag_tab_w = hdr_left_pad + hsz.w + active_icon_w + hdr_right_pad
-    local body_y = menu_y + header_h
-    local body_h = exact_menu_h - header_h
-
-    bb:paintRect(lm_x, menu_y, pag_tab_w, header_h, Blitbuffer.COLOR_BLACK)
-
-    local inner_r = math.max(1, box_radius - S(2))
-    paintCornerRect(bb, lm_x + shadow_offset, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_DARK_GRAY, false, true, true, true)
-    paintCornerRect(bb, lm_x, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_BLACK, false, true, true, true)
-
-    local list_y = body_y + S(2)
-    local list_h = body_h - S(4)
-    paintCornerRect(bb, lm_x + S(2), list_y, lm_w - S(4), list_h, inner_r, Blitbuffer.COLOR_WHITE, false, true, true, true)
-    bb:paintRect(lm_x + S(2), menu_y + S(2), pag_tab_w - S(4), header_h, Blitbuffer.COLOR_WHITE)
-
-    local start_x = lm_x + hdr_left_pad
+    -- Lo alineamos a la izquierda a S(15) para que haga juego perfecto con la columna de números
+    local htx = lm_x + S(15)
     local hty = menu_y + S(2) + math.floor((header_h - S(2) - hsz.h) / 2)
 
-    tw_hdr:paintTo(bb, start_x, hty)
-    tw_hdr:paintTo(bb, start_x + 1, hty)
-    tw_hdr:paintTo(bb, start_x, hty + 1)
-    tw_hdr:paintTo(bb, start_x + 1, hty + 1)
+    tw_hdr:paintTo(bb, htx, hty)
+    tw_hdr:paintTo(bb, htx + 1, hty)
+    tw_hdr:paintTo(bb, htx, hty + 1)
+    tw_hdr:paintTo(bb, htx + 1, hty + 1)
     tw_hdr:free()
 
-    self._hl_main_tab_dimen = Geom:new{ x = lm_x, y = menu_y, w = pag_tab_w, h = header_h }
+    -- El área "táctil" para deseleccionar haciendo click en la palabra "Pag"
+    self._hl_main_tab_dimen = Geom:new{ x = lm_x, y = menu_y, w = htx + hsz.w + S(6) - lm_x, h = header_h }
 
-    if active_fd then
-        local icon_offset_x = -S(2)
-        if active_fd.key == "underline" then 
-            icon_offset_x = S(4)
-        elseif active_fd.key == "normal" then
-            icon_offset_x = S(1) -- Un empujoncito mucho más sutil
-        end
-        local icon_x = start_x + hsz.w + icon_offset_x
-        if active_fd.key == "underline" then
-            local ul_w = S(11)
-            local cy = menu_y + S(2) + math.floor((header_h - S(2)) / 2)
-            bb:paintRect(icon_x, cy - S(3), ul_w, S(2), Blitbuffer.COLOR_BLACK)
-            bb:paintRect(icon_x, cy + S(3), ul_w, S(2), Blitbuffer.COLOR_BLACK)
-        else
-            local y_extra = (active_fd.key == "normal") and S(3) or S(2)
-            -- Lee el tamaño personalizado (sz) que le pusimos arriba
-            local tw_ic = TextWidget:new{ text = active_fd.icon, face = Font:getFace("cfont", active_fd.sz or S(12)), fgcolor = Blitbuffer.COLOR_BLACK }
-            local tw_ic_sz = tw_ic:getSize()
-            local icon_y = menu_y + S(2) + math.floor((header_h - S(2) - tw_ic_sz.h) / 2) + y_extra
-            tw_ic:paintTo(bb, icon_x, icon_y)
-            tw_ic:paintTo(bb, icon_x + 1, icon_y)
-            tw_ic:free()
-        end
-    end
-
+    -- FILTROS FLOTANTES (Amontonamiento 100% Horizontal)
     self._hl_filter_dimens = {}
-    if is_multi_hl then
-        local unselected_filters = {}
-        for _, fd in ipairs(present_filters) do
-            if fd.key ~= self._hl_filter then table.insert(unselected_filters, fd) end
+    
+    if #present_filters >= 2 then
+        local f_h = S(20)
+        local f_w = S(18) -- Ancho fijo del lienzo del ícono (JAMÁS SE ACHICA)
+        
+        -- Separamos un poco los íconos de la palabra "Pag" para equilibrar visualmente a la izquierda
+        local start_x = htx + hsz.w + S(12) 
+        local max_w_avail = (lm_x + lm_w - S(4)) - start_x
+        
+        local num_f = #present_filters
+        local f_gap = S(4) -- Damos un poco más de aire base entre los íconos
+        local total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
+        
+        -- MAGIA DE AMONTONAMIENTO: Solo toqueteamos la separación horizontal (gap)
+        if total_needed > max_w_avail and num_f > 1 then
+            f_gap = math.floor((max_w_avail - (num_f * f_w)) / (num_f - 1))
         end
 
-        local num_unselected = #unselected_filters
-        if num_unselected > 0 then
-            -- Achicamos un pelín el margen inicial para ganar espacio
-            local tab_start_x = lm_x + pag_tab_w + S(4)
-            
-            -- PROTECCIÓN ANTIDESBORDE: Calculamos el ancho dinámico
-            local folder_gap = S(3)
-            -- Espacio total disponible hasta el borde derecho (dejando un margen de S(4))
-            local max_w_available = (lm_x + lm_w) - tab_start_x - S(4) 
-            local max_folder_w = math.floor((max_w_available - (folder_gap * (num_unselected - 1))) / num_unselected)
-            
-            -- Usamos S(27) como máximo, pero dejamos que se encojan si no hay espacio
-            local folder_w = math.min(S(27), max_folder_w)
-            -- Tope mínimo para asegurar que el ícono adentro no desaparezca
-            if folder_w < S(14) then folder_w = S(14) end 
-            
-            local folder_h = header_h - S(4)
-            local folder_r = S(5)
-            local curr_folder_x = tab_start_x
-            local curr_folder_y = menu_y + S(4)
+        local curr_f_x = start_x
+        local curr_f_y = menu_y + math.floor((header_h - f_h) / 2)
 
-            for _, fd in ipairs(unselected_filters) do
-                paintCornerRect(bb, curr_folder_x, curr_folder_y, folder_w, folder_h, folder_r, Blitbuffer.COLOR_BLACK, true, true, false, false)
-                paintCornerRect(bb, curr_folder_x + S(2), curr_folder_y + S(2), folder_w - S(4), folder_h - S(2), math.max(1, folder_r - S(2)), Blitbuffer.COLOR_WHITE, true, true, false, false)
+        for _, fd in ipairs(present_filters) do
+            local is_active = (self._hl_filter == fd.key)
+            
+            -- Calculamos la zona táctil (mínimo de 8 píxeles si están muy superpuestos)
+            local touch_w = math.max(S(8), f_w + f_gap)
+            local f_dimen = Geom:new{ x = curr_f_x, y = menu_y, w = touch_w, h = header_h }
+            table.insert(self._hl_filter_dimens, { key = fd.key, dimen = f_dimen })
 
-                if fd.key == "underline" then
-                    local ul_w = S(11)
-                    local cx = curr_folder_x + math.floor((folder_w - ul_w) / 2)
-                    local cy = curr_folder_y + math.floor(folder_h / 2)
-                    bb:paintRect(cx, cy - S(3), ul_w, S(2), Blitbuffer.COLOR_BLACK)
-                    bb:paintRect(cx, cy + S(3), ul_w, S(2), Blitbuffer.COLOR_BLACK)
-                else
-                    -- Lee el tamaño personalizado (sz) que le pusimos arriba
-                    local tw_f = TextWidget:new{ text = fd.icon, face = Font:getFace("cfont", fd.sz or S(12)), fgcolor = Blitbuffer.COLOR_BLACK }
-                    local tw_f_sz = tw_f:getSize()
-                    local paint_x = curr_folder_x + math.floor((folder_w - tw_f_sz.w) / 2)
-                    local paint_y = curr_folder_y + math.floor((folder_h - tw_f_sz.h) / 2)
-                    
-                    -- Bajamos el ícono de highlight para que encaje mejor en la carpeta
-                    if fd.key == "normal" then
-                        paint_y = paint_y + S(2)
-                    end
-                    
-                    tw_f:paintTo(bb, paint_x, paint_y)
-                    tw_f:paintTo(bb, paint_x + 1, paint_y)
-                    tw_f:free()
-                end
+            local active_icon = is_active and fd.icon_on or fd.icon_off
 
-                table.insert(self._hl_filter_dimens, { key = fd.key, dimen = Geom:new{ x = curr_folder_x, y = menu_y, w = folder_w, h = header_h } })
-                curr_folder_x = curr_folder_x + folder_w + folder_gap
+            -- LÍNEA DE SELECCIÓN (Subrayado elegante)
+            if is_active then
+                bb:paintRect(curr_f_x + S(2), menu_y + header_h - S(3), f_w - S(4), S(3), Blitbuffer.COLOR_BLACK)
             end
+
+            if active_icon then
+                local isz = active_icon:getSize()
+                local ix = curr_f_x + math.floor((f_w - isz.w) / 2)
+                -- Acá está la clave: Todos usan el mismo centro matemático (y_offset ELIMINADO)
+                local iy = curr_f_y + math.floor((f_h - isz.h) / 2) 
+                
+                active_icon:paintTo(bb, ix, iy)
+                if is_active then
+                    active_icon:paintTo(bb, ix + 1, iy) 
+                end
+            end
+
+            curr_f_x = curr_f_x + f_w + f_gap
         end
     end
+
+    local list_y = menu_y + header_h
+    local list_h = exact_menu_h - header_h
 
     if #other_items == 0 then
+
         local n_tw = TextWidget:new{ text = "—", face = Font:getFace("cfont", S_MEDIANO), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
         local n_sz = n_tw:getSize()
         n_tw:paintTo(bb, lm_x + math.floor((lm_w - n_sz.w)/2), list_y + math.floor((list_h - n_sz.h)/2))
@@ -1748,18 +1817,23 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 bb:paintRect(lm_x + S(15), current_row_y + row_h - 1, lm_w - S(30), 1, Blitbuffer.COLOR_GRAY)
             end
             
-            local icon_str = (self._active_tab == "bookmarks") and "\u{F147}" or "\u{F105}" 
-            -- Lista: Menos sin relleno en S(20) para que sea el más chico
-            local list_icon_sz = (self._active_tab == "bookmarks") and S(20) or S(24)
-            local tw_rm = TextWidget:new{ text = icon_str, face = Font:getFace("cfont", list_icon_sz), fgcolor = fg_r }
-            local rm_sz = tw_rm:getSize()
-            local rm_x = lm_x + lm_w - rm_sz.w - S(8)
+            local active_row_icon = (self._active_tab == "bookmarks") and self.icon_box_minus or self.icon_box_arrow
+            local rm_sz = active_row_icon and active_row_icon:getSize() or {w = S(22), h = S(22)}
+            local rm_x = lm_x + lm_w - rm_sz.w - S(12)
             
-            local icon_y_offset = (self._active_tab == "bookmarks") and 0 or S(1)
-            local extra_y = (self._active_tab == "bookmarks") and -2 or 0
-            
-            tw_rm:paintTo(bb, rm_x, current_row_y + math.floor((row_h - rm_sz.h)/2) - icon_y_offset + S(1) + extra_y)
-            tw_rm:free()
+            if active_row_icon then
+                local ix = rm_x
+                local iy = current_row_y + math.floor((row_h - rm_sz.h)/2)
+                
+                if is_r_sel then
+                    -- TRUCO DE MAGIA INVERSIÓN
+                    bb:paintRect(ix, iy, rm_sz.w, rm_sz.h, Blitbuffer.COLOR_WHITE)
+                    active_row_icon:paintTo(bb, ix, iy)
+                    bb:invertRect(ix, iy, rm_sz.w, rm_sz.h)
+                else
+                    active_row_icon:paintTo(bb, ix, iy)
+                end
+            end
             
             local text_max_w_menu = lm_w - rm_sz.w - S(30)
 
@@ -1795,37 +1869,76 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             bb:paintRect(lm_x + S(15), pag_y, lm_w - S(30), S(1), Blitbuffer.COLOR_GRAY)
             
             local pag_str = cur_page .. " / " .. total_pages
-            local pag_tw = TextWidget:new{ text = pag_str, face = Font:getFace("cfont", S(12)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+            local pag_tw = TextWidget:new{ text = pag_str, face = Font:getFace("cfont", S(15)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
             local pag_sz = pag_tw:getSize()
             
             local text_y = pag_y + math.floor((pag_h - pag_sz.h)/2) + S(2)
             pag_tw:paintTo(bb, lm_x + math.floor((lm_w - pag_sz.w)/2), text_y)
             pag_tw:free()
             
-            local btn_w = S(60) 
+            -- Acortamos el ancho para que la caja negra de selección NUNCA pise los números del centro
+            local btn_w = S(48) 
+            
             if cur_page > 1 then
                 self._split_prev_dimen = Geom:new{ x = lm_x, y = pag_y, w = btn_w, h = pag_h }
                 local is_pressed = (self._pressed_btn == "split_prev")
+                
+                local bg_x = self._split_prev_dimen.x + S(6)
+                local bg_y = self._split_prev_dimen.y + S(6)
+                local bg_w = self._split_prev_dimen.w - S(12)
+                local bg_h = self._split_prev_dimen.h - S(12)
+                
                 if is_pressed then
-                    paintRoundRect(bb, self._split_prev_dimen.x + S(4), self._split_prev_dimen.y + S(4), self._split_prev_dimen.w - S(8), self._split_prev_dimen.h - S(8), S(8), Blitbuffer.COLOR_BLACK)
+                    paintRoundRect(bb, bg_x, bg_y, bg_w, bg_h, S(8), Blitbuffer.COLOR_BLACK)
                 end
-                local fg = is_pressed and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-                local p_tw = TextWidget:new{ text = "‹", face = Font:getFace("cfont", S(15)), fgcolor = fg }
-                local p_sz = p_tw:getSize()
-                p_tw:paintTo(bb, lm_x + S(20), pag_y + math.floor((pag_h - p_sz.h)/2) + S(3))
-                p_tw:free()
+                
+                local active_prev_icon = self.icon_chevron_left
+                if active_prev_icon then
+                    local p_sz = active_prev_icon:getSize()
+                    -- Centrado puro matemático adentro del rectángulo de fondo
+                    local ix = bg_x + math.floor((bg_w - p_sz.w) / 2)
+                    local iy = bg_y + math.floor((bg_h - p_sz.h) / 2)
+                    
+                    if is_pressed then
+                        -- Efecto mágico de inversión al tocar
+                        bb:paintRect(ix, iy, p_sz.w, p_sz.h, Blitbuffer.COLOR_WHITE)
+                        active_prev_icon:paintTo(bb, ix, iy)
+                        bb:invertRect(ix, iy, p_sz.w, p_sz.h)
+                    else
+                        active_prev_icon:paintTo(bb, ix, iy)
+                    end
+                end
             end
+            
             if cur_page < total_pages then
                 self._split_next_dimen = Geom:new{ x = lm_x + lm_w - btn_w, y = pag_y, w = btn_w, h = pag_h }
                 local is_pressed = (self._pressed_btn == "split_next")
+                
+                local bg_x = self._split_next_dimen.x + S(6)
+                local bg_y = self._split_next_dimen.y + S(6)
+                local bg_w = self._split_next_dimen.w - S(12)
+                local bg_h = self._split_next_dimen.h - S(12)
+                
                 if is_pressed then
-                    paintRoundRect(bb, self._split_next_dimen.x + S(4), self._split_next_dimen.y + S(4), self._split_next_dimen.w - S(8), self._split_next_dimen.h - S(8), S(8), Blitbuffer.COLOR_BLACK)
+                    paintRoundRect(bb, bg_x, bg_y, bg_w, bg_h, S(8), Blitbuffer.COLOR_BLACK)
                 end
-                local fg = is_pressed and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-                local n_tw = TextWidget:new{ text = "›", face = Font:getFace("cfont", S(15)), fgcolor = fg }
-                local n_sz = n_tw:getSize()
-                n_tw:paintTo(bb, lm_x + lm_w - n_sz.w - S(20), pag_y + math.floor((pag_h - n_sz.h)/2) + S(3))
-                n_tw:free()
+                
+                local active_next_icon = self.icon_chevron_right
+                if active_next_icon then
+                    local n_sz = active_next_icon:getSize()
+                    -- Centrado puro matemático adentro del rectángulo de fondo
+                    local ix = bg_x + math.floor((bg_w - n_sz.w) / 2)
+                    local iy = bg_y + math.floor((bg_h - n_sz.h) / 2)
+                    
+                    if is_pressed then
+                        -- Efecto mágico de inversión al tocar
+                        bb:paintRect(ix, iy, n_sz.w, n_sz.h, Blitbuffer.COLOR_WHITE)
+                        active_next_icon:paintTo(bb, ix, iy)
+                        bb:invertRect(ix, iy, n_sz.w, n_sz.h)
+                    else
+                        active_next_icon:paintTo(bb, ix, iy)
+                    end
+                end
             end
         end
     end
@@ -2061,17 +2174,27 @@ function PageScrubber:_paintToImpl(bb, x, y)
     end
 
     bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
-    bb:paintRect(bd.x, bd.y, bd.w, S(2), Blitbuffer.COLOR_BLACK)
+    bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK) -- Le subimos un punto de grosor
 
     if self._view_mode == "grid_simple" then
         GridSimpleView.paint(self, bb)
     else
-        bb:paintRect(td.x, td.y, td.w, td.h, Blitbuffer.COLOR_WHITE)
-        bb:paintRect(td.x, td.y + td.h - S(1), td.w, S(1), Blitbuffer.COLOR_BLACK)
-
+        -- 1. Pintamos el fondo blanco PRIMERO para que no le borre la sombra a la solapa
         local title_strip_y = td.y + td.h
         local title_strip_h = self._grid_dimen.y - title_strip_y
         bb:paintRect(0, title_strip_y, sw, title_strip_h, Blitbuffer.COLOR_WHITE)
+
+        -- 2. Solapa de ancho completo con sombra
+        local tab_border = S(3)
+        local tab_radius = S(38) 
+        local shadow_offset = S(4) -- Caída de la sombra
+        
+        -- Sombra gris oscura
+        paintBottomRoundedTab(bb, td.x, td.y + shadow_offset, td.w, td.h, tab_radius, Blitbuffer.COLOR_DARK_GRAY)
+        -- Contorno negro
+        paintBottomRoundedTab(bb, td.x, td.y, td.w, td.h, tab_radius, Blitbuffer.COLOR_BLACK)
+        -- Interior blanco
+        paintBottomRoundedTab(bb, td.x + tab_border, td.y, td.w - (tab_border * 2), td.h - tab_border, math.max(1, tab_radius - tab_border), Blitbuffer.COLOR_WHITE)
         
         if self._view_mode == "grid" then
             local title_x = pad
@@ -2098,8 +2221,6 @@ function PageScrubber:_paintToImpl(bb, x, y)
 
         local function drawFloatingBtn(btn_id, dimen, tw, is_disabled)
             local is_pressed = (self._pressed_btn == btn_id)
-            local fg_color = is_pressed and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-            if is_disabled then fg_color = Blitbuffer.COLOR_LIGHT_GRAY end
             
             local cx = dimen.x + math.floor(dimen.w / 2)
             local cy = dimen.y + math.floor(dimen.h / 2)
@@ -2111,18 +2232,33 @@ function PageScrubber:_paintToImpl(bb, x, y)
                     paintRoundRect(bb, bg_d.x, bg_d.y, bg_d.w, bg_d.h, S(8), bg_color)
                 end
                 
-                tw.fgcolor = fg_color
                 local tsz = tw:getSize()
-                local x_offset = 0
-                local y_offset = 0
-                if tw.text == "\u{F015}" or tw.text == "\u{F0F6}" or tw.text == "\u{F02D}" or tw.text == "\u{F044}" or tw.text == "\u{F44E}" or tw.text == "\u{F0CA}" or tw.text == "\u{E344}" then
-                    y_offset = S(1)
-                elseif tw.text == "⚙" then
-                    y_offset = -S(1) - 1
-                    x_offset = -S(1) - 2
+                local ix = cx - math.floor(tsz.w / 2)
+                local iy = cy - math.floor(tsz.h / 2)
+                
+                -- Respetamos los offsets por si no tenés el SVG y usa la fuente de emergencia
+                if tw.text then
+                    if tw.text == "\u{F015}" or tw.text == "\u{F0F6}" or tw.text == "\u{F02D}" or tw.text == "\u{F044}" or tw.text == "\u{F44E}" or tw.text == "\u{F0CA}" or tw.text == "\u{E344}" then
+                        iy = iy + S(1)
+                    elseif tw.text == "⚙" then
+                        iy = iy - S(1) - 1
+                        ix = ix - S(1) - 2
+                    end
                 end
 
-                tw:paintTo(bb, cx - math.floor(tsz.w / 2) + x_offset, cy - math.floor(tsz.h / 2) + y_offset)
+                if is_pressed and not is_disabled then
+                    -- TRUCO DE MAGIA: Inversión de colores anti-caché
+                    bb:paintRect(ix, iy, tsz.w, tsz.h, Blitbuffer.COLOR_WHITE)
+                    tw:paintTo(bb, ix, iy)
+                    bb:invertRect(ix, iy, tsz.w, tsz.h)
+                else
+                    if is_disabled then
+                        tw.fgcolor = Blitbuffer.COLOR_LIGHT_GRAY
+                    else
+                        tw.fgcolor = Blitbuffer.COLOR_BLACK
+                    end
+                    tw:paintTo(bb, ix, iy)
+                end
             end
         end
 
@@ -2134,7 +2270,11 @@ function PageScrubber:_paintToImpl(bb, x, y)
         self.tw_lib_label:paintTo(bb, self._lib_label_x + 1, self._lib_label_y + 1)
 
         drawFloatingBtn("toc", self._toc_dimen, self.tw_toc)
-        drawFloatingBtn("bm", self._bm_dimen, self.tw_bm)
+        
+        -- Magia dinámica: Si estamos en el menú (split) mostramos la galería, sino el cuaderno
+        local active_bm_icon = (self._view_mode == "split") and self.tw_gallery or self.tw_bm
+        drawFloatingBtn("bm", self._bm_dimen, active_bm_icon)
+        
         drawFloatingBtn("fn", self._fn_dimen, self.tw_fn)
         drawFloatingBtn("x", self._x_dimen, self.tw_x)
     end
@@ -2153,9 +2293,14 @@ function PageScrubber:_paintToImpl(bb, x, y)
         tw.fgcolor = fg_color
         local tsz = tw:getSize()
         local y_offset = 0
+        
         if tw.text == "\u{F097}" or tw.text == "\u{F02E}" then y_offset = S(1)
         elseif tw.text == "\u{EBAD}" or tw.text == "\u{EBAC}" then y_offset = -S(1)
         elseif tw.text == "\u{F0D9}" or tw.text == "\u{F0DA}" then y_offset = -S(2) end
+        
+        -- HACK: Le damos un toque para arriba a nuestro SVG nuevo
+        if btn_id == "ctrl_mark" then y_offset = -S(1) - 1 end
+
         tw:paintTo(bb, cx - math.floor(tsz.w / 2), cy - math.floor(tsz.h / 2) + y_offset)
     end
 
@@ -2163,7 +2308,9 @@ function PageScrubber:_paintToImpl(bb, x, y)
     drawFloatingBtnBottom("ch_r", self._next_ch_dimen, self.tw_ch_r, not can_next_ch)
 
     local is_marked = self:_isCurrentPageBookmarked(current_display)
-    self.tw_ctrl_mark:setText(is_marked and "\u{F02E}" or "\u{F097}")
+    
+    -- En vez de cambiar texto, le pasamos el SVG lleno o el SVG vacío según corresponda
+    self.tw_ctrl_mark = is_marked and self.icon_mark_filled or self.icon_mark_empty
 
     local has_prev_bm = self:_findPrevBookmark() ~= nil
     local has_next_bm = self:_findNextBookmark() ~= nil
@@ -2190,13 +2337,14 @@ function PageScrubber:_paintToImpl(bb, x, y)
         self.tw_chapter:paintTo(bb, ctx, new_ch_y + 1)
         self.tw_chapter:paintTo(bb, ctx + 1, new_ch_y + 1)
 
-        -- 2. Progreso: DENTRO de la tarjeta blanca, por encima de su línea negra
+        -- 2. Progreso: DENTRO de la tarjeta blanca, bajado un poquitín más
         local new_info_y
         if self._gs_panel_dimen then
             -- Encontramos la línea negra inferior exacta de la Polaroid
             local card_bottom = self._gs_panel_dimen.y + self._gs_panel_dimen.h
-            -- Restamos la altura del texto y un margen S(8) para dejarlo del lado de adentro
-            new_info_y = card_bottom - isz.h - S(8)
+            -- Lo pegamos bien abajo achicando el margen interno a S(2)
+            -- (Nota: Si lo preferís flotando por FUERA de la tarjeta, cambialo a: card_bottom + S(12) )
+            new_info_y = card_bottom - isz.h - S(2)
         else
             -- Posición segura por si la tarjeta tarda un milisegundo en aparecer (evita el salto)
             new_info_y = self._bar_dimen.y - isz.h - S(40)
@@ -2367,6 +2515,11 @@ end
 function PageScrubber:onTap(_, ges)
     self:_cancelHold()
     if self._closing then return true end
+    
+    -- Si el escudo todavía está activo (no pasaron los 0.4s), ignoramos olímpicamente el toque fantasma
+    if not self._anti_ghost_ready then
+        return true 
+    end
 
     if self._view_mode == "grid_simple" and self._gs_panel_dimen then
         if not ges.pos:intersectWith(self._gs_panel_dimen) and not ges.pos:intersectWith(self._bar_dimen) then
@@ -2545,10 +2698,40 @@ function PageScrubber:onTap(_, ges)
             return true
         end
 
-        if self._toc_dimen and ges.pos:intersectWith(self._toc_dimen) then
-            self:_flashAndDo("toc", self._toc_dimen, function() self:_closeAndShow("ShowToc") end)
-            return true
-        end
+    if self._toc_dimen and ges.pos:intersectWith(self._toc_dimen) then
+        -- CAPTURA DEL WIDGET: Ruta explícita y forzada para Android
+        self:_flashAndDo("toc", self._toc_dimen, function()
+            UIManager:setDirty(self, "ui", self._toc_dimen)
+            
+            UIManager:scheduleIn(0.25, function()
+                local ok, err = pcall(function()
+                    local uim = require("ui/uimanager")
+                    local env = require("env")
+                    local os = require("os")
+                    
+                    -- Le armamos la ruta EXACTA en la carpeta de KOReader (donde tiene permisos)
+                    local path = env.getHomeDir() .. "/screenshot_" .. os.date("%H%M%S") .. ".png"
+                    
+                    if uim.takeScreenshot then
+                        uim:takeScreenshot(path)
+                        -- Cartel de éxito con la ruta para que la encuentres fácil
+                        require("ui/widget/infomessage"):new{ 
+                            text = "📸 ¡Captura lista!\nGuardada en:\n" .. path, 
+                            timeout = 5 
+                        }:show()
+                    else
+                        require("ui/widget/infomessage"):new{ text = "No se pudo acceder a la cámara interna", timeout = 4 }:show()
+                    end
+                end)
+                
+                -- Si hay error técnico, lo mostramos en pantalla sin crashear el e-reader
+                if not ok then
+                    require("ui/widget/infomessage"):new{ text = "Error: " .. tostring(err), timeout = 6 }:show()
+                end
+            end)
+        end)
+        return true
+    end
         if self._x_dimen and ges.pos:intersectWith(self._x_dimen) then
             self:_flashAndDo("x", self._x_dimen, function() self:_closeReturn() end)
             return true
@@ -2783,10 +2966,29 @@ function PageScrubber:onHold(_, ges)
     end
     
     if self._toc_dimen and ges.pos:intersectWith(self._toc_dimen) then
-        pcall(function()
-            if UIManager.takeScreenshot then UIManager:takeScreenshot()
-            elseif self.ui and self.ui.onTakeScreenshot then self.ui:onTakeScreenshot()
-            elseif self.ui and self.ui.handleEvent then self.ui:handleEvent(Event:new("TakeScreenshot")) end
+        -- CAPTURA DEL WIDGET: Vía segura y con aviso visual
+        self:_flashAndDo("toc", self._toc_dimen, function()
+            -- Destella el botón para confirmar el toque
+            UIManager:setDirty(self, "ui", self._toc_dimen)
+            
+            -- Retraso de un cuartito de segundo para no pisar la memoria gráfica
+            UIManager:scheduleIn(0.25, function()
+                pcall(function()
+                    -- 1. Disparamos el evento silencioso original de KOReader
+                    local Event = require("ui/event")
+                    if self.ui and self.ui.handleEvent then
+                        self.ui:handleEvent(Event:new("TakeScreenshot"))
+                    else
+                        require("ui/uimanager"):broadcastEvent(Event:new("TakeScreenshot"))
+                    end
+                    
+                    -- 2. Le metemos el cartel nosotros a la fuerza para saber que funcionó
+                    require("ui/widget/infomessage"):new{ 
+                        text = "📸 Captura solicitada\n(Buscá en la carpeta principal de KOReader)", 
+                        timeout = 3 
+                    }:show()
+                end)
+            end)
         end)
         return true
     end
@@ -2903,7 +3105,7 @@ function PageScrubber:onCloseWidget()
     local widgets_to_free = {
         self._tw_tab_sort, self._tw_tab_bm, self._tw_tab_hl, self._tw_tab_note,
         self.tw_booktitle, self.tw_chapter, self.tw_info,
-        self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_toc, self.tw_x,
+        self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_gallery, self.tw_toc, self.tw_x,
         self.tw_ch_l, self.tw_ch_r,
         self.tw_ctrl_prev, self.tw_ctrl_mark, self.tw_ctrl_next,
         self.tw_fb_l, self.tw_fb_r,
@@ -2922,5 +3124,5 @@ function PageScrubber:onClose()
     self:_closeStay()
     return true
 end
-
+    
 return PageScrubber

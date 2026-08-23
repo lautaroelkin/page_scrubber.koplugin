@@ -1,4 +1,3 @@
-
 --[[
     page_scrubber.koplugin/grid_simple_view.lua
 ]]--
@@ -8,6 +7,33 @@ local Font       = require("ui/font")
 local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 local os         = require("os")
+
+-- 1. Importamos la matemática de bordes redondeados
+local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, round_bl, round_br)
+    if w <= 0 or h <= 0 then return end
+    r = math.min(r, math.floor(w / 2), math.floor(h / 2))
+    if r <= 0 then bb:paintRect(x, y, w, h, color); return end
+    bb:paintRect(x + r, y, w - 2*r, h, color)
+    bb:paintRect(x, y + r, r, math.max(1, h - 2*r), color)
+    bb:paintRect(x + w - r, y + r, r, math.max(1, h - 2*r), color)
+    if not round_tl then bb:paintRect(x, y, r, r, color) end
+    if not round_tr then bb:paintRect(x + w - r, y, r, r, color) end
+    if not round_bl then bb:paintRect(x, y + h - r, r, r, color) end
+    if not round_br then bb:paintRect(x + w - r, y + h - r, r, r, color) end
+    for j = 0, r - 1 do
+        local arc = math.ceil(math.sqrt(r*r - (r-j-0.5)*(r-j-0.5)))
+        if arc > 0 then
+            if round_tl then bb:paintRect(x + r - arc, y + j, arc, 1, color) end
+            if round_tr then bb:paintRect(x + w - r,   y + j, arc, 1, color) end
+            if round_bl then bb:paintRect(x + r - arc, y + h - 1 - j, arc, 1, color) end
+            if round_br then bb:paintRect(x + w - r,   y + h - 1 - j, arc, 1, color) end
+        end
+    end
+end
+
+local function paintRoundRect(bb, x, y, w, h, r, color)
+    paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
+end
 
 local GridSimpleView = {}
 
@@ -26,7 +52,6 @@ function GridSimpleView.paint(scrubber, bb)
         target_h = math.floor(target_w * (sh / sw))
     end
 
-    -- Ajuste de anchura: un punto intermedio, ni tan ancho como el original ni tan apretado
     local pad_x = S(8)
     local arrow_area_w = S(38)
     local top_offset = S(55) 
@@ -42,9 +67,17 @@ function GridSimpleView.paint(scrubber, bb)
 
     scrubber._gs_panel_dimen = Geom:new{ x = panel_x, y = panel_y, w = panel_w, h = panel_h }
 
-    bb:paintRect(panel_x, panel_y, panel_w, panel_h, Blitbuffer.COLOR_WHITE)
-    -- Contorno exterior de 3px de grosor
-    bb:paintBorder(panel_x, panel_y, panel_w, panel_h, S(3), Blitbuffer.COLOR_BLACK, 0)
+    -- 2. MAGIA DE DISEÑO: Bordes redondeados y sombra offset dura
+    local shadow_offset = S(6)
+    local radius = S(12)
+    local border = S(3)
+
+    -- Sombreado desfasado (Gris Oscuro para pantallas e-ink)
+    paintRoundRect(bb, panel_x + shadow_offset, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    -- Borde negro (fondo de la tarjeta)
+    paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
+    -- Relleno blanco
+    paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
     local time_str = os.date("%H:%M")
     local tw_clock = TextWidget:new{ text = time_str, face = Font:getFace("cfont", S(13)), fgcolor = Blitbuffer.COLOR_BLACK }
@@ -96,28 +129,33 @@ function GridSimpleView.paint(scrubber, bb)
         end
     end
 
-    local arr_font = Font:getFace("cfont", S(40))
-    local tw_l = TextWidget:new{ text = "‹", face = arr_font, fgcolor = Blitbuffer.COLOR_BLACK }
-    local tw_r = TextWidget:new{ text = "›", face = arr_font, fgcolor = Blitbuffer.COLOR_BLACK }
-    local lsz = tw_l:getSize()
-    local rsz = tw_r:getSize()
+    -- 3. Dibujamos los Chevrons SVG (con tamaño doble exclusivo para el grid)
+    local icon_l = scrubber.icon_gs_chevron_left or scrubber.icon_chevron_left
+    local icon_r = scrubber.icon_gs_chevron_right or scrubber.icon_chevron_right
+    local lsz = icon_l and icon_l:getSize() or {w = S(44), h = S(44)}
+    local rsz = icon_r and icon_r:getSize() or {w = S(44), h = S(44)}
 
     local left_arrow_x = panel_x + pad_x + math.floor((arrow_area_w - lsz.w) / 2)
     local right_arrow_x = page_x + target_w + math.floor((arrow_area_w - rsz.w) / 2)
     
-    -- Flechas centradas verticalmente respecto al panel general (para que no se vean caídas)
-    local arrow_y = panel_y + math.floor((panel_h - lsz.h) / 2)
+    local arrow_l_y = panel_y + math.floor((panel_h - lsz.h) / 2)
+    local arrow_r_y = panel_y + math.floor((panel_h - rsz.h) / 2)
 
-    tw_l:paintTo(bb, left_arrow_x, arrow_y)
-    tw_r:paintTo(bb, right_arrow_x, arrow_y)
-    tw_l:free()
-    tw_r:free()
+    if icon_l then
+        icon_l.fgcolor = Blitbuffer.COLOR_BLACK
+        icon_l:paintTo(bb, left_arrow_x, arrow_l_y)
+        icon_l:paintTo(bb, left_arrow_x + 1, arrow_l_y) 
+    end
+    if icon_r then
+        icon_r.fgcolor = Blitbuffer.COLOR_BLACK
+        icon_r:paintTo(bb, right_arrow_x, arrow_r_y)
+        icon_r:paintTo(bb, right_arrow_x + 1, arrow_r_y) 
+    end
 
-    -- Ajuste milimétrico de la X
-    local tw_x = TextWidget:new{ text = "✕", face = Font:getFace("cfont", S(19)), fgcolor = Blitbuffer.COLOR_BLACK }
-    local xsz = tw_x:getSize()
+    -- 4. Dibujamos la Cruz SVG para cerrar (tamaño ajustado al grid simple)
+    local icon_x = scrubber.icon_gs_x or scrubber.tw_x
+    local xsz = icon_x and icon_x:getSize() or {w = S(36), h = S(36)}
     
-    -- X anclada a la derecha del panel con margen seguro y a la altura de la hora
     local xx = panel_x + panel_w - xsz.w - S(16)
     local xy = clock_y + math.floor((csz.h - xsz.h) / 2)
 
@@ -129,8 +167,10 @@ function GridSimpleView.paint(scrubber, bb)
         h = touch_btn_size
     }
 
-    tw_x:paintTo(bb, xx, xy)
-    tw_x:free()
+    if icon_x then
+        icon_x.fgcolor = Blitbuffer.COLOR_BLACK
+        icon_x:paintTo(bb, xx, xy)
+    end
 
     scrubber._gs_prev_dimen = Geom:new{ x = panel_x, y = panel_y, w = pad_x + arrow_area_w, h = panel_h }
     local next_y_start = scrubber._gs_close_dimen.y + scrubber._gs_close_dimen.h
