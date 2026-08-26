@@ -678,4 +678,3 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
 end
 
 return MenuView
-

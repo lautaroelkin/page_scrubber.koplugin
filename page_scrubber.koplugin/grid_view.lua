@@ -1,4 +1,3 @@
-
 --[[
     page_scrubber.koplugin/grid_view.lua
 ]]--
