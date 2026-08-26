@@ -1459,7 +1459,6 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local card_w = pr_w
     local card_h = pr_h + status_h
     
-    paintTopSquareBottomRounded(bb, card_x + shadow_offset, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
     paintTopSquareBottomRounded(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
     local b_thick = S(3) 
     paintTopSquareBottomRounded(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
@@ -1646,59 +1645,82 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     end
 
     if show_delete_btn and not self._hide_action_buttons then
-        local bw, bh = S(48), S(48)
-        local btn_x = card_x + pr_w - bw - S(20)
+        local bw, bh = S(56), S(56)
+        local btn_x = card_x + S(20)
         local btn_y = card_y + pr_h - bh - S(76)
+        local btn_thick = S(3)
+        local btn_radius = S(16)
 
-        paintRoundRect(bb, btn_x + S(3), btn_y + S(3), bw, bh, S(12), Blitbuffer.COLOR_DARK_GRAY)
-        paintRoundRect(bb, btn_x, btn_y, bw, bh, S(12), Blitbuffer.COLOR_WHITE)
-        paintRoundRect(bb, btn_x+S(2), btn_y+S(2), bw-S(4), bh-S(4), S(10), Blitbuffer.COLOR_BLACK)
-        paintRoundRect(bb, btn_x+S(4), btn_y+S(4), bw-S(8), bh-S(8), S(8), Blitbuffer.COLOR_WHITE)
+        -- Trash Button (Blanco por defecto, Activo Negro)
+        local is_trash_active = self._show_delete_confirm or (self._pressed_btn == "delete")
+        paintRoundRect(bb, btn_x, btn_y, bw, bh, btn_radius, Blitbuffer.COLOR_BLACK)
+        if not is_trash_active then
+            paintRoundRect(bb, btn_x + btn_thick, btn_y + btn_thick, bw - btn_thick*2, bh - btn_thick*2, math.max(1, btn_radius - btn_thick), Blitbuffer.COLOR_WHITE)
+        end
 
         if self.icon_btn_trash then
             local isz_btn = self.icon_btn_trash:getSize()
             local bix = btn_x + math.floor((bw - isz_btn.w)/2)
             local biy = btn_y + math.floor((bh - isz_btn.h)/2)
-            self.icon_btn_trash:paintTo(bb, bix, biy)
+            if is_trash_active then
+                bb:paintRect(bix, biy, isz_btn.w, isz_btn.h, Blitbuffer.COLOR_WHITE)
+                self.icon_btn_trash:paintTo(bb, bix, biy)
+                bb:invertRect(bix, biy, isz_btn.w, isz_btn.h)
+            else
+                self.icon_btn_trash:paintTo(bb, bix, biy)
+            end
         end
-
         self._btn_delete_dimen = Geom:new{ x = btn_x, y = btn_y, w = bw, h = bh }
 
+        -- Edit Button (Blanco por defecto, Activo Negro)
         local ebw, ebh = bw, bh
-        local edit_gap = S(10)
+        local edit_gap = S(8)
         local ebtn_x = btn_x
         local ebtn_y = btn_y - ebh - edit_gap
-
-        paintRoundRect(bb, ebtn_x + S(3), ebtn_y + S(3), ebw, ebh, S(12), Blitbuffer.COLOR_DARK_GRAY)
-        paintRoundRect(bb, ebtn_x, ebtn_y, ebw, ebh, S(12), Blitbuffer.COLOR_WHITE)
-        paintRoundRect(bb, ebtn_x+S(2), ebtn_y+S(2), ebw-S(4), ebh-S(4), S(10), Blitbuffer.COLOR_BLACK)
-        paintRoundRect(bb, ebtn_x+S(4), ebtn_y+S(4), ebw-S(8), ebh-S(8), S(8), Blitbuffer.COLOR_WHITE)
+        
+        local is_edit_active = (self._pressed_btn == "edit")
+        paintRoundRect(bb, ebtn_x, ebtn_y, ebw, ebh, btn_radius, Blitbuffer.COLOR_BLACK)
+        if not is_edit_active then
+            paintRoundRect(bb, ebtn_x + btn_thick, ebtn_y + btn_thick, ebw - btn_thick*2, ebh - btn_thick*2, math.max(1, btn_radius - btn_thick), Blitbuffer.COLOR_WHITE)
+        end
 
         if self.icon_btn_edit then
             local isz_edit = self.icon_btn_edit:getSize()
             local eix = ebtn_x + math.floor((ebw - isz_edit.w)/2)
             local eiy = ebtn_y + math.floor((ebh - isz_edit.h)/2)
-            self.icon_btn_edit:paintTo(bb, eix, eiy)
+            if is_edit_active then
+                bb:paintRect(eix, eiy, isz_edit.w, isz_edit.h, Blitbuffer.COLOR_WHITE)
+                self.icon_btn_edit:paintTo(bb, eix, eiy)
+                bb:invertRect(eix, eiy, isz_edit.w, isz_edit.h)
+            else
+                self.icon_btn_edit:paintTo(bb, eix, eiy)
+            end
         end
-
         self._btn_edit_dimen = Geom:new{ x = ebtn_x, y = ebtn_y, w = ebw, h = ebh }
 
+        -- Type (Highlight Color) Button (Blanco por defecto, Activo Negro)
         local tbw, tbh = bw, bh
         local tbtn_x = btn_x
         local tbtn_y = ebtn_y - tbh - edit_gap
 
-        paintRoundRect(bb, tbtn_x + S(3), tbtn_y + S(3), tbw, tbh, S(12), Blitbuffer.COLOR_DARK_GRAY)
-        paintRoundRect(bb, tbtn_x, tbtn_y, tbw, tbh, S(12), Blitbuffer.COLOR_WHITE)
-        paintRoundRect(bb, tbtn_x+S(2), tbtn_y+S(2), tbw-S(4), tbh-S(4), S(10), Blitbuffer.COLOR_BLACK)
-        paintRoundRect(bb, tbtn_x+S(4), tbtn_y+S(4), tbw-S(8), tbh-S(8), S(8), Blitbuffer.COLOR_WHITE)
+        local is_type_active = self._show_type_picker or (self._pressed_btn == "type")
+        paintRoundRect(bb, tbtn_x, tbtn_y, tbw, tbh, btn_radius, Blitbuffer.COLOR_BLACK)
+        if not is_type_active then
+            paintRoundRect(bb, tbtn_x + btn_thick, tbtn_y + btn_thick, tbw - btn_thick*2, tbh - btn_thick*2, math.max(1, btn_radius - btn_thick), Blitbuffer.COLOR_WHITE)
+        end
 
         if self.icon_btn_type then
             local isz_type = self.icon_btn_type:getSize()
             local tix = tbtn_x + math.floor((tbw - isz_type.w)/2)
             local tiy = tbtn_y + math.floor((tbh - isz_type.h)/2)
-            self.icon_btn_type:paintTo(bb, tix, tiy)
+            if is_type_active then
+                bb:paintRect(tix, tiy, isz_type.w, isz_type.h, Blitbuffer.COLOR_WHITE)
+                self.icon_btn_type:paintTo(bb, tix, tiy)
+                bb:invertRect(tix, tiy, isz_type.w, isz_type.h)
+            else
+                self.icon_btn_type:paintTo(bb, tix, tiy)
+            end
         end
-
         self._btn_type_dimen = Geom:new{ x = tbtn_x, y = tbtn_y, w = tbw, h = tbh }
 
         if self._show_delete_confirm then
@@ -1706,13 +1728,18 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local ch = S(56)
             local cx = card_x + S(20)
             local cy = card_y + pr_h - ch - S(10)
+            local b_thick = S(3)
 
-            paintRoundRect(bb, cx + S(4), cy + S(4), cw, ch, S(14), Blitbuffer.COLOR_DARK_GRAY)
+            local is_del_pressed = (self._pressed_btn == "confirm_del")
+            
+            -- Fondo negro por defecto. Si se presiona, el interior se vuelve blanco
             paintRoundRect(bb, cx, cy, cw, ch, S(14), Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, cx + S(2), cy + S(2), cw - S(4), ch - S(4), S(12), Blitbuffer.COLOR_WHITE)
-            paintRoundRect(bb, cx + S(4), cy + S(4), cw - S(8), ch - S(8), S(10), Blitbuffer.COLOR_BLACK)
+            if is_del_pressed then
+                paintRoundRect(bb, cx + b_thick, cy + b_thick, cw - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
+            end
 
-            local ctw = TextWidget:new{ text = "Delete", face = Font:getFace("cfont", S(17)), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
+            local fg_col = is_del_pressed and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
+            local ctw = TextWidget:new{ text = "Delete", face = Font:getFace("cfont", S(17)), bold = true, fgcolor = fg_col }
             local ctsz = ctw:getSize()
             ctw:paintTo(bb, cx + math.floor((cw - ctsz.w)/2), cy + math.floor((ch - ctsz.h)/2))
             ctw:free()
@@ -1725,11 +1752,12 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local ch = S(56)
             local cx = card_x + S(20)
             local cy = card_y + pr_h - ch - S(10)
+            local b_thick = S(3)
 
-            paintRoundRect(bb, cx + S(4), cy + S(4), cw, ch, S(14), Blitbuffer.COLOR_DARK_GRAY)
-            paintRoundRect(bb, cx, cy, cw, ch, S(14), Blitbuffer.COLOR_WHITE)
-            paintRoundRect(bb, cx+S(2), cy+S(2), cw-S(4), ch-S(4), S(12), Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, cx+S(4), cy+S(4), cw-S(8), ch-S(8), S(10), Blitbuffer.COLOR_WHITE)
+            -- Sombra inferior solamente
+            paintRoundRect(bb, cx, cy + S(4), cw, ch, S(14), Blitbuffer.COLOR_DARK_GRAY)
+            paintRoundRect(bb, cx, cy, cw, ch, S(14), Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, cx + b_thick, cy + b_thick, cw - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
 
             local current_drawer = "lighten"
             local pd_edit = self._page_data[self._cur_page]
@@ -2181,9 +2209,18 @@ function PageScrubber:_gotoPage(page)
     self._nav_token = (self._nav_token or 0) + 1
     local my_token = self._nav_token
     local target_page = self._cur_page
+    local origin_page = self._origin_page
 
     self:_waitForIdle(function()
         if self._nav_token == my_token then
+            -- Guardamos la ubicación en el historial de KOReader antes de hacer el salto
+            if target_page ~= origin_page then
+                pcall(function()
+                    if self.ui.link and self.ui.link.addCurrentLocationToStack then
+                        self.ui.link:addCurrentLocationToStack()
+                    end
+                end)
+            end
             self.ui:handleEvent(Event:new("GotoPage", target_page))
         end
     end)
@@ -2488,7 +2525,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
 
         local tab_border = S(3)
         local tab_radius = S(38) 
-        local shadow_offset = S(4) 
+        local shadow_offset = S(2) -- Sombreado sutil en gris oscuro
         
         paintBottomRoundedTab(bb, td.x, td.y + shadow_offset, td.w, td.h, tab_radius, Blitbuffer.COLOR_DARK_GRAY)
         paintBottomRoundedTab(bb, td.x, td.y, td.w, td.h, tab_radius, Blitbuffer.COLOR_BLACK)
@@ -3012,7 +3049,9 @@ function PageScrubber:onTap(_, ges)
         end
 
         if self._btn_edit_dimen and ges.pos:intersectWith(self._btn_edit_dimen) then
-            self:_openNoteTextEditor()
+            self:_flashAndDo("edit", self._btn_edit_dimen, function()
+                self:_openNoteTextEditor()
+            end)
             return true
         end
 
