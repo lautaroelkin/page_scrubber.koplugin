@@ -12,6 +12,7 @@ This plugin allows you to quickly flip back and forth through the book, with the
 * **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu (but obviously the easiest way to lunch the grids is with a gesture!). 
 
 > ⚠️ **IMPORTANT:** You MUST delete any old or duplicate `.lua` scrubber/browser files from your KOReader plugins/patches folder before installing this new version.
+> ⚠️ **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 Get the plugin in the release page!
  
