@@ -9,7 +9,7 @@ This plugin allows you to quickly flip back and forth through the book, with the
 * **Advanced Navigation:** Interactive progress slider, chapter-skip buttons, a quick-access top toolbar, and physical D-Pad support.
 * **Split-View Annotations (NEW):** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
 * **Robust UI Scaling (NEW):** Auto-adapting layout that prevents crashes or overlapping at any scale (long-press the Gear icon to resize).
-* **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu. 
+* **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu (but obviously the easiest way to lunch the grids is with a gesture!). 
 
 > ⚠️ **IMPORTANT:** You MUST delete any old or duplicate `.lua` scrubber/browser files from your KOReader plugins/patches folder before installing this new version.
 
@@ -35,7 +35,7 @@ Get the plugin in the release page!
 ## 🚀 Setup & Activation
  1. Open a book in KOReader.
  2. Go to **Settings** (⚙️) > **Gestures** > **Reader**.
- 3. Choose your preferred gesture and bind it to any of the 4 available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Menu (BM)**, or **Page browser: Menu (highlights)**.
+ 3. Choose your preferred gesture and bind it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**,**Page browser: Multi-grid**, **Page browser: Menu (BM)**, or **Page browser: Menu (highlights)**. 
 
 > 💡 **Tip:** You don't *have* to use gestures! You can also launch all 4 views and access the new configuration options directly from KOReader's top menu.
 
