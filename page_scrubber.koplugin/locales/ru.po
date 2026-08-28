@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Library"
+msgstr "Библиотека"
+
+msgid "Page"
+msgstr "Стр."
+
+msgid "Pages"
+msgstr "Страницы"
+
+msgid "Added on"
+msgstr "Добавлено"
+
+msgid "Bookmarked"
+msgstr "В закладках"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Jan"
+msgstr "Янв"
+
+msgid "Feb"
+msgstr "Фев"
+
+msgid "Mar"
+msgstr "Мар"
+
+msgid "Apr"
+msgstr "Апр"
+
+msgid "May"
+msgstr "Май"
+
+msgid "Jun"
+msgstr "Июн"
+
+msgid "Jul"
+msgstr "Июл"
+
+msgid "Aug"
+msgstr "Авг"
+
+msgid "Sep"
+msgstr "Сен"
+
+msgid "Oct"
+msgstr "Окт"
+
+msgid "Nov"
+msgstr "Ноя"
+
+msgid "Dec"
+msgstr "Дек"
+
+msgid "No chapters found"
+msgstr "Главы не найдены"
+
+msgid "Updating highlight…"
+msgstr "Обновление выделения…"
+
+msgid "Edit note"
+msgstr "Изменить заметку"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Configuration"
+msgstr "Настройки"
+
+msgid "UI Scale:"
+msgstr "Масштаб интерфейса:"
+
+msgid "UI Scale (%)"
+msgstr "Масштаб интерфейса (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "Сетка на 3 страницы: Показывать полные страницы"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Сетка"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Простая сетка"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Мульти-сетка"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Меню (Закладки)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Меню (Выделения)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Оглавление"
+
+msgid "Export notes of this document"
+msgstr "Экспорт заметок этого документа"
+
+msgid "Notes"
+msgstr "Заметки"
+
+msgid "Export as..."
+msgstr "Экспортировать как..."
+
+msgid "Exporting..."
+msgstr "Экспорт..."
+
+msgid "Saved successfully in:"
+msgstr "Успешно сохранено в:"
+
+msgid "Failed to export notes"
+msgstr "Не удалось экспортировать заметки"
+
+msgid "Untitled"
+msgstr "Без названия"
+
+msgid "Chapter"
+msgstr "Глава"

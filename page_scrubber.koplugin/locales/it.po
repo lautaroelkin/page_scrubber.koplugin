@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: it\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Library"
+msgstr "Biblioteca"
+
+msgid "Page"
+msgstr "Pag"
+
+msgid "Pages"
+msgstr "Pagine"
+
+msgid "Added on"
+msgstr "Aggiunto il"
+
+msgid "Bookmarked"
+msgstr "Segnalibro"
+
+msgid "Delete"
+msgstr "Elimina"
+
+msgid "Jan"
+msgstr "Gen"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "Mag"
+
+msgid "Jun"
+msgstr "Giu"
+
+msgid "Jul"
+msgstr "Lug"
+
+msgid "Aug"
+msgstr "Ago"
+
+msgid "Sep"
+msgstr "Set"
+
+msgid "Oct"
+msgstr "Ott"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dic"
+
+msgid "No chapters found"
+msgstr "Nessun capitolo trovato"
+
+msgid "Updating highlight…"
+msgstr "Aggiornamento evidenziazione…"
+
+msgid "Edit note"
+msgstr "Modifica nota"
+
+msgid "Cancel"
+msgstr "Annulla"
+
+msgid "Save"
+msgstr "Salva"
+
+msgid "Configuration"
+msgstr "Configurazione"
+
+msgid "UI Scale:"
+msgstr "Scala dell'interfaccia:"
+
+msgid "UI Scale (%)"
+msgstr "Scala dell'interfaccia (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "Griglia a 3 pagine: Mostra pagine intere"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Griglia"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Griglia semplice"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Multi-Griglia"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Menu (Segnalibri)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Menu (Evidenziazioni)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Indice"
+
+msgid "Export notes of this document"
+msgstr "Esporta le note di questo documento"
+
+msgid "Notes"
+msgstr "Note"
+
+msgid "Export as..."
+msgstr "Esporta come..."
+
+msgid "Exporting..."
+msgstr "Esportazione..."
+
+msgid "Saved successfully in:"
+msgstr "Salvato con successo in:"
+
+msgid "Failed to export notes"
+msgstr "Impossibile esportare le note"
+
+msgid "Untitled"
+msgstr "Senza titolo"
+
+msgid "Chapter"
+msgstr "Capitolo"

@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: nl\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Library"
+msgstr "Bibliotheek"
+
+msgid "Page"
+msgstr "Pagina"
+
+msgid "Pages"
+msgstr "Pagina's"
+
+msgid "Added on"
+msgstr "Toegevoegd op"
+
+msgid "Bookmarked"
+msgstr "Bladwijzer"
+
+msgid "Delete"
+msgstr "Verwijderen"
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mrt"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "Mei"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Okt"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dec"
+
+msgid "No chapters found"
+msgstr "Geen hoofdstukken gevonden"
+
+msgid "Updating highlight…"
+msgstr "Arcering bijwerken…"
+
+msgid "Edit note"
+msgstr "Notitie bewerken"
+
+msgid "Cancel"
+msgstr "Annuleren"
+
+msgid "Save"
+msgstr "Opslaan"
+
+msgid "Configuration"
+msgstr "Configuratie"
+
+msgid "UI Scale:"
+msgstr "Schaal van gebruikersinterface:"
+
+msgid "UI Scale (%)"
+msgstr "Schaal van gebruikersinterface (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3-pagina raster: Toon volledige pagina's"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Raster"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Eenvoudig raster"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Multi-raster"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Menu (Bladwijzers)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Menu (Arceringen)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Inhoudsopgave"
+
+msgid "Export notes of this document"
+msgstr "Exporteer notities van dit document"
+
+msgid "Notes"
+msgstr "Notities"
+
+msgid "Export as..."
+msgstr "Exporteren als..."
+
+msgid "Exporting..."
+msgstr "Exporteren..."
+
+msgid "Saved successfully in:"
+msgstr "Succesvol opgeslagen in:"
+
+msgid "Failed to export notes"
+msgstr "Exporteren van notities mislukt"
+
+msgid "Untitled"
+msgstr "Naamloos"
+
+msgid "Chapter"
+msgstr "Hoofdstuk"

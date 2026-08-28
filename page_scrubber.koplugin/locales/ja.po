@@ -1,0 +1,134 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ja\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Library"
+msgstr "ライブラリ"
+
+msgid "Page"
+msgstr "ページ"
+
+msgid "Pages"
+msgstr "ページ"
+
+msgid "Added on"
+msgstr "追加日"
+
+msgid "Bookmarked"
+msgstr "ブックマーク済み"
+
+msgid "Delete"
+msgstr "削除"
+
+msgid "Jan"
+msgstr "1月"
+
+msgid "Feb"
+msgstr "2月"
+
+msgid "Mar"
+msgstr "3月"
+
+msgid "Apr"
+msgstr "4月"
+
+msgid "May"
+msgstr "5月"
+
+msgid "Jun"
+msgstr "6月"
+
+msgid "Jul"
+msgstr "7月"
+
+msgid "Aug"
+msgstr "8月"
+
+msgid "Sep"
+msgstr "9月"
+
+msgid "Oct"
+msgstr "10月"
+
+msgid "Nov"
+msgstr "11月"
+
+msgid "Dec"
+msgstr "12月"
+
+msgid "No chapters found"
+msgstr "章が見つかりません"
+
+msgid "Updating highlight…"
+msgstr "ハイライトを更新中…"
+
+msgid "Edit note"
+msgstr "メモを編集"
+
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Page Scrubber UI scale (%)"
+msgstr "UIの倍率 (%)"
+
+msgid "Configuration"
+msgstr "設定"
+
+msgid "UI Scale:"
+msgstr "UIの倍率:"
+
+msgid "UI Scale (%)"
+msgstr "UIの倍率 (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3ページグリッド: ページ全体を表示"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: グリッド"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: シンプルグリッド"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: マルチグリッド"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: メニュー (ブックマーク)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: メニュー (ハイライト)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: 目次"
+
+msgid "Export notes of this document"
+msgstr "このドキュメントのメモをエクスポート"
+
+msgid "Notes"
+msgstr "メモ"
+
+msgid "Export as..."
+msgstr "名前を付けてエクスポート..."
+
+msgid "Exporting..."
+msgstr "エクスポート中..."
+
+msgid "Saved successfully in:"
+msgstr "正常に保存されました:"
+
+msgid "Failed to export notes"
+msgstr "メモのエクスポートに失敗しました"
+
+msgid "Untitled"
+msgstr "無題"
+
+msgid "Chapter"
+msgstr "章"

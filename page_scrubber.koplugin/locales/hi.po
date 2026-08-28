@@ -1,0 +1,134 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: hi\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Library"
+msgstr "लाइब्रेरी"
+
+msgid "Page"
+msgstr "पृष्ठ"
+
+msgid "Pages"
+msgstr "पृष्ठ"
+
+msgid "Added on"
+msgstr "को जोड़ा गया"
+
+msgid "Bookmarked"
+msgstr "बुकमार्क किया गया"
+
+msgid "Delete"
+msgstr "हटाएं"
+
+msgid "Jan"
+msgstr "जन"
+
+msgid "Feb"
+msgstr "फर"
+
+msgid "Mar"
+msgstr "मार्च"
+
+msgid "Apr"
+msgstr "अप्रै"
+
+msgid "May"
+msgstr "मई"
+
+msgid "Jun"
+msgstr "जून"
+
+msgid "Jul"
+msgstr "जुला"
+
+msgid "Aug"
+msgstr "अग"
+
+msgid "Sep"
+msgstr "सित"
+
+msgid "Oct"
+msgstr "अक्टू"
+
+msgid "Nov"
+msgstr "नवं"
+
+msgid "Dec"
+msgstr "दिसं"
+
+msgid "No chapters found"
+msgstr "कोई अध्याय नहीं मिला"
+
+msgid "Updating highlight…"
+msgstr "हाईलाइट अपडेट हो रहा है…"
+
+msgid "Edit note"
+msgstr "नोट संपादित करें"
+
+msgid "Cancel"
+msgstr "रद्द करें"
+
+msgid "Save"
+msgstr "सहेजें"
+
+msgid "Page Scrubber UI scale (%)"
+msgstr "पेज स्क्रबर UI स्केल (%)"
+
+msgid "Configuration"
+msgstr "कॉन्फ़िगरेशन"
+
+msgid "UI Scale:"
+msgstr "UI स्केल:"
+
+msgid "UI Scale (%)"
+msgstr "UI स्केल (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3-पेज ग्रिड: पूरे पेज दिखाएं"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: ग्रिड"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: सरल ग्रिड"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: मल्टी-ग्रिड"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: मेनू (बुकमार्क)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: मेनू (हाईलाइट)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: इंडेक्स"
+
+msgid "Export notes of this document"
+msgstr "इस दस्तावेज़ के नोट निर्यात करें"
+
+msgid "Notes"
+msgstr "नोट्स"
+
+msgid "Export as..."
+msgstr "इस रूप में निर्यात करें..."
+
+msgid "Exporting..."
+msgstr "निर्यात हो रहा है..."
+
+msgid "Saved successfully in:"
+msgstr "इसमें सफलतापूर्वक सहेजा गया:"
+
+msgid "Failed to export notes"
+msgstr "नोट्स निर्यात करने में विफल"
+
+msgid "Untitled"
+msgstr "शीर्षकहीन"
+
+msgid "Chapter"
+msgstr "अध्याय"

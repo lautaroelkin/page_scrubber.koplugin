@@ -1,0 +1,131 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Library"
+msgstr "Bibliothèque"
+
+msgid "Page"
+msgstr "Page"
+
+msgid "Pages"
+msgstr "Pages"
+
+msgid "Added on"
+msgstr "Ajouté le"
+
+msgid "Bookmarked"
+msgstr "Signet ajouté"
+
+msgid "Delete"
+msgstr "Supprimer"
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Fév"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Avr"
+
+msgid "May"
+msgstr "Mai"
+
+msgid "Jun"
+msgstr "Juin"
+
+msgid "Jul"
+msgstr "Juil"
+
+msgid "Aug"
+msgstr "Aoû"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Oct"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Déc"
+
+msgid "No chapters found"
+msgstr "Aucun chapitre trouvé"
+
+msgid "Updating highlight…"
+msgstr "Mise à jour du surlignage…"
+
+msgid "Edit note"
+msgstr "Modifier la note"
+
+msgid "Cancel"
+msgstr "Annuler"
+
+msgid "Save"
+msgstr "Enregistrer"
+
+msgid "Configuration"
+msgstr "Configuration"
+
+msgid "UI Scale:"
+msgstr "Échelle de l'interface :"
+
+msgid "UI Scale (%)"
+msgstr "Échelle de l'interface (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "Grille de 3 pages : Afficher pages entières"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber : Grille"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber : Grille simple"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber : Multi-Grille"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber : Menu (Signets)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber : Menu (Surlignages)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber : Index"
+
+msgid "Export notes of this document"
+msgstr "Exporter les notes de ce document"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Export as..."
+msgstr "Exporter sous..."
+
+msgid "Exporting..."
+msgstr "Exportation..."
+
+msgid "Saved successfully in:"
+msgstr "Enregistré avec succès dans :"
+
+msgid "Failed to export notes"
+msgstr "Échec de l'exportation des notes"
+
+msgid "Untitled"
+msgstr "Sans titre"
+
+msgid "Chapter"
+msgstr "Chapitre"
