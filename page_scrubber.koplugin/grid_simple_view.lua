@@ -72,8 +72,8 @@ function GridSimpleView.paint(scrubber, bb)
     local radius = S(12)
     local border = S(3)
 
-    -- Sombreado desfasado (Gris Oscuro para pantallas e-ink)
-    paintRoundRect(bb, panel_x + shadow_offset, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    -- Sombreado SOLO ABAJO (Gris Oscuro para pantallas e-ink)
+    paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
     -- Borde negro (fondo de la tarjeta)
     paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
     -- Relleno blanco

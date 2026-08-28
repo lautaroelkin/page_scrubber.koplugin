@@ -18,7 +18,36 @@ local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
-local _               = require("gettext")
+-- Lector de .po en vivo (Estilo Storefront)
+local _dict = {}
+local _lang = "en"
+if G_reader_settings then
+    local l = G_reader_settings:readSetting("language")
+    if type(l) == "string" then _lang = l:sub(1, 2) end
+end
+
+if _lang ~= "en" then
+    local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
+    local po_path = plugin_path .. "locales/" .. _lang .. ".po"
+    local f = io.open(po_path, "r")
+    if f then
+        local current_id
+        for line in f:lines() do
+            local id = line:match('^msgid%s+"(.*)"')
+            if id then current_id = id end
+            local str = line:match('^msgstr%s+"(.*)"')
+            if str and current_id then
+                _dict[current_id] = str
+                current_id = nil
+            end
+        end
+        f:close()
+    end
+end
+
+local function _(text)
+    return _dict[text] or text
+end
 
 local GridSimpleView  = require("grid_simple_view")
 local ProgressSlider  = require("progress_slider")
@@ -263,7 +292,7 @@ function PageScrubber:init()
     local top_icon_sz = S(28)
 
     self.tw_lib       = createSafeIcon("\u{E344}", "arrow-left.svg", top_icon_sz)
-    self.tw_lib_label = TextWidget:new{ text = "Library", face = Font:getFace("cfont", S_MEDIANO), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+    self.tw_lib_label = TextWidget:new{ text = _("Library"), face = Font:getFace("cfont", S_MEDIANO), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
     
     self.tw_fn        = createSafeIcon("⚙", "settings-2.svg", top_icon_sz)
     self.tw_bm        = createSafeIcon("\u{F044}", "notebook-pen.svg", top_icon_sz)
@@ -841,7 +870,7 @@ function PageScrubber:_updateTexts()
     if self._view_mode == "grid_six" then
         local start_p = math.max(1, self._cur_page - 1)
         local end_p = math.min(self._cur_page + 4, self._total_pages)
-        self.tw_info:setText("Páginas " .. start_p .. " - " .. end_p)
+        self.tw_info:setText(_("Pages") .. " " .. start_p .. " - " .. end_p)
     else
         self.tw_info:setText(pct .. "%  ·  " .. self._cur_page .. " / " .. self._total_pages)
     end
@@ -1052,6 +1081,12 @@ function PageScrubber:_updateGridPages()
             self._tasks_in_flight = math.max(0, self._tasks_in_flight - 1)
             if self._tasks_in_flight == 0 then
                 self._is_busy = false
+                
+                -- ANTI-GHOSTING MULTI-GRID: Destello suave ("ui") en TODA la pantalla (nil)
+                if self._view_mode == "grid_six" and not self._closing then
+                    UIManager:setDirty(nil, "ui")
+                end
+
                 if self._pending_grid_update and not self._closing then
                     self._pending_grid_update = false
                     self:_updateGridPages()
@@ -1588,13 +1623,13 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                     if not y then d, m, y = raw_s:match("(%d%d)[%-%/%.%s_](%d%d)[%-%/%.%s_](%d%d%d%d)") end
                 end
                 if y and m and d then
-                    local months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-                    text_str = "Added on " .. (months[tonumber(m)] or m) .. " " .. tonumber(d) .. ", " .. y
+                    local months = { _("Jan"), _("Feb"), _("Mar"), _("Apr"), _("May"), _("Jun"), _("Jul"), _("Aug"), _("Sep"), _("Oct"), _("Nov"), _("Dec") }
+                    text_str = _("Added on") .. " " .. (months[tonumber(m)] or m) .. " " .. tonumber(d) .. ", " .. y
                 else
-                    text_str = "Added on " .. tostring(raw_date)
+                    text_str = _("Added on") .. " " .. tostring(raw_date)
                 end
             else
-                text_str = "Bookmarked"
+                text_str = _("Bookmarked")
             end
         end
     end
@@ -1739,7 +1774,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             end
 
             local fg_col = is_del_pressed and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
-            local ctw = TextWidget:new{ text = "Delete", face = Font:getFace("cfont", S(17)), bold = true, fgcolor = fg_col }
+            local ctw = TextWidget:new{ text = _("Delete"), face = Font:getFace("cfont", S(17)), bold = true, fgcolor = fg_col }
             local ctsz = ctw:getSize()
             ctw:paintTo(bb, cx + math.floor((cw - ctsz.w)/2), cy + math.floor((ch - ctsz.h)/2))
             ctw:free()
@@ -1824,7 +1859,6 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         if tonumber(b) == tonumber(fixed_page) then is_page_bmed = true end
     end
 
-    paintRoundRect(bb, lm_x + shadow_offset, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
     paintRoundRect(bb, lm_x, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, lm_x + S(2), fx_y + S(2), lm_w - S(4), fx_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
 
@@ -1915,13 +1949,12 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
     self._split_rows = {}
 
-    paintRoundRect(bb, lm_x + shadow_offset, menu_y, lm_w, exact_menu_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
     paintRoundRect(bb, lm_x, menu_y, lm_w, exact_menu_h, box_radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, lm_x + S(2), menu_y + S(2), lm_w - S(4), exact_menu_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
 
     bb:paintRect(lm_x + S(2), menu_y + header_h - S(1), lm_w - S(4), S(1), Blitbuffer.COLOR_BLACK)
 
-    local tw_hdr = TextWidget:new{ text = "Pag", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+    local tw_hdr = TextWidget:new{ text = _("Page"), face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
     local hsz = tw_hdr:getSize()
     local htx = lm_x + S(15)
     local hty = menu_y + S(2) + math.floor((header_h - S(2) - hsz.h) / 2)
@@ -2141,7 +2174,7 @@ function PageScrubber:_paintBackLabel(bb)
         self._tw_grid_back_icon:setText(arrow_char)
     end
 
-    local label_text = "Pag " .. self._origin_page
+    local label_text = _("Page") .. " " .. self._origin_page
     if not self._tw_grid_back then
         self._tw_grid_back = TextWidget:new{
             text = label_text, face = Font:getFace("cfont", S(13)),
@@ -2239,8 +2272,13 @@ function PageScrubber:_previewPage(page, is_dragging)
     UIManager:setDirty(self, "ui", self.dimen)
 
     if self._is_busy then
-        self._pending_grid_update = true
-        return
+        -- SEMÁFORO: Lo saltamos en el Multi-Grid al tocar botones (no al arrastrar)
+        if self._view_mode == "grid_six" and not is_dragging then
+            -- Pasamos de largo para abortar la carga vieja y arrancar la nueva instantáneamente
+        else
+            self._pending_grid_update = true
+            return
+        end
     end
 
     if not self._grid_disabled then self:_updateGridPages() end
@@ -2633,10 +2671,20 @@ function PageScrubber:_paintToImpl(bb, x, y)
         end
         if btn_id == "ctrl_mark" then y_offset = -S(1) - 1 end
 
+        -- EFECTO TÁCTIL EN LOS BOTONES DE ABAJO
+        local is_pressed = (self._pressed_btn == btn_id)
         local draw_x = cx - math.floor(tsz.w / 2)
         local draw_y = cy - math.floor(tsz.h / 2) + y_offset
 
-        tw:paintTo(bb, draw_x, draw_y)
+        if is_pressed then
+            local pad = S(6)
+            paintRoundRect(bb, draw_x - pad, draw_y - pad, tsz.w + pad*2, tsz.h + pad*2, S(8), Blitbuffer.COLOR_BLACK)
+            bb:paintRect(draw_x, draw_y, tsz.w, tsz.h, Blitbuffer.COLOR_WHITE)
+            tw:paintTo(bb, draw_x, draw_y)
+            bb:invertRect(draw_x, draw_y, tsz.w, tsz.h)
+        else
+            tw:paintTo(bb, draw_x, draw_y)
+        end
     end
 
     drawFloatingBtnBottom("ch_l", self._prev_ch_dimen, self.tw_ch_l, not can_prev_ch)
@@ -2655,9 +2703,9 @@ function PageScrubber:_paintToImpl(bb, x, y)
 
         if self._cur_page ~= self._origin_page then
             if not self._tw_gsix_origin then
-                self._tw_gsix_origin = TextWidget:new{ text = "Pag " .. self._origin_page, face = Font:getFace("cfont", S(16)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+                self._tw_gsix_origin = TextWidget:new{ text = _("Page") .. " " .. self._origin_page, face = Font:getFace("cfont", S(16)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
             else
-                self._tw_gsix_origin:setText("Pag " .. self._origin_page)
+                self._tw_gsix_origin:setText(_("Page") .. " " .. self._origin_page)
             end
             
             local csz = self._tw_gsix_origin:getSize()
@@ -2686,7 +2734,14 @@ function PageScrubber:_paintToImpl(bb, x, y)
         local has_next_bm = self:_findNextBookmark() ~= nil
 
         drawFloatingBtnBottom("ctrl_prev", self._ctrl_prev_dimen, self.tw_ctrl_prev, not has_prev_bm)
-        drawFloatingBtnBottom("ctrl_mark", self._ctrl_mark_dimen, self.tw_ctrl_mark, false)
+        
+        -- CAMBIO PARA EL GRID SIMPLE: Cambiamos el ícono del marcador por el ícono del grid
+        if self._view_mode == "grid_simple" then
+            drawFloatingBtnBottom("ctrl_mark", self._ctrl_mark_dimen, self.tw_gallery, false)
+        else
+            drawFloatingBtnBottom("ctrl_mark", self._ctrl_mark_dimen, self.tw_ctrl_mark, false)
+        end
+        
         drawFloatingBtnBottom("ctrl_next", self._ctrl_next_dimen, self.tw_ctrl_next, not has_next_bm)
     end
 
@@ -3222,7 +3277,15 @@ function PageScrubber:onTap(_, ges)
 
         if self._toc_dimen and ges.pos:intersectWith(self._toc_dimen) then
             self:_flashAndDo("toc", self._toc_dimen, function() 
-                self:_closeAndShow("ShowToc") 
+                local ScrubberToc = require("scrubber_toc")
+                local mi_nuevo_toc = ScrubberToc:new{
+                    ui = self.ui,
+                    initial_page = self._cur_page,
+                    initial_origin = self._origin_page,
+                    parent_scrubber = self
+                }
+                local UIManager = require("ui/uimanager")
+                UIManager:show(mi_nuevo_toc)
             end)
             return true
         end
@@ -3245,7 +3308,15 @@ function PageScrubber:onTap(_, ges)
     end
     
     if self._ctrl_mark_dimen and ges.pos:intersectWith(self._ctrl_mark_dimen) then
-        if self._view_mode == "grid_simple" or self._view_mode == "grid_six" then
+        -- MODIFICACIÓN SIMPLE GRID: Cambia la acción del botón central
+        if self._view_mode == "grid_simple" then
+            self:_flashAndDo("ctrl_mark", self._ctrl_mark_dimen, function()
+                -- Abrimos el Grid normal en la página que estamos mirando (cur_page).
+                -- _reopenWithMode se encarga de guardar y arrastrar el origin_page real en silencio.
+                self:_reopenWithMode("grid", self._cur_page)
+            end)
+            return true
+        elseif self._view_mode == "grid_six" then
             return true
         end
         self:_safeBookmarkToggle(self._cur_page)
