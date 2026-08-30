@@ -24,9 +24,6 @@ Get the plugin in the release page!
 | **Split Screen: Highlights** | **Split Screen: Bookmarks** |
 | <img src="images/Screenshot_2026-08-21-19-17-02-314_org.koreader.launcher.jpg" width="100%" alt="Highlights Menu"/> | <img src="images/Screenshot_2026-08-21-19-21-14-748_org.koreader.launcher.jpg" width="100%" alt="Bookmarks Menu"/> |
 
-# 📄 Old Page Scrubbers (Unmaintained)
-* [**2-page-scrubber.lua**](./2-page-scrubber.lua): Centered floating window with rounded corners, and quick-access buttons.
- * [**2-page-scrubber-alt.lua**](./2-page-scrubber-alt.lua): Bottom bar with progress, chapter info, and a top navigation toolbar. It's the simplest and more subtle page scrubber of the bunch. 
 
 ## ⚙️ Installation
  1. Go to the **Releases** page and download the `.zip` file of the latest version.
