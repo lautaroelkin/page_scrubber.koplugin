@@ -18,41 +18,41 @@ This plugin allows you to quickly flip back and forth through the book, with the
 Get the plugin in the release page!
 ---
 
-## 📱 Vistas y Modos
+## 📱 
 
-<table align="center">
+<table align="center" width="100%">
   <tr>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-GridView.jpg" width="100%" alt="Grid View"/><br>
       <b>Grid View</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-SimpleGridView.jpg" width="100%" alt="Simple Grid View"/><br>
       <b>Simple Grid</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-SixGridView.jpg" width="100%" alt="Six Grid View"/><br>
       <b>Six Grid</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Index.jpg" width="100%" alt="Index"/><br>
       <b>Index</b>
     </td>
   </tr>
   <tr>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Bookmarks.jpg" width="100%" alt="Bookmarks"/><br>
       <b>Bookmarks</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Highlights.jpg" width="100%" alt="Highlights"/><br>
       <b>Highlights</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Dictionary.jpg" width="100%" alt="Dictionary Pop-up"/><br>
       <b>Dictionary</b>
     </td>
-    <td align="center">
+    <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Menu.jpg" width="100%" alt="Menu"/><br>
       <b>Menú Principal</b>
     </td>
@@ -60,6 +60,7 @@ Get the plugin in the release page!
 </table>
 
 ---
+
 
 
 ## ⚙️ Installation
