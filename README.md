@@ -16,21 +16,24 @@ This plugin allows you to quickly flip back and forth through the book, with the
 > ⚠️ **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 Get the plugin in the release page!
- ## 📱 Screenshots
+## 📱 Screenshots
 
 <div align="center">
-  <img src="images/PageScrubber-Menu.jpg" width="49%" alt="Menu"/>
-  <img src="images/PageScrubber-Index.jpg" width="49%" alt="Index"/>
+  <!-- Grids primero -->
+  <img src="images/PageScrubber-GridView.jpg" width="24%" alt="Grid View"/>
+  <img src="images/PageScrubber-SimpleGridView.jpg" width="24%" alt="Simple Grid View"/>
+  <img src="images/PageScrubber-SixGridView.jpg" width="24%" alt="Six Grid View"/>
   
-  <img src="images/PageScrubber-GridView.jpg" width="49%" alt="Grid View"/>
-  <img src="images/PageScrubber-SimpleGridView.jpg" width="49%" alt="Simple Grid View"/>
+  <!-- Otras vistas -->
+  <img src="images/PageScrubber-Index.jpg" width="24%" alt="Index"/>
+  <img src="images/PageScrubber-Bookmarks.jpg" width="24%" alt="Bookmarks"/>
+  <img src="images/PageScrubber-Highlights.jpg" width="24%" alt="Highlights"/>
+  <img src="images/PageScrubber-Dictionary.jpg" width="24%" alt="Dictionary Pop-up"/>
   
-  <img src="images/PageScrubber-SixGridView.jpg" width="49%" alt="Six Grid View"/>
-  <img src="images/PageScrubber-Dictionary.jpg" width="49%" alt="Dictionary Pop-up"/>
-  
-  <img src="images/PageScrubber-Highlights.jpg" width="49%" alt="Highlights"/>
-  <img src="images/PageScrubber-Bookmarks.jpg" width="49%" alt="Bookmarks"/>
+  <!-- Menú al final -->
+  <img src="images/PageScrubber-Menu.jpg" width="24%" alt="Menu"/>
 </div>
+
 
 
 ## ⚙️ Installation
