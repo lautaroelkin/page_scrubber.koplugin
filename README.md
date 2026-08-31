@@ -16,13 +16,21 @@ This plugin allows you to quickly flip back and forth through the book, with the
 > ⚠️ **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 Get the plugin in the release page!
- 
-## 📱 Screenshots: 
-| Main Grid View | Simple Grid View |
-| :---: | :---: |
-| <img src="images/Screenshot_2026-08-21-19-14-04-049_org.koreader.launcher.jpg" width="100%" alt="Main Grid View"/> | <img src="images/Screenshot_2026-08-21-19-17-41-683_org.koreader.launcher.jpg" width="100%" alt="Simple Grid View"/> |
-| **Split Screen: Highlights** | **Split Screen: Bookmarks** |
-| <img src="images/Screenshot_2026-08-21-19-17-02-314_org.koreader.launcher.jpg" width="100%" alt="Highlights Menu"/> | <img src="images/Screenshot_2026-08-21-19-21-14-748_org.koreader.launcher.jpg" width="100%" alt="Bookmarks Menu"/> |
+ ## 📱 Screenshots
+
+<div align="center">
+  <img src="images/PageScrubber-Menu.jpg" width="49%" alt="Menu"/>
+  <img src="images/PageScrubber-Index.jpg" width="49%" alt="Index"/>
+  
+  <img src="images/PageScrubber-GridView.jpg" width="49%" alt="Grid View"/>
+  <img src="images/PageScrubber-SimpleGridView.jpg" width="49%" alt="Simple Grid View"/>
+  
+  <img src="images/PageScrubber-SixGridView.jpg" width="49%" alt="Six Grid View"/>
+  <img src="images/PageScrubber-Dictionary.jpg" width="49%" alt="Dictionary Pop-up"/>
+  
+  <img src="images/PageScrubber-Highlights.jpg" width="49%" alt="Highlights"/>
+  <img src="images/PageScrubber-Bookmarks.jpg" width="49%" alt="Bookmarks"/>
+</div>
 
 
 ## ⚙️ Installation
