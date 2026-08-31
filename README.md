@@ -19,21 +19,20 @@ Get the plugin in the release page!
 ## 📱 Screenshots
 
 <div align="center">
-  <!-- Grids primero -->
+  <!-- Primero las Grillas, más pequeñas (4 por fila) -->
   <img src="images/PageScrubber-GridView.jpg" width="24%" alt="Grid View"/>
   <img src="images/PageScrubber-SimpleGridView.jpg" width="24%" alt="Simple Grid View"/>
   <img src="images/PageScrubber-SixGridView.jpg" width="24%" alt="Six Grid View"/>
   
-  <!-- Otras vistas -->
+  <!-- Otras vistas intermedias -->
   <img src="images/PageScrubber-Index.jpg" width="24%" alt="Index"/>
   <img src="images/PageScrubber-Bookmarks.jpg" width="24%" alt="Bookmarks"/>
   <img src="images/PageScrubber-Highlights.jpg" width="24%" alt="Highlights"/>
   <img src="images/PageScrubber-Dictionary.jpg" width="24%" alt="Dictionary Pop-up"/>
   
-  <!-- Menú al final -->
+  <!-- El Menú al final -->
   <img src="images/PageScrubber-Menu.jpg" width="24%" alt="Menu"/>
 </div>
-
 
 
 ## ⚙️ Installation
