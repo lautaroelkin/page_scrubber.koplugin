@@ -54,7 +54,7 @@ Get the plugin in the release page!
     </td>
     <td align="center" width="25%" valign="top">
       <img src="images/PageScrubber-Menu.jpg" width="100%" alt="Menu"/><br>
-      <b>Menú Principal</b>
+      <b>Export your notes!</b>
     </td>
   </tr>
 </table>
