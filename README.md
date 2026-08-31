@@ -16,23 +16,50 @@ This plugin allows you to quickly flip back and forth through the book, with the
 > ⚠️ **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 Get the plugin in the release page!
-## 📱 Screenshots
+---
 
-<div align="center">
-  <!-- Primero las Grillas, más pequeñas (4 por fila) -->
-  <img src="images/PageScrubber-GridView.jpg" width="24%" alt="Grid View"/>
-  <img src="images/PageScrubber-SimpleGridView.jpg" width="24%" alt="Simple Grid View"/>
-  <img src="images/PageScrubber-SixGridView.jpg" width="24%" alt="Six Grid View"/>
-  
-  <!-- Otras vistas intermedias -->
-  <img src="images/PageScrubber-Index.jpg" width="24%" alt="Index"/>
-  <img src="images/PageScrubber-Bookmarks.jpg" width="24%" alt="Bookmarks"/>
-  <img src="images/PageScrubber-Highlights.jpg" width="24%" alt="Highlights"/>
-  <img src="images/PageScrubber-Dictionary.jpg" width="24%" alt="Dictionary Pop-up"/>
-  
-  <!-- El Menú al final -->
-  <img src="images/PageScrubber-Menu.jpg" width="24%" alt="Menu"/>
-</div>
+## 📱 Vistas y Modos
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="images/PageScrubber-GridView.jpg" width="100%" alt="Grid View"/><br>
+      <b>Grid View</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-SimpleGridView.jpg" width="100%" alt="Simple Grid View"/><br>
+      <b>Simple Grid</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-SixGridView.jpg" width="100%" alt="Six Grid View"/><br>
+      <b>Six Grid</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-Index.jpg" width="100%" alt="Index"/><br>
+      <b>Index</b>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="images/PageScrubber-Bookmarks.jpg" width="100%" alt="Bookmarks"/><br>
+      <b>Bookmarks</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-Highlights.jpg" width="100%" alt="Highlights"/><br>
+      <b>Highlights</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-Dictionary.jpg" width="100%" alt="Dictionary Pop-up"/><br>
+      <b>Dictionary</b>
+    </td>
+    <td align="center">
+      <img src="images/PageScrubber-Menu.jpg" width="100%" alt="Menu"/><br>
+      <b>Menú Principal</b>
+    </td>
+  </tr>
+</table>
+
+---
 
 
 ## ⚙️ Installation
