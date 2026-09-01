@@ -1021,14 +1021,49 @@ local function saveCustomHighlight(self_obj, style)
     }
     if not sel.pos0 or not sel.pos1 then return end
     
-    local page = (hl.ui and hl.ui.paging and sel.pos0.page) or sel.pos0
+    -- FIX 1: Evitar el crash fatal de Lua ("attempt to index a string value").
+    -- En EPUBs, pos0 es un texto. Intentar sacarle ".page" rompía todo el plugin.
+    local page
+    if type(sel.pos0) == "string" then
+        page = sel.pos0
+    elseif type(sel.pos0) == "table" and sel.pos0.page then
+        page = sel.pos0.page
+    else
+        page = sel.pos0
+    end
+    
+    local saved_color = (hl.view and hl.view.highlight and hl.view.highlight.saved_color) or "yellow"
+    
+    -- FIX 2: Capturar el capítulo de forma 100% nativa y a prueba de fallos.
+    local current_chapter = nil
+    pcall(function()
+        -- Intento A: Usar la función nativa de KOReader para marcadores
+        if hl.ui and type(hl.ui.getBookmarkChapter) == "function" then
+            current_chapter = hl.ui:getBookmarkChapter(sel.pos0)
+        end
+        
+        -- Intento B: Si falla, buscar manualmente en el índice usando el número real de página
+        if not current_chapter and hl.ui and hl.ui.toc then
+            local pageno = 1
+            if type(hl.ui.getCurrentPage) == "function" then pageno = hl.ui:getCurrentPage() end
+            
+            if type(hl.ui.toc.getTocIndexByPage) == "function" then
+                local idx = hl.ui.toc:getTocIndexByPage(pageno)
+                if idx and hl.ui.toc.toc and type(hl.ui.toc.toc[idx]) == "table" then
+                    current_chapter = hl.ui.toc.toc[idx].text or hl.ui.toc.toc[idx].title
+                end
+            end
+        end
+    end)
     
     local item = {
+        chapter = current_chapter,
         page = page,
         pos0 = sel.pos0,
         pos1 = sel.pos1,
         text = util.cleanupSelectedText(sel.text),
         drawer = style,
+        color = saved_color,
     }
     
     if hl.ui and hl.ui.paging then
@@ -1185,6 +1220,14 @@ end
 local function showCustomActionMenu(hl_self, plugin, index)
     local sel = hl_self and hl_self.selected_text
     if not sel or not sel.text or sel.text == "" then
+        return false
+    end
+
+    -- FIX: Forzar la regla de "+2 PALABRAS"
+    -- Limpiamos espacios basura en los extremos y verificamos si hay espacios en el medio
+    local trimmed_text = sel.text:gsub("^%s*(.-)%s*$", "%1")
+    if not trimmed_text:find("%s") then
+        -- Es una sola palabra. Ignoramos y dejamos que abra tu FloatingDictionaryPopup.
         return false
     end
 
