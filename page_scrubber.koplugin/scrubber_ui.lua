@@ -129,6 +129,13 @@ local function drawBookmarkRibbon(bb, x, y, w, h, color)
     end
 end
 
+local function paintTripleText(tw, bb, x, y)
+    -- Triple dibujado para mejorar la legibilidad del texto gris oscuro en E-Ink
+    tw:paintTo(bb, x, y)
+    tw:paintTo(bb, x + 1, y)
+    tw:paintTo(bb, x, y + 1)
+end
+
 local function processTile(tile, req_w, req_h)
     if not tile or not tile.bb then return nil end
     local w, h = tile.bb:getWidth(), tile.bb:getHeight()
@@ -217,9 +224,19 @@ function PageScrubber:init()
     self._sh = sh
     local pad = S(16)
 
-    local S_GRANDE   = S(15)
-    local S_MEDIANO  = S(13)
-    local S_CHIQUITO = S(12)
+    -- Calculamos el offset dinámico según la configuración del usuario
+    local text_size_pref = G_reader_settings and G_reader_settings:readSetting("page_scrubber_text_size") or "medium"
+    local t_off = 0
+    if text_size_pref == "small" then t_off = -2
+    elseif text_size_pref == "large" then t_off = 2 end
+
+    -- Aplicamos el desplazamiento a todos los tamaños base
+    local S_GRANDE   = S(15 + t_off)
+    local S_MEDIANO  = S(13 + t_off)
+    local S_CHIQUITO = S(10 + t_off)
+    local S_BOTTOM_GRAY = S(14 + t_off) 
+    self.S_BOTTOM_GRAY = S_BOTTOM_GRAY
+
 
     self._tw_tab_sort = TextWidget:new{ text = "", face = Font:getFace("cfont", S_CHIQUITO) }
     self._tw_tab_bm   = TextWidget:new{ text = "", face = Font:getFace("cfont", S_CHIQUITO) }
@@ -232,7 +249,7 @@ function PageScrubber:init()
 
     self.font_ch    = Font:getFace("cfont", S_GRANDE)
     self.font_title = Font:getFace("cfont", S_GRANDE) 
-    self.font_info  = Font:getFace("cfont", S_MEDIANO)
+    self.font_info  = Font:getFace("cfont", self.S_BOTTOM_GRAY or S_MEDIANO)
 
     local function getBookTitle()
         local title
@@ -1341,8 +1358,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     local shadow_offset = S(4)
     local box_radius = S(12)
-    local font_sz_chiquito = S(15) 
-    local S_MEDIANO = S(17) 
+    -- Atados dinámicamente a tu configuración base:
+    local font_sz_chiquito = self.S_BOTTOM_GRAY and (self.S_BOTTOM_GRAY - S(4)) or S(10)
+    local S_MEDIANO = self.S_BOTTOM_GRAY or S(14) 
     
     local real_top_y = title_strip_y
     local real_available_h = (gd.y + gd.h) - real_top_y
@@ -1452,7 +1470,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local function drawTabWithSVG(id, icon_widget, count_num)
         local is_active = (self._active_tab == id)
 
-        local tw_cnt = TextWidget:new{ text = "(" .. tostring(count_num) .. ")", face = Font:getFace("cfont", S(15)), bold = is_active, fgcolor = Blitbuffer.COLOR_BLACK }
+        -- Atamos el texto al tamaño dinámico 'font_sz_chiquito' en lugar de usar S(10) fijo
+        local tw_cnt = TextWidget:new{ text = "(" .. tostring(count_num) .. ")", face = Font:getFace("cfont", font_sz_chiquito), bold = is_active, fgcolor = Blitbuffer.COLOR_BLACK }
         
         local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
         local csz = tw_cnt:getSize()
@@ -1774,7 +1793,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             end
 
             local fg_col = is_del_pressed and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
-            local ctw = TextWidget:new{ text = _("Delete"), face = Font:getFace("cfont", S(17)), bold = true, fgcolor = fg_col }
+            -- Usamos self.font_ch que ya está generada globalmente con tu tamaño S_GRANDE
+            local ctw = TextWidget:new{ text = _("Delete"), face = self.font_ch, bold = true, fgcolor = fg_col }
             local ctsz = ctw:getSize()
             ctw:paintTo(bb, cx + math.floor((cw - ctsz.w)/2), cy + math.floor((ch - ctsz.h)/2))
             ctw:free()
@@ -1789,8 +1809,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local cy = card_y + pr_h - ch - S(10)
             local b_thick = S(3)
 
-            -- Sombra inferior solamente
-            paintRoundRect(bb, cx, cy + S(4), cw, ch, S(14), Blitbuffer.COLOR_DARK_GRAY)
+            -- Diseño completamente plano sin sombreado
             paintRoundRect(bb, cx, cy, cw, ch, S(14), Blitbuffer.COLOR_BLACK)
             paintRoundRect(bb, cx + b_thick, cy + b_thick, cw - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
 
@@ -2009,9 +2028,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local list_h = exact_menu_h - header_h
 
     if #other_items == 0 then
-        local n_tw = TextWidget:new{ text = "—", face = Font:getFace("cfont", S_MEDIANO), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        local n_tw = TextWidget:new{ text = "—", face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S_MEDIANO), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
         local n_sz = n_tw:getSize()
-        n_tw:paintTo(bb, lm_x + math.floor((lm_w - n_sz.w)/2), list_y + math.floor((list_h - n_sz.h)/2))
+        paintTripleText(n_tw, bb, lm_x + math.floor((lm_w - n_sz.w)/2), list_y + math.floor((list_h - n_sz.h)/2))
         n_tw:free()
     else
         local row_y_float = list_y
@@ -2086,11 +2105,11 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             bb:paintRect(lm_x + S(15), pag_y, lm_w - S(30), S(1), Blitbuffer.COLOR_GRAY)
             
             local pag_str = cur_page .. " / " .. total_pages
-            local pag_tw = TextWidget:new{ text = pag_str, face = Font:getFace("cfont", S(15)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+            local pag_tw = TextWidget:new{ text = pag_str, face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(14)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
             local pag_sz = pag_tw:getSize()
             
             local text_y = pag_y + math.floor((pag_h - pag_sz.h)/2) + S(2)
-            pag_tw:paintTo(bb, lm_x + math.floor((lm_w - pag_sz.w)/2), text_y)
+            paintTripleText(pag_tw, bb, lm_x + math.floor((lm_w - pag_sz.w)/2), text_y)
             pag_tw:free()
             
             local btn_w = S(48) 
@@ -2164,23 +2183,26 @@ function PageScrubber:_paintBackLabel(bb)
     local S = self.S
     local ahead = self._cur_page > self._origin_page
     local arrow_char = ahead and "\u{F104}" or "\u{F105}"
+    local bg_face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(14))
 
     if not self._tw_grid_back_icon then
         self._tw_grid_back_icon = TextWidget:new{
-            text = arrow_char, face = Font:getFace("cfont", S(13)),
+            text = arrow_char, face = bg_face,
             fgcolor = Blitbuffer.COLOR_DARK_GRAY,
         }
     else
+        self._tw_grid_back_icon.face = bg_face
         self._tw_grid_back_icon:setText(arrow_char)
     end
 
     local label_text = _("Page") .. " " .. self._origin_page
     if not self._tw_grid_back then
         self._tw_grid_back = TextWidget:new{
-            text = label_text, face = Font:getFace("cfont", S(13)),
+            text = label_text, face = bg_face,
             fgcolor = Blitbuffer.COLOR_DARK_GRAY,
         }
     else
+        self._tw_grid_back.face = bg_face
         self._tw_grid_back:setText(label_text)
     end
 
@@ -2214,17 +2236,25 @@ function PageScrubber:_paintBackLabel(bb)
         paintRoundRect(bb, self._grid_back_dimen.x, self._grid_back_dimen.y, self._grid_back_dimen.w, self._grid_back_dimen.h, S(8), Blitbuffer.COLOR_BLACK)
         self._tw_grid_back_icon.fgcolor = Blitbuffer.COLOR_WHITE
         self._tw_grid_back.fgcolor = Blitbuffer.COLOR_WHITE
+        
+        if ahead then
+            self._tw_grid_back_icon:paintTo(bb, lbl_x + pad_x, icon_y)
+            self._tw_grid_back:paintTo(bb, lbl_x + pad_x + isz.w + gap, text_y)
+        else
+            self._tw_grid_back:paintTo(bb, lbl_x + pad_x, text_y)
+            self._tw_grid_back_icon:paintTo(bb, lbl_x + pad_x + tsz.w + gap, icon_y)
+        end
     else
         self._tw_grid_back_icon.fgcolor = Blitbuffer.COLOR_DARK_GRAY
         self._tw_grid_back.fgcolor = Blitbuffer.COLOR_DARK_GRAY
-    end
-
-    if ahead then
-        self._tw_grid_back_icon:paintTo(bb, lbl_x + pad_x, icon_y)
-        self._tw_grid_back:paintTo(bb, lbl_x + pad_x + isz.w + gap, text_y)
-    else
-        self._tw_grid_back:paintTo(bb, lbl_x + pad_x, text_y)
-        self._tw_grid_back_icon:paintTo(bb, lbl_x + pad_x + tsz.w + gap, icon_y)
+        
+        if ahead then
+            paintTripleText(self._tw_grid_back_icon, bb, lbl_x + pad_x, icon_y)
+            paintTripleText(self._tw_grid_back, bb, lbl_x + pad_x + isz.w + gap, text_y)
+        else
+            paintTripleText(self._tw_grid_back, bb, lbl_x + pad_x, text_y)
+            paintTripleText(self._tw_grid_back_icon, bb, lbl_x + pad_x + tsz.w + gap, icon_y)
+        end
     end
 end
 
@@ -2562,10 +2592,9 @@ function PageScrubber:_paintToImpl(bb, x, y)
         end
 
         local tab_border = S(3)
-        local tab_radius = S(38) 
-        local shadow_offset = S(2) -- Sombreado sutil en gris oscuro
+        local tab_radius = S(24) -- Mismo radio de redondeo que el diccionario
         
-        paintBottomRoundedTab(bb, td.x, td.y + shadow_offset, td.w, td.h, tab_radius, Blitbuffer.COLOR_DARK_GRAY)
+        -- Dibuja la barra plana sin ningún tipo de sombreado inferior
         paintBottomRoundedTab(bb, td.x, td.y, td.w, td.h, tab_radius, Blitbuffer.COLOR_BLACK)
         paintBottomRoundedTab(bb, td.x + tab_border, td.y, td.w - (tab_border * 2), td.h - tab_border, math.max(1, tab_radius - tab_border), Blitbuffer.COLOR_WHITE)
         
@@ -2669,7 +2698,13 @@ function PageScrubber:_paintToImpl(bb, x, y)
             elseif tw.text == "\u{EBAD}" or tw.text == "\u{EBAC}" then y_offset = -S(1)
             elseif tw.text == "\u{F0D9}" or tw.text == "\u{F0DA}" then y_offset = -S(2) end
         end
-        if btn_id == "ctrl_mark" then y_offset = -S(1) - 1 end
+        
+        if btn_id == "ctrl_mark" then 
+            y_offset = -S(1) - 1 
+            if self._view_mode == "grid_simple" then
+                y_offset = y_offset - 1 -- Sube exactamente 1 píxel el ícono en el Simple Grid
+            end
+        end
 
         -- EFECTO TÁCTIL EN LOS BOTONES DE ABAJO
         local is_pressed = (self._pressed_btn == btn_id)
@@ -2702,9 +2737,11 @@ function PageScrubber:_paintToImpl(bb, x, y)
         drawFloatingBtnBottom("gsix_next", self._gsix_next_dimen, self.icon_gs_chevron_right, self._cur_page >= self._total_pages)
 
         if self._cur_page ~= self._origin_page then
+            local bg_face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(14))
             if not self._tw_gsix_origin then
-                self._tw_gsix_origin = TextWidget:new{ text = _("Page") .. " " .. self._origin_page, face = Font:getFace("cfont", S(16)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+                self._tw_gsix_origin = TextWidget:new{ text = _("Page") .. " " .. self._origin_page, face = bg_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
             else
+                self._tw_gsix_origin.face = bg_face
                 self._tw_gsix_origin:setText(_("Page") .. " " .. self._origin_page)
             end
             
@@ -2718,11 +2755,11 @@ function PageScrubber:_paintToImpl(bb, x, y)
             if is_pressed then
                 paintRoundRect(bb, self._gsix_origin_dimen.x, self._gsix_origin_dimen.y, self._gsix_origin_dimen.w, self._gsix_origin_dimen.h, self.S(8), Blitbuffer.COLOR_BLACK)
                 self._tw_gsix_origin.fgcolor = Blitbuffer.COLOR_WHITE
+                self._tw_gsix_origin:paintTo(bb, cx - math.floor(csz.w/2), cy - math.floor(csz.h/2))
             else
-                self._tw_gsix_origin.fgcolor = Blitbuffer.COLOR_BLACK
+                self._tw_gsix_origin.fgcolor = Blitbuffer.COLOR_DARK_GRAY
+                paintTripleText(self._tw_gsix_origin, bb, cx - math.floor(csz.w/2), cy - math.floor(csz.h/2))
             end
-            
-            self._tw_gsix_origin:paintTo(bb, cx - math.floor(csz.w/2), cy - math.floor(csz.h/2))
         else
             self._gsix_origin_dimen = nil
         end
@@ -2769,10 +2806,10 @@ function PageScrubber:_paintToImpl(bb, x, y)
             new_info_y = self._bar_dimen.y - isz.h - S(40)
         end
         
-        self.tw_info:paintTo(bb, infox, new_info_y)
+        paintTripleText(self.tw_info, bb, infox, new_info_y)
     else
         self.tw_chapter:paintTo(bb, ctx, self.ch_y_pos)
-        self.tw_info:paintTo(bb, infox, self.info_y_pos)
+        paintTripleText(self.tw_info, bb, infox, self.info_y_pos)
     end
 
     local slider_x = pad * 2

@@ -330,10 +330,16 @@ function ScrubberToc:init()
     end
     self.refreshFilter()
 
-    self.font_title  = Font:getFace("cfont", S(20))
-    self.font_author = Font:getFace("cfont", S(15))
-    self.font_item   = Font:getFace("cfont", S(15))
-    self.font_badge  = Font:getFace("cfont", S(16))
+    local text_size_pref = G_reader_settings and G_reader_settings:readSetting("page_scrubber_text_size") or "medium"
+    local t_off = 0
+    if text_size_pref == "small" then t_off = -2
+    elseif text_size_pref == "large" then t_off = 2 end
+    self.S_BOTTOM_GRAY = S(14 + t_off)
+
+    self.font_title  = Font:getFace("cfont", S(20 + t_off))
+    self.font_author = Font:getFace("cfont", S(15 + t_off))
+    self.font_item   = Font:getFace("cfont", S(15 + t_off))
+    self.font_badge  = Font:getFace("cfont", S(16 + t_off))
 
     self.tw_x = createSafeIcon("✕", "x.svg", S(28))
     self.tw_x_inv = createSafeIcon("✕", "x.svg", S(28), Blitbuffer.COLOR_WHITE)
@@ -354,8 +360,8 @@ function ScrubberToc:init()
     -- =========================================================================
     -- GEOMETRÍA: BARRA INFERIOR (MATEMÁTICA IDÉNTICA AL GRID)
     -- =========================================================================
-    local font_ch_measure = Font:getFace("cfont", S(15))
-    local font_info_measure = Font:getFace("cfont", S(13))
+    local font_ch_measure = Font:getFace("cfont", S(15 + t_off))
+    local font_info_measure = Font:getFace("cfont", S(13 + t_off))
     local tw_ch_dummy = TextWidget:new{ text = "—", face = font_ch_measure }
     local tw_info_dummy = TextWidget:new{ text = "100%", face = font_info_measure }
     local ch_h = tw_ch_dummy:getSize().h
@@ -499,7 +505,8 @@ function ScrubberToc:init()
 
     UIManager:scheduleIn(0.05, function()
         if not self._closing then 
-            UIManager:setDirty(nil, "full")
+            -- Cambiamos el flash completo por una actualización suave (solo la UI del menú)
+            UIManager:setDirty(self, "ui")
             self:_updatePreviewTile() 
         end
     end)
@@ -772,7 +779,12 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         tw:paintTo(bb, head_pad_x, current_py)
         current_py = current_py + tw:getSize().h + S(2)
     end
+    
+    -- Triple dibujado para el autor (mejora legibilidad del gris en e-ink)
     self.tw_author:paintTo(bb, head_pad_x, self._author_y)
+    self.tw_author:paintTo(bb, head_pad_x + 1, self._author_y)
+    self.tw_author:paintTo(bb, head_pad_x, self._author_y + 1)
+    
     bb:paintRect(S(16), self._divider_y, sw - S(32), S(1), Blitbuffer.COLOR_LIGHT_GRAY)
 
     local is_scrubbing = (self._slider and self._slider._dragging) or self._repeat_running
