@@ -854,7 +854,7 @@ end
 -- TARJETA: MÚLTIPLES PALABRAS (UNA SOLA COLUMNA EN EL SUR-ESTE)
 -- ==========================================
 local FloatingActionMenu = InputContainer:extend({
-    text = nil, boxes = nil, anchor_top = false, highlight_obj = nil, plugin = nil, pos0 = nil, pos1 = nil,
+    text = nil, boxes = nil, anchor_top = false, highlight_obj = nil, plugin = nil, pos0 = nil, pos1 = nil, annotation_index = nil,
 })
 function FloatingActionMenu:init()
     local screen_width = Screen:getWidth()
@@ -887,6 +887,9 @@ function FloatingActionMenu:init()
     -- 2. Herramientas configurables de selección múltiple
     if is_btn_enabled("page_scrubber_sel_show_search") then
         table.insert(raw_buttons, { svg = "search.svg", text = "Search", action = "search" })
+    end
+    if is_btn_enabled("page_scrubber_sel_show_adjust") then
+        table.insert(raw_buttons, { svg = "crop.svg", text = "Adj", action = "adjust" })
     end
     if is_btn_enabled("page_scrubber_sel_show_translate") then
         table.insert(raw_buttons, { svg = "languages.svg", text = "Translate", action = "translate" })
@@ -1051,6 +1054,19 @@ local function invokeAction(self_obj, action_name)
     local pos1 = self_obj.pos1
     local boxes = self_obj.boxes
 
+    -- MODO CROP (Ajustar Selección) - La función nativa real
+    if action_name == "adjust" then
+        if hl and type(hl.startSelection) == "function" then
+            hl:startSelection(self_obj.annotation_index)
+        end
+        local UIManager = require("ui/uimanager")
+        UIManager:close(self_obj)
+        return
+    end
+
+    -- Sincronizamos KOReader para el resto de los botones
+    if hl then hl.highlight_menu = nil end
+    local UIManager = require("ui/uimanager")
     UIManager:close(self_obj)
     
     UIManager:scheduleIn(0.1, function()
@@ -1076,6 +1092,7 @@ local function invokeAction(self_obj, action_name)
                 self_obj.plugin.ui:handleEvent(Event:new("LookupTranslation", text))
                 self_obj.plugin.ui:handleEvent(Event:new("TranslateText", text))
                 self_obj.plugin.ui:handleEvent(Event:new("TranslateWord", text))
+            -- El adjust ya se manejó arriba de forma nativa, este bloque queda libre
             elseif action_name == "ai" then
                 local assistant = (self_obj.plugin and self_obj.plugin.ui and self_obj.plugin.ui.assistant)
                     or (hl and hl.ui and hl.ui.assistant)
@@ -1165,7 +1182,7 @@ end
 -- ==========================================
 -- DISPARADOR PRINCIPAL DE MENÚ FLOTANTE (+2 PALABRAS)
 -- ==========================================
-local function showCustomActionMenu(hl_self, plugin)
+local function showCustomActionMenu(hl_self, plugin, index)
     local sel = hl_self and hl_self.selected_text
     if not sel or not sel.text or sel.text == "" then
         return false
@@ -1182,7 +1199,8 @@ local function showCustomActionMenu(hl_self, plugin)
         pos0 = sel.pos0,
         pos1 = sel.pos1,
         highlight_obj = hl_self,
-        plugin = plugin
+        plugin = plugin,
+        annotation_index = index -- ACÁ SE LO PASAMOS
     })
     UIManager:show(popup)
     return true
@@ -1207,13 +1225,14 @@ function FloatingDict:patchSystem()
 
     if ReaderHighlight and not ReaderHighlight._ps_fdict_class_patched then
         local orig_class_onShowHighlightMenu = ReaderHighlight.onShowHighlightMenu
-        ReaderHighlight.onShowHighlightMenu = function(hl_self, ...)
+        -- Capturamos el index explícitamente en los parámetros
+        ReaderHighlight.onShowHighlightMenu = function(hl_self, index, ...)
             if plugin:isSelectionMenuEnabled() and hl_self.selected_text and hl_self.selected_text.text and hl_self.selected_text.text ~= "" then
-                local shown = showCustomActionMenu(hl_self, plugin)
+                local shown = showCustomActionMenu(hl_self, plugin, index)
                 if shown then return true end
             end
             if type(orig_class_onShowHighlightMenu) == "function" then
-                return orig_class_onShowHighlightMenu(hl_self, ...)
+                return orig_class_onShowHighlightMenu(hl_self, index, ...)
             end
         end
         ReaderHighlight._ps_fdict_class_patched = true
@@ -1262,13 +1281,14 @@ function FloatingDict:patchSystem()
 
     if highlight and not highlight._ps_fdict_instance_patched then
         local orig_inst_onShowHighlightMenu = highlight.onShowHighlightMenu
-        highlight.onShowHighlightMenu = function(hl_self, ...)
+        -- Capturamos el index explícitamente en la instancia también
+        highlight.onShowHighlightMenu = function(hl_self, index, ...)
             if plugin:isSelectionMenuEnabled() and hl_self.selected_text and hl_self.selected_text.text and hl_self.selected_text.text ~= "" then
-                local shown = showCustomActionMenu(hl_self, plugin)
+                local shown = showCustomActionMenu(hl_self, plugin, index)
                 if shown then return true end
             end
             if type(orig_inst_onShowHighlightMenu) == "function" then
-                return orig_inst_onShowHighlightMenu(hl_self, ...)
+                return orig_inst_onShowHighlightMenu(hl_self, index, ...)
             end
         end
         highlight._ps_fdict_instance_patched = true

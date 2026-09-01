@@ -198,6 +198,7 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
     local sel_buttons_menu = {
         make_toggle(_("Search"), "page_scrubber_sel_show_search"),
         make_toggle(_("Translate"), "page_scrubber_sel_show_translate"),
+        make_toggle(_("Adjust Selection"), "page_scrubber_sel_show_adjust"),
         make_toggle(_("Note"), "page_scrubber_sel_show_note"),
         make_toggle(_("Strikethrough"), "page_scrubber_sel_show_strikethrough"),
         make_toggle(_("Underline"), "page_scrubber_sel_show_underline"),
