@@ -129,3 +129,64 @@ msgstr "Senza titolo"
 
 msgid "Chapter"
 msgstr "Capitolo"
+
+msgid "Reading Pop-Ups"
+msgstr "Pop-up di lettura"
+
+msgid "Scrubber Dictionary"
+msgstr "Dizionario dello Scrubber"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Pulsanti standard nel dizionario"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Mostra i pulsanti dei plugin esterni nel dizionario"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu di selezione dello Scrubber"
+
+msgid "Buttons in selection menu"
+msgstr "Pulsanti nel menu di selezione"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "Traduci"
+
+msgid "Highlight"
+msgstr "Evidenzia"
+
+msgid "Search"
+msgstr "Cerca"
+
+msgid "Note"
+msgstr "Nota"
+
+msgid "Strikethrough"
+msgstr "Barrato"
+
+msgid "Underline"
+msgstr "Sottolineato"
+
+msgid "Invert"
+msgstr "Inverti"
+
+msgid "AI Assistant"
+msgstr "Assistente IA"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Dimensione del testo"
+
+msgid "Small"
+msgstr "Piccolo"
+
+msgid "Medium"
+msgstr "Medio"
+
+msgid "Large"
+msgstr "Grande"
+

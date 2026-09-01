@@ -132,3 +132,64 @@ msgstr "無題"
 
 msgid "Chapter"
 msgstr "章"
+
+msgid "Reading Pop-Ups"
+msgstr "読書ポップアップ"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber 辞書"
+
+msgid "Standard Buttons in dictionary"
+msgstr "辞書の標準ボタン"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "辞書に外部プラグインボタンを表示する"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber 選択メニュー"
+
+msgid "Buttons in selection menu"
+msgstr "選択メニューのボタン"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "翻訳"
+
+msgid "Highlight"
+msgstr "ハイライト"
+
+msgid "Search"
+msgstr "検索"
+
+msgid "Note"
+msgstr "ノート"
+
+msgid "Strikethrough"
+msgstr "取り消し線"
+
+msgid "Underline"
+msgstr "下線"
+
+msgid "Invert"
+msgstr "反転"
+
+msgid "AI Assistant"
+msgstr "AI アシスタント"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "テキストサイズ"
+
+msgid "Small"
+msgstr "小"
+
+msgid "Medium"
+msgstr "中"
+
+msgid "Large"
+msgstr "大"
+

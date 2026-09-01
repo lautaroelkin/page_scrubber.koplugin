@@ -129,3 +129,64 @@ msgstr "无标题"
 
 msgid "Chapter"
 msgstr "章节"
+
+msgid "Reading Pop-Ups"
+msgstr "阅读弹窗"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber 字典"
+
+msgid "Standard Buttons in dictionary"
+msgstr "字典中的标准按钮"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "在字典中显示外部插件按钮"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber 选择菜单"
+
+msgid "Buttons in selection menu"
+msgstr "选择菜单中的按钮"
+
+msgid "Wikipedia"
+msgstr "维基百科"
+
+msgid "Translate"
+msgstr "翻译"
+
+msgid "Highlight"
+msgstr "高亮"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Note"
+msgstr "笔记"
+
+msgid "Strikethrough"
+msgstr "删除线"
+
+msgid "Underline"
+msgstr "下划线"
+
+msgid "Invert"
+msgstr "反转"
+
+msgid "AI Assistant"
+msgstr "AI 助手"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "文本大小"
+
+msgid "Small"
+msgstr "小"
+
+msgid "Medium"
+msgstr "中"
+
+msgid "Large"
+msgstr "大"
+

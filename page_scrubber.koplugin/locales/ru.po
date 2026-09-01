@@ -129,3 +129,64 @@ msgstr "Без названия"
 
 msgid "Chapter"
 msgstr "Глава"
+
+msgid "Reading Pop-Ups"
+msgstr "Всплывающие окна чтения"
+
+msgid "Scrubber Dictionary"
+msgstr "Словарь Scrubber"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Стандартные кнопки в словаре"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Показывать кнопки внешних плагинов в словаре"
+
+msgid "Scrubber Selection Menu"
+msgstr "Меню выделения Scrubber"
+
+msgid "Buttons in selection menu"
+msgstr "Кнопки в меню выделения"
+
+msgid "Wikipedia"
+msgstr "Википедия"
+
+msgid "Translate"
+msgstr "Перевести"
+
+msgid "Highlight"
+msgstr "Выделить"
+
+msgid "Search"
+msgstr "Искать"
+
+msgid "Note"
+msgstr "Заметка"
+
+msgid "Strikethrough"
+msgstr "Зачеркнуть"
+
+msgid "Underline"
+msgstr "Подчеркнуть"
+
+msgid "Invert"
+msgstr "Инвертировать"
+
+msgid "AI Assistant"
+msgstr "ИИ Ассистент"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Размер текста"
+
+msgid "Small"
+msgstr "Маленький"
+
+msgid "Medium"
+msgstr "Средний"
+
+msgid "Large"
+msgstr "Большой"
+

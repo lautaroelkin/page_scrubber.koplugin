@@ -129,3 +129,64 @@ msgstr "Naamloos"
 
 msgid "Chapter"
 msgstr "Hoofdstuk"
+
+msgid "Reading Pop-Ups"
+msgstr "Lees Pop-ups"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber Woordenboek"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Standaardknoppen in woordenboek"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Toon externe plug-inknoppen in woordenboek"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber Selectiemenu"
+
+msgid "Buttons in selection menu"
+msgstr "Knoppen in selectiemenu"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "Vertalen"
+
+msgid "Highlight"
+msgstr "Markeren"
+
+msgid "Search"
+msgstr "Zoeken"
+
+msgid "Note"
+msgstr "Notitie"
+
+msgid "Strikethrough"
+msgstr "Doorhalen"
+
+msgid "Underline"
+msgstr "Onderstrepen"
+
+msgid "Invert"
+msgstr "Inverteren"
+
+msgid "AI Assistant"
+msgstr "AI Assistent"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Tekstgrootte"
+
+msgid "Small"
+msgstr "Klein"
+
+msgid "Medium"
+msgstr "Middel"
+
+msgid "Large"
+msgstr "Groot"
+
