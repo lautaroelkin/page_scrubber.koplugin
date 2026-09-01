@@ -1,7 +1,7 @@
-# 📖 Page Scrubber Plugin! 
+# Page Scrubber Plugin! 
 This plugin allows you to quickly flip back and forth through the book, with the option to easily return to your original page using the 'x' button or stay on the new page. You can also use the interactive progress bar and bookmark browser. Streamlined, E-ink optimized, based on KOReader's browser architecture and inspired by the native Kindle page picker experience. Compatible with EPUB, CBZ, and PDFs!
    
-### ✨ Features
+### Features
 *   **Thumbnail Grids:** Live 3-page and 6-page previews, plus a minimalist distraction-free "Simple Grid" mode.
 *   **Interactive Index:** A dedicated visual Table of Contents view with its own progress bar for easy chapter navigation.
 *   **Advanced Navigation:** Interactive progress slider, chapter-skip buttons, a quick-access top toolbar, and physical D-Pad support.
@@ -26,9 +26,9 @@ Here is what it does differently:
 
 Basically, it takes the native features, removes the friction, and puts them into a streamlined tool. Give it a try!
 
-> ⚠️ **IMPORTANT:** You MUST delete any old or duplicate `.lua` scrubber/browser files from your KOReader plugins/patches folder before installing this new version.
+> ⚠️¡! **IMPORTANT:** You MUST delete any old or duplicate `.lua` scrubber/browser files from your KOReader plugins/patches folder before installing this new version.
 
-> ⚠️ **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
+> ⚠️¡! **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 **[Get the plugin in the Releases page!]**
 
