@@ -80,16 +80,21 @@ function GridSimpleView.paint(scrubber, bb)
     paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
     local time_str = os.date("%H:%M")
-    local tw_clock = TextWidget:new{ text = time_str, face = Font:getFace("cfont", S(13)), fgcolor = Blitbuffer.COLOR_BLACK }
-    local csz = tw_clock:getSize()
+    
+    if not scrubber._tw_gs_clock then
+        scrubber._tw_gs_clock = TextWidget:new{ text = "", face = Font:getFace("cfont", S(13)), fgcolor = Blitbuffer.COLOR_BLACK }
+    end
+    scrubber._tw_gs_clock.text = nil
+    scrubber._tw_gs_clock:setText(time_str)
+
+    local csz = scrubber._tw_gs_clock:getSize()
     local clock_x = panel_x + math.floor((panel_w - csz.w) / 2)
     local clock_y = panel_y + S(15)
 
-    tw_clock:paintTo(bb, clock_x, clock_y)
-    tw_clock:paintTo(bb, clock_x + 1, clock_y)
-    tw_clock:paintTo(bb, clock_x, clock_y + 1)
-    tw_clock:paintTo(bb, clock_x + 1, clock_y + 1)
-    tw_clock:free()
+    scrubber._tw_gs_clock:paintTo(bb, clock_x, clock_y)
+    scrubber._tw_gs_clock:paintTo(bb, clock_x + 1, clock_y)
+    scrubber._tw_gs_clock:paintTo(bb, clock_x, clock_y + 1)
+    scrubber._tw_gs_clock:paintTo(bb, clock_x + 1, clock_y + 1)
 
     local slot = scrubber._grid_tiles[2]
     if slot and slot.page then
@@ -120,10 +125,11 @@ function GridSimpleView.paint(scrubber, bb)
             end
             if must_free then pcall(function() render_bb:free() end) end
         elseif slot.error then
-            local err_tw = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
-            local etsz = err_tw:getSize()
-            err_tw:paintTo(bb, page_x + math.floor((target_w - etsz.w) / 2), page_y + math.floor((target_h - etsz.h) / 2))
-            err_tw:free()
+            if not scrubber._tw_gs_error then
+                scrubber._tw_gs_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
+            end
+            local etsz = scrubber._tw_gs_error:getSize()
+            scrubber._tw_gs_error:paintTo(bb, page_x + math.floor((target_w - etsz.w) / 2), page_y + math.floor((target_h - etsz.h) / 2))
         elseif slot.loading then
             bb:paintRect(page_x + math.floor(target_w / 2) - 1, page_y + math.floor(target_h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
         end

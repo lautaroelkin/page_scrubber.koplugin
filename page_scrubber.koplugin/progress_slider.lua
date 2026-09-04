@@ -69,6 +69,38 @@ function ProgressSlider:paintTo(bb, x, y)
     
     if fw > 0 then paintPill(bb, x, cy - S(2), fw, S(4), Blitbuffer.COLOR_BLACK) end
 
+    -- Dibujamos los capítulos alineados exactamente a la píldora de progreso
+    if self.chapters then
+        local fw_abs = x + fw
+        local range = math.max(1, self.value_max - self.value_min)
+        local chapter_xs = {}
+
+        for _, ch_page in ipairs(self.chapters) do
+            if ch_page >= self.value_min and ch_page <= self.value_max then
+                -- Posicionamiento proporcional exacto a 'w', eliminando el margen falso de 16px
+                local cx = math.floor(x + (ch_page - self.value_min) / range * w + 0.5)
+                table.insert(chapter_xs, cx)
+            end
+        end
+
+        table.sort(chapter_xs)
+
+        local gap_thresh = math.max(4, S(3))
+        local wide_w = math.max(2, S(1))
+
+        for i, cx in ipairs(chapter_xs) do
+            local prev_cx = chapter_xs[i - 1]
+            local next_cx = chapter_xs[i + 1]
+
+            local is_crowded = (prev_cx and (cx - prev_cx) <= gap_thresh) or (next_cx and (next_cx - cx) <= gap_thresh)
+            local tick_w = is_crowded and 1 or wide_w
+            local is_read = (cx <= fw_abs)
+            local tick_color = is_read and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_WHITE
+
+            bb:paintRect(cx, cy - S(2), tick_w, S(4), tick_color)
+        end
+    end
+
     if self.bookmarks then
         for _, bmpage in ipairs(self.bookmarks) do
             if bmpage >= self.value_min and bmpage <= self.value_max then
@@ -79,7 +111,8 @@ function ProgressSlider:paintTo(bb, x, y)
         end
     end
 
-    if not self._dragging then
+    -- Si las marcas de capítulos están activas, ocultamos el círculo para que solo se vea la barra
+    if not self.chapters and not self._dragging then
         local kx = math.floor(x + self:_valueToX(self.value))
         paintCircle(bb, kx, cy, r, Blitbuffer.COLOR_BLACK)
         paintCircle(bb, kx, cy, r - S(3), Blitbuffer.COLOR_WHITE)
@@ -134,6 +167,62 @@ function ProgressSlider:handlePanRelease(ges)
     if v ~= self.value then self.value = v end
     if self.on_change then self.on_change(self.value) end 
     return true
+end
+-- Traductor de Pantallas a Páginas Estables (Fuerza Bruta Multi-Capa)
+function ProgressSlider:getDisplayPageInfo(raw_page, ui)
+    if not ui then return raw_page, self.value_max end
+
+    local disp_page, disp_total = nil, nil
+
+    -- 1. Intentar mediante PageMap (EPUB3 page-list, PDF labels, Reference pages)
+    if ui.pagemap then
+        local pm = ui.pagemap
+        disp_total = pm.page_count or self.value_max
+
+        -- Barremos todos los nombres posibles en la historia de la API de KOReader
+        local funcs_to_try = { "getPageText", "getPageLabel", "pageNumberToLabel", "getLabel", "getPageString" }
+        for _, fn_name in ipairs(funcs_to_try) do
+            if type(pm[fn_name]) == "function" then
+                local ok, res = pcall(function() return pm[fn_name](pm, raw_page) end)
+                if ok and res and res ~= "" then
+                    disp_page = res
+                    break
+                end
+            end
+        end
+    end
+
+    -- 2. Si PageMap falló, intentar directamente con el documento base (CREngine)
+    if not disp_page and ui.document then
+        local doc = ui.document
+        
+        local funcs_to_try = { "getFormattedPage", "getRefPage", "getPageText" }
+        for _, fn_name in ipairs(funcs_to_try) do
+            if type(doc[fn_name]) == "function" then
+                local ok, res = pcall(function() return doc[fn_name](doc, raw_page) end)
+                if ok and res and res ~= "" then
+                    disp_page = res
+                    disp_total = self.value_max
+                    break
+                end
+            end
+        end
+
+        -- 3. Último recurso: Flujos ocultos (Custom Flows de CREngine)
+        if not disp_page and type(doc.hasHiddenFlows) == "function" then
+            local ok, has_flows = pcall(function() return doc:hasHiddenFlows() end)
+            if ok and has_flows then
+                pcall(function()
+                    local flow = doc:getPageFlow(raw_page)
+                    disp_page = doc:getPageNumberInFlow(raw_page)
+                    disp_total = doc:getTotalPagesInFlow(flow)
+                end)
+            end
+        end
+    end
+
+    -- 4. Retornamos la Página Estable encontrada (o caemos en la pantalla cruda)
+    return disp_page or raw_page, disp_total or self.value_max
 end
 
 return ProgressSlider

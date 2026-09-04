@@ -361,17 +361,34 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
                         }
                     },
                     {
+                        text = _("Show chapter marks in slider"),
+                        checked_func = function()
+                            local ok, val = pcall(function() return G_reader_settings and G_reader_settings:readSetting("page_scrubber_show_chapter_marks") end)
+                            return (not ok or val == nil) and true or (val == true)
+                        end,
+                        callback = function(touchmenu_instance)
+                            pcall(function()
+                                local current = G_reader_settings:readSetting("page_scrubber_show_chapter_marks")
+                                if current == nil then current = true end
+                                G_reader_settings:saveSetting("page_scrubber_show_chapter_marks", not current)
+                                G_reader_settings:flush()
+                            end)
+                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                        end,
+                    },
+                    {
                         text = _("3-Page Grid: Show full pages"),
                         checked_func = function()
                             local ok, val = pcall(function() return G_reader_settings and G_reader_settings:readSetting("page_scrubber_full_page_grid") end)
                             return (ok and val == true)
                         end,
-                        callback = function()
+                        callback = function(touchmenu_instance)
                             pcall(function()
                                 local is_set = G_reader_settings:readSetting("page_scrubber_full_page_grid")
                                 G_reader_settings:saveSetting("page_scrubber_full_page_grid", not is_set)
                                 G_reader_settings:flush()
                             end)
+                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
                         end,
                     },
                     {

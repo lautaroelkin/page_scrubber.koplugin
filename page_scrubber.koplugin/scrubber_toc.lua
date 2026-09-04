@@ -15,6 +15,9 @@ local ProgressSlider  = require("progress_slider")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+local Widget          = require("ui/widget/widget")
+
 -- Lector de .po en vivo (Estilo Storefront)
 local _dict = {}
 local _lang = "en"
@@ -171,6 +174,53 @@ local function splitTitle(text, face_obj, max_w)
     return { line1, line2 }
 end
 
+local GlimpseDots = Widget:extend{
+    nb = 1, cur = 1, dot_r = 3, pitch = 11, height = 10,
+}
+function GlimpseDots:getSize()
+    local r_max = math.floor(self.dot_r * 1.5)
+    return Geom:new{ w = math.floor((self.nb - 1) * self.pitch + 2 * r_max), h = math.floor(self.height) }
+end
+function GlimpseDots:paintTo(bb, x, y)
+    local cy = y + math.floor(self.height / 2)
+    local r_max = math.floor(self.dot_r * 1.5)
+    local x0 = x + r_max
+    for i = 1, self.nb do
+        local cx = x0 + (i - 1) * self.pitch
+        local is_active = (i == self.cur)
+        local color = is_active and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+        local r = is_active and r_max or self.dot_r
+        -- Dibujado 100% nativo (no congela el lector)
+        paintRoundRect(bb, cx - r, cy - r, r * 2, r * 2, r, color)
+    end
+end
+
+local GlimpsePill = WidgetContainer:extend{
+    inner = nil, padding_h = 9, height = 21, radius = 8, stroke = 2,
+}
+function GlimpsePill:getSize()
+    local inner = self.inner:getSize()
+    return Geom:new{ w = math.floor(inner.w + 2 * self.padding_h), h = math.floor(math.max(self.height, inner.h)) }
+end
+function GlimpsePill:paintTo(bb, x, y)
+    local size = self:getSize()
+    local w, h = size.w, size.h
+    self.dimen = Geom:new{ x = x, y = y, w = w, h = h }
+    
+    -- Fondo blanco puro y sin bordes, para que parezca invisible. 
+    -- KOReader lo invertirá a negro automáticamente en modo noche.
+    paintRoundRect(bb, x, y, w, h, self.radius, Blitbuffer.COLOR_WHITE)
+    
+    local inner_size = self.inner:getSize()
+    self.inner:paintTo(bb, x + math.floor((w - inner_size.w) / 2), y + math.floor((h - inner_size.h) / 2))
+end
+function GlimpsePill:free(...)
+    if self.inner and self.inner.free then
+        self.inner:free()
+    end
+    WidgetContainer.free(self, ...)
+end
+
 local ScrubberToc = InputContainer:extend{
     name = "scrubber_toc",
     transparent = true,
@@ -188,6 +238,11 @@ function ScrubberToc:init()
         return res
     end
     local S = self.S
+
+    self._old_can_do = Device.canDoSwipeAnimation
+    Device.canDoSwipeAnimation = function() return false end
+    self._saved_swipe_animations = Screen.swipe_animations
+    Screen.swipe_animations = false
 
     self._origin_page = self.initial_origin or (ui.view and ui.view.state and ui.view.state.page) or 1
     self._cur_page    = self.initial_page or self._origin_page
@@ -207,7 +262,11 @@ function ScrubberToc:init()
         local base_path = PLUGIN_DIR .. "/icons/" .. svg_filename
         local ok, widget = pcall(function()
             local ImageWidget = require("ui/widget/imagewidget")
-            return ImageWidget:new{ file = base_path, width = sz, height = sz, alpha = true, fgcolor = fg }
+            return ImageWidget:new{ 
+                file = base_path, width = sz, height = sz, 
+                alpha = true, fgcolor = fg,
+                original_in_nightmode = false,
+            }
         end)
         if ok and widget then return widget end
         return TextWidget:new{ text = icon_char, face = Font:getFace("cfont", sz), fgcolor = fg }
@@ -315,8 +374,9 @@ function ScrubberToc:init()
     end
 
     self._has_multiple_levels = (max_depth > 0)
+    self._max_toc_depth = max_depth
 
-    self._filter_level = 2 
+    self._filter_level = math.min(2, max_depth) 
     self._filtered_toc = {}
     
     self.refreshFilter = function()
@@ -357,9 +417,6 @@ function ScrubberToc:init()
     
     self.tw_author = TextWidget:new{ text = self.book_author, face = self.font_author, fgcolor = Blitbuffer.COLOR_DARK_GRAY, max_width = sw - S(48), truncate_with_ellipsis = true }
 
-    -- =========================================================================
-    -- GEOMETRÍA: BARRA INFERIOR (MATEMÁTICA IDÉNTICA AL GRID)
-    -- =========================================================================
     local font_ch_measure = Font:getFace("cfont", S(15 + t_off))
     local font_info_measure = Font:getFace("cfont", S(13 + t_off))
     local tw_ch_dummy = TextWidget:new{ text = "—", face = font_ch_measure }
@@ -380,6 +437,7 @@ function ScrubberToc:init()
     local slider_w = sw - (slider_pad_x * 2)
     self._slider_x = slider_pad_x
     self._slider = ProgressSlider:new{ width = slider_w, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S }
+    self:_updateChapterMarks()
     local slider_h = self._slider:getSize().h
 
     local bar_h = p_top + ch_h + spacing1 + info_h + spacing2 + slider_h + spacing3 + mark_sz + p_bot
@@ -414,9 +472,6 @@ function ScrubberToc:init()
     self._next_toc_dimen  = Geom:new{ x = t3 - math.floor(toc_btn_sz/2), y = lvl2_y, w = toc_btn_sz, h = toc_btn_sz }
     self._last_toc_dimen  = Geom:new{ x = t4 - math.floor(toc_btn_sz/2), y = lvl2_y, w = toc_btn_sz, h = toc_btn_sz }
 
-    -- =========================================================================
-    -- GEOMETRÍA: MINI PREVIEW
-    -- =========================================================================
     local preview_h = math.floor(sh * 0.20)
     if preview_h < S(120) then preview_h = S(120) end
     
@@ -429,9 +484,6 @@ function ScrubberToc:init()
     self._thumb_req_w = preview_w - S(4)
     self._thumb_req_h = preview_h - S(4)
 
-    -- =========================================================================
-    -- GEOMETRÍA: PANEL ÚNICO DEL TOC
-    -- =========================================================================
     local panel_h = preview_y - S(10)
     self._top_panel_dimen = Geom:new{ x = 0, y = 0, w = sw, h = panel_h }
 
@@ -505,11 +557,57 @@ function ScrubberToc:init()
 
     UIManager:scheduleIn(0.05, function()
         if not self._closing then 
-            -- Cambiamos el flash completo por una actualización suave (solo la UI del menú)
             UIManager:setDirty(self, "ui")
             self:_updatePreviewTile() 
         end
     end)
+end
+
+function ScrubberToc:_updateChapterMarks()
+    local show_marks = true
+    if G_reader_settings then
+        local val = G_reader_settings:readSetting("page_scrubber_show_chapter_marks")
+        if val ~= nil then show_marks = val end
+    end
+    
+    if not show_marks then
+        if self._slider then self._slider.chapters = nil end
+        return
+    end
+
+    -- Si se abrió desde el Scrubber principal, reutiliza sus marcas ya calculadas
+    if self.parent_scrubber and self.parent_scrubber._slider and self.parent_scrubber._slider.chapters then
+        if self._slider then self._slider.chapters = self.parent_scrubber._slider.chapters end
+        return
+    end
+
+    if not self.ui or not self.ui.toc then
+        if self._slider then self._slider.chapters = nil end
+        return
+    end
+
+    local marks = {}
+    local curr = 0
+    local last_title = (self.ui.toc.getTocTitleByPage and self.ui.toc:getTocTitleByPage(1)) or ""
+    local safety = 0
+    
+    while curr and safety < 1000 do
+        safety = safety + 1
+        local next_p = self.ui.toc:getNextChapter(curr)
+        if not next_p or next_p <= curr or next_p > self._total_pages then
+            break
+        end
+        
+        local current_title = (self.ui.toc.getTocTitleByPage and self.ui.toc:getTocTitleByPage(next_p)) or ""
+        if current_title and current_title ~= "" and current_title ~= "—" and current_title ~= _("—") and current_title ~= last_title then
+            table.insert(marks, next_p)
+            last_title = current_title
+        end
+        curr = next_p
+    end
+
+    table.sort(marks)
+    if self._slider then self._slider.chapters = marks end
 end
 
 function ScrubberToc:_getChapterIndexForPage(page)
@@ -755,10 +853,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     local bd = self._bar_dimen
     
     local tab_radius = S(24)
-    
-    -- Grosor S(3) IDÉNTICO AL GRID (scrubber_ui.lua)
     local b_thick = S(3)
-    
     local shadow_offset = S(2)
 
     local mesh_start_y = pd.h
@@ -769,8 +864,6 @@ function ScrubberToc:_paintToImpl(bb, x, y)
 
     paintBottomRoundedTab(bb, 0, shadow_offset, sw, pd.h, tab_radius, Blitbuffer.COLOR_GRAY)
     paintBottomRoundedTab(bb, 0, 0, sw, pd.h, tab_radius, Blitbuffer.COLOR_BLACK)
-    
-    -- El relleno blanco deja S(3) en los laterales y S(3) en el borde inferior
     paintBottomRoundedTab(bb, b_thick, 0, sw - (b_thick * 2), pd.h - b_thick, math.max(1, tab_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local head_pad_x = S(24)
@@ -780,11 +873,54 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         current_py = current_py + tw:getSize().h + S(2)
     end
     
-    -- Triple dibujado para el autor (mejora legibilidad del gris en e-ink)
     self.tw_author:paintTo(bb, head_pad_x, self._author_y)
     self.tw_author:paintTo(bb, head_pad_x + 1, self._author_y)
     self.tw_author:paintTo(bb, head_pad_x, self._author_y + 1)
     
+    local is_moving_fast = (self._slider and self._slider._dragging) or self._repeat_running
+    if not is_moving_fast then
+        local ch_idx = self:_getChapterIndexForPage(self._cur_page)
+        if ch_idx and self._filtered_toc and self._filtered_toc[ch_idx] then
+            local ch = self._filtered_toc[ch_idx]
+            local flat_idx = 1
+            for i, fch in ipairs(self._flat_toc) do
+                if fch.page == ch.page and fch.title == ch.title then
+                    flat_idx = i
+                    break
+                end
+            end
+            local next_page = self._total_pages
+            if flat_idx < #self._flat_toc then
+                next_page = self._flat_toc[flat_idx + 1].page
+            end
+            local pages_len = math.max(0, next_page - ch.page)
+            
+            local stats = self.ui and self.ui.statistics
+            if pages_len > 0 and stats and type(stats.getTimeForPages) == "function" then
+                local time_str = stats:getTimeForPages(pages_len)
+                if time_str and time_str ~= "" then
+                    if not self._tw_time then
+                        self._tw_time = TextWidget:new{ text = "", face = self.font_author, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+                    end
+                    self._tw_time.text = nil
+                    self._tw_time:setText(time_str)
+                    
+                    local tsz = self._tw_time:getSize()
+                    local tx = sw - head_pad_x - tsz.w
+                    
+                    local author_w = self.tw_author:getSize().w
+                    if head_pad_x + author_w + S(16) > tx then
+                        bb:paintRect(tx - S(8), self._author_y, tsz.w + S(8), tsz.h, Blitbuffer.COLOR_WHITE)
+                    end
+                    
+                    self._tw_time:paintTo(bb, tx, self._author_y)
+                    self._tw_time:paintTo(bb, tx + 1, self._author_y)
+                    self._tw_time:paintTo(bb, tx, self._author_y + 1)
+                end
+            end
+        end
+    end
+
     bb:paintRect(S(16), self._divider_y, sw - S(32), S(1), Blitbuffer.COLOR_LIGHT_GRAY)
 
     local is_scrubbing = (self._slider and self._slider._dragging) or self._repeat_running
@@ -802,10 +938,11 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     self._toc_rows = {}
 
     if total_items == 0 then
-        local empty_tw = TextWidget:new{ text = _("No chapters found"), face = self.font_item, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
-        local esz = empty_tw:getSize()
-        empty_tw:paintTo(bb, math.floor((sw - esz.w)/2), self._list_y + math.floor((self._list_avail_h - esz.h)/2))
-        empty_tw:free()
+        if not self._tw_toc_empty then
+            self._tw_toc_empty = TextWidget:new{ text = _("No chapters found"), face = self.font_item, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        end
+        local esz = self._tw_toc_empty:getSize()
+        self._tw_toc_empty:paintTo(bb, math.floor((sw - esz.w)/2), self._list_y + math.floor((self._list_avail_h - esz.h)/2))
     else
         local curr_y = self._list_y
         for i = start_idx, end_idx do
@@ -819,14 +956,25 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 bb:paintRect(row_rect.x + S(8), row_rect.y + row_rect.h + S(1), row_rect.w - S(16), 1, Blitbuffer.COLOR_LIGHT_GRAY)
             end
 
-            local pg_str = _("Page") .. " " .. tostring(ch.page)
-            local fg_col = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-            local tw_pnum = TextWidget:new{ text = pg_str, face = self.font_badge, bold = is_active, fgcolor = fg_col }
+            local disp_p = tostring(ch.page)
+            if self.parent_scrubber and type(self.parent_scrubber._getDisplayPageInfo) == "function" then
+                local dp = self.parent_scrubber:_getDisplayPageInfo(ch.page)
+                if dp then disp_p = dp end
+            end
+            local pg_str = _("Page") .. " " .. disp_p
+            
+            if not self._tw_pnum_normal then
+                self._tw_pnum_normal = TextWidget:new{ text = "", face = self.font_badge, fgcolor = Blitbuffer.COLOR_BLACK }
+                self._tw_pnum_bold   = TextWidget:new{ text = "", face = self.font_badge, bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
+            end
+            local tw_pnum = is_active and self._tw_pnum_bold or self._tw_pnum_normal
+            tw_pnum.text = nil
+            tw_pnum:setText(pg_str)
+            
             local pnum_sz = tw_pnum:getSize()
             local pnum_x = row_rect.x + row_rect.w - pnum_sz.w - S(14)
             local pnum_y = row_rect.y + math.floor((row_rect.h - pnum_sz.h) / 2)
             tw_pnum:paintTo(bb, pnum_x, pnum_y)
-            tw_pnum:free()
 
             local ch_title_text = ch.title
             local ch_x = row_rect.x
@@ -840,28 +988,89 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 ch_title_text = "• " .. ch_title_text
             end
 
-            local max_ch_w = row_rect.w - pnum_sz.w - (ch_x - row_rect.x) - S(16)
-            local tw_ch = TextWidget:new{
-                text = ch_title_text, face = self.font_item, bold = is_active,
-                fgcolor = fg_col, max_width = max_ch_w, truncate_with_ellipsis = true,
-            }
+            local is_origin_ch = (i == self:_getChapterIndexForPage(self._origin_page))
+            local dot_gap = S(8)
+            local origin_dot_w = is_origin_ch and S(14) or 0
+
+            local max_ch_w = row_rect.w - pnum_sz.w - (ch_x - row_rect.x) - S(16) - origin_dot_w
+            
+            if not self._tw_ch_normal then
+                self._tw_ch_normal = TextWidget:new{ text = "", face = self.font_item, fgcolor = Blitbuffer.COLOR_BLACK, truncate_with_ellipsis = true }
+                self._tw_ch_bold   = TextWidget:new{ text = "", face = self.font_item, bold = true, fgcolor = Blitbuffer.COLOR_WHITE, truncate_with_ellipsis = true }
+            end
+            local tw_ch = is_active and self._tw_ch_bold or self._tw_ch_normal
+            tw_ch.max_width = max_ch_w
+            tw_ch.text = nil
+            tw_ch:setText(ch_title_text)
+            
             local ch_sz = tw_ch:getSize()
             local ch_y = row_rect.y + math.floor((row_rect.h - ch_sz.h) / 2)
             tw_ch:paintTo(bb, ch_x, ch_y)
-            tw_ch:free()
+
+            if is_origin_ch then
+                local dot_color = is_active and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_DARK_GRAY
+                if not self._tw_origin_dot then
+                    self._tw_origin_dot = TextWidget:new{ text = "•", face = self.font_item, fgcolor = dot_color }
+                else
+                    self._tw_origin_dot.fgcolor = dot_color
+                end
+                local dot_y = row_rect.y + math.floor((row_rect.h - self._tw_origin_dot:getSize().h) / 2)
+                self._tw_origin_dot:paintTo(bb, ch_x + ch_sz.w + dot_gap, dot_y)
+            end
 
             table.insert(self._toc_rows, { dimen = row_rect, index = i, page = ch.page })
             curr_y = curr_y + self._row_h
         end
     end
 
-    local pag_str = self._toc_page .. " / " .. total_pages
-    local tw_pag = TextWidget:new{ text = pag_str, face = self.font_badge, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-    local psz_w = tw_pag:getSize().w
-    local psz_h = tw_pag:getSize().h
-    local text_center = math.floor(sw / 2)
-    tw_pag:paintTo(bb, text_center - math.floor(psz_w/2), self._bot_internal_y + math.floor((self._bot_internal_h - psz_h)/2))
-    tw_pag:free()
+    if total_pages > 1 then
+        local dot_r = math.floor(S(2.5))
+        if dot_r < 2 then dot_r = 2 end
+        local natural_pitch = S(11)
+        local min_pitch = 2 * dot_r + S(3)
+        local budget = sw - (S(16) * 4) -- Espacio seguro
+        local pitch = natural_pitch
+
+        if total_pages > 1 then
+            pitch = math.min(natural_pitch, (budget - 2 * dot_r) / (total_pages - 1))
+        end
+
+        local is_dots = (pitch >= min_pitch)
+        local pill_widget
+        if is_dots then
+            pill_widget = GlimpsePill:new{
+                padding_h = S(9), height = S(21), radius = S(8), stroke = S(2),
+                bg_color = 0xFF,
+                border_color = 0xFF, -- Contorno invisible (blanco sobre blanco)
+                inner = GlimpseDots:new{ nb = total_pages, cur = self._toc_page, pitch = math.floor(pitch), dot_r = dot_r, height = S(10) }
+            }
+        else
+            pill_widget = GlimpsePill:new{
+                padding_h = S(9), height = S(21), radius = S(8), stroke = S(2),
+                bg_color = 0xFF,
+                border_color = 0xFF, -- Contorno invisible (blanco sobre blanco)
+                inner = TextWidget:new{
+                    text = self._toc_page .. " / " .. total_pages,
+                    face = Font:getFace("cfont", S(11)),
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                }
+            }
+        end
+        local pill_sz = pill_widget:getSize()
+        local text_center = math.floor(sw / 2)
+        local pill_x = text_center - math.floor(pill_sz.w/2)
+        local pill_y = self._bot_internal_y + math.floor((self._bot_internal_h - pill_sz.h)/2)
+        
+        local r_max = math.floor(dot_r * 1.5)
+        self._pill_dimen = Geom:new{ x = pill_x, y = pill_y, w = pill_sz.w, h = pill_sz.h }
+        self._pill_info = { is_dots = is_dots, nb = total_pages, pitch = pitch, r_max = r_max, pad_h = S(9) }
+        
+        pill_widget:paintTo(bb, pill_x, pill_y)
+        pill_widget:free()
+    else
+        self._pill_dimen = nil
+    end
     
     if self._has_multiple_levels and self._filter_dimen then
         local fd = self._filter_dimen
@@ -1076,7 +1285,9 @@ function ScrubberToc:onTap(arg1, arg2)
 
     if self._has_multiple_levels and self._filter_dimen and ges.pos:intersectWith(self._filter_dimen) then
         self:_flashAndDo("filter", self._filter_dimen, function()
-            self._filter_level = (self._filter_level + 1) % 3
+            local toggle_limit = (self._max_toc_depth == 1) and 2 or 3
+            self._filter_level = (self._filter_level + 1) % toggle_limit
+            
             self.refreshFilter()
             UIManager:setDirty(self, "ui", self._top_panel_dimen)
         end)
@@ -1142,6 +1353,20 @@ function ScrubberToc:onTap(arg1, arg2)
                 self._toc_page = total_pages
                 UIManager:setDirty(self, "ui", self.dimen)
             end)
+        end
+        return true
+    end
+
+    if self._pill_dimen and ges.pos:intersectWith(self._pill_dimen) then
+        if self._pill_info and self._pill_info.is_dots then
+            local rel_x = ges.pos.x - self._pill_dimen.x - self._pill_info.pad_h - self._pill_info.r_max
+            local idx = math.floor(rel_x / self._pill_info.pitch + 0.5) + 1
+            idx = math.max(1, math.min(self._pill_info.nb, idx))
+            
+            if idx ~= self._toc_page then
+                self._toc_page = idx
+                UIManager:setDirty(self, "ui", self.dimen)
+            end
         end
         return true
     end
@@ -1276,15 +1501,23 @@ function ScrubberToc:onCloseWidget()
     end
     self._preview_tile = nil
 
+    if self._old_can_do then Device.canDoSwipeAnimation = self._old_can_do end
+    if self._saved_swipe_animations ~= nil then Screen.swipe_animations = self._saved_swipe_animations end
+
+    -- Limpiamos de la RAM TODOS los gráficos para que el .sdr no se corrompa
     local widgets_to_free = { 
-        self.tw_author, self.tw_x, self.tw_x_inv, self._slider,
+        self._tw_toc_empty, self._tw_pnum_normal, self._tw_pnum_bold,
+        self._tw_ch_normal, self._tw_ch_bold, self._tw_toc_pag,
+        self.tw_author, self._tw_time, self._tw_origin_dot,
+        self._slider,
         self.icon_wifi_0, self.icon_wifi_1, self.icon_wifi_2,
-        self.icon_ch_prev, self.icon_ch_next,
-        self.icon_toc_prev, self.icon_toc_next,
-        self.icon_toc_first, self.icon_toc_last,
-        self.icon_ch_prev_inv, self.icon_ch_next_inv,
-        self.icon_toc_prev_inv, self.icon_toc_next_inv,
-        self.icon_toc_first_inv, self.icon_toc_last_inv
+        self.icon_ch_prev, self.icon_ch_prev_inv,
+        self.icon_ch_next, self.icon_ch_next_inv,
+        self.icon_toc_first, self.icon_toc_first_inv,
+        self.icon_toc_prev, self.icon_toc_prev_inv,
+        self.icon_toc_next, self.icon_toc_next_inv,
+        self.icon_toc_last, self.icon_toc_last_inv,
+        self.tw_x, self.tw_x_inv
     }
     
     if self.tw_titles then
@@ -1297,10 +1530,6 @@ function ScrubberToc:onCloseWidget()
         if w and w.free then pcall(function() w:free() end) end
     end
 end
-
--- =========================================================================
--- SOPORTE PARA BOTONES FÍSICOS (Non-Touch)
--- =========================================================================
 
 function ScrubberToc:onPrevPage()
     if self._closing then return true end

@@ -94,11 +94,12 @@ function GridSixView.paint(scrubber, bb)
                     bb:blitFrom(slot.tile_bb, ox, oy, src_x, src_y, blit_w, blit_h)
                 end
             elseif slot.error then
-                -- Dibujar advertencia de error
-                local tw_err = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
-                local etsz = err_tw:getSize()
-                err_tw:paintTo(bb, rect.x + math.floor((rect.w - etsz.w)/2), rect.y + math.floor((rect.h - etsz.h)/2))
-                err_tw:free()
+                -- Dibujar advertencia de error (Optimizada y bug de tipeo arreglado)
+                if not scrubber._tw_grid_error then
+                    scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
+                end
+                local etsz = scrubber._tw_grid_error:getSize()
+                scrubber._tw_grid_error:paintTo(bb, rect.x + math.floor((rect.w - etsz.w)/2), rect.y + math.floor((rect.h - etsz.h)/2))
             elseif slot.loading then
                 -- Dibujar puntito de carga
                 bb:paintRect(rect.x + math.floor(rect.w/2)-1, rect.y + math.floor(rect.h/2)-1, 2, 2, Blitbuffer.COLOR_GRAY)
@@ -107,9 +108,17 @@ function GridSixView.paint(scrubber, bb)
             -- Dibujar el borde de la página
             bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
 
-            -- Dibujar el número de página estilo "Pastilla" anclada al fondo
-            local tw_pg = TextWidget:new{ text = tostring(slot.page), face = font_badge, fgcolor = Blitbuffer.COLOR_WHITE, padding = 0 }
-            local tsz = tw_pg:getSize()
+            -- Dibujar el número de página estilo "Pastilla" anclada al fondo (Optimizado)
+            if not scrubber._tw_gsix_page then
+                scrubber._tw_gsix_page = TextWidget:new{ text = "", face = font_badge, fgcolor = Blitbuffer.COLOR_WHITE, padding = 0 }
+            end
+            scrubber._tw_gsix_page.text = nil
+            
+            -- Aplicamos la función estable para la "pastilla"
+            local disp_p = scrubber:_getDisplayPageInfo(slot.page)
+            scrubber._tw_gsix_page:setText(tostring(disp_p))
+            
+            local tsz = scrubber._tw_gsix_page:getSize()
             local pv, ph = S(2), S(5)
             local badge_h = tsz.h + 2 * pv
             local badge_w = math.max(tsz.w + 2 * ph, badge_h)
@@ -128,8 +137,7 @@ function GridSixView.paint(scrubber, bb)
                 if w_line > 0 then bb:paintRect(x0, by + row, w_line, 1, Blitbuffer.COLOR_BLACK) end
             end
 
-            tw_pg:paintTo(bb, bx + math.floor((badge_w - tsz.w)/2), by + math.floor((badge_h - tsz.h)/2))
-            tw_pg:free()
+            scrubber._tw_gsix_page:paintTo(bb, bx + math.floor((badge_w - tsz.w)/2), by + math.floor((badge_h - tsz.h)/2))
         end
     end
 end

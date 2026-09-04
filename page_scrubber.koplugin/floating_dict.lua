@@ -277,7 +277,13 @@ function PreviewButton:init()
                 width = scale(24),
                 height = scale(24),
                 alpha = true,
-                fgcolor = Blitbuffer.COLOR_BLACK
+                fgcolor = Blitbuffer.COLOR_BLACK,
+                -- Por defecto, ImageWidget se "doble-invierte" para preservar sus
+                -- colores originales en modo noche (pensado para fotos/tapas de
+                -- libro) -- por eso los íconos quedaban con un cuadrado blanco fijo
+                -- detrás en modo oscuro. Con esto en false, se invierten normal
+                -- junto con el resto de la interfaz.
+                original_in_nightmode = false,
             }
         end)
         if ok and widget then
