@@ -190,3 +190,14 @@ msgstr "Średni"
 msgid "Large"
 msgstr "Duży"
 
+msgid "Adjust Selection"
+msgstr "Dostosuj zaznaczenie"
+
+msgid "Adj"
+msgstr "Dost"
+
+msgid "Show chapter marks in slider"
+msgstr "Pokaż znaczniki rozdziałów na suwaku"
+
+
+

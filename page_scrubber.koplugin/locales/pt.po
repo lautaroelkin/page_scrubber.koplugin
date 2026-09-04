@@ -190,3 +190,13 @@ msgstr "Médio"
 msgid "Large"
 msgstr "Grande"
 
+msgid "Adjust Selection"
+msgstr "Ajustar Seleção"
+
+msgid "Adj"
+msgstr "Ajst"
+
+msgid "Show chapter marks in slider"
+msgstr "Mostrar marcas de capítulos na barra"
+
+

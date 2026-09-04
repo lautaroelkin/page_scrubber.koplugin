@@ -190,3 +190,14 @@ msgstr "Средний"
 msgid "Large"
 msgstr "Большой"
 
+msgid "Adjust Selection"
+msgstr "Настроить выделение"
+
+msgid "Adj"
+msgstr "Настр"
+
+msgid "Show chapter marks in slider"
+msgstr "Показывать метки глав на ползунке"
+
+
+

@@ -193,3 +193,13 @@ msgstr "中"
 msgid "Large"
 msgstr "大"
 
+msgid "Adjust Selection"
+msgstr "選択を調整"
+
+msgid "Adj"
+msgstr "調整"
+
+msgid "Show chapter marks in slider"
+msgstr "スライダーに章のマークを表示"
+
+

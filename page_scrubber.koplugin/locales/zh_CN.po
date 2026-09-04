@@ -190,3 +190,13 @@ msgstr "中"
 msgid "Large"
 msgstr "大"
 
+msgid "Adjust Selection"
+msgstr "调整选择"
+
+msgid "Adj"
+msgstr "调整"
+
+msgid "Show chapter marks in slider"
+msgstr "在进度条上显示章节标记"
+
+

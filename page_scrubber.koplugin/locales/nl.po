@@ -190,3 +190,12 @@ msgstr "Middel"
 msgid "Large"
 msgstr "Groot"
 
+msgid "Adjust Selection"
+msgstr "Selectie aanpassen"
+
+msgid "Adj"
+msgstr "Aanp"
+
+msgid "Show chapter marks in slider"
+msgstr "Hoofdstukmarkeringen weergeven op voortgangsbalk"
+

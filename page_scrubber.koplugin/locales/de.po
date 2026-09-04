@@ -190,3 +190,14 @@ msgstr "Mittel"
 msgid "Large"
 msgstr "Groß"
 
+msgid "Adjust Selection"
+msgstr "Auswahl anpassen"
+
+msgid "Adj"
+msgstr "Anp"
+
+msgid "Show chapter marks in slider"
+msgstr "Kapitelmarkierungen im Schieberegler anzeigen"
+
+
+
