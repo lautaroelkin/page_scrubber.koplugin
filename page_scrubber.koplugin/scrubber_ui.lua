@@ -1207,7 +1207,8 @@ function PageScrubber:_updateGridPages()
         
         if valid then
             for old_idx, old_slot in pairs(old_tiles) do
-                if old_slot.page == page and old_slot.tile_bb and old_slot.mode == self._view_mode then
+                -- Si la página ya está en memoria (aunque venga del grid normal), la reutilizamos de inmediato
+                if old_slot.page == page and old_slot.tile_bb then
                     self._grid_tiles[2].tile_bb = old_slot.tile_bb
                     self._grid_tiles[2].is_scaled = old_slot.is_scaled
                     self._grid_tiles[2].loading = false
@@ -1216,6 +1217,37 @@ function PageScrubber:_updateGridPages()
                 end
             end
         end
+
+        -- Carga directa para Split View: evita la cola por lotes y los descartes por timeout
+        if self._view_mode == "split" then
+            for _, old_slot in pairs(old_tiles) do self:_freeTile(old_slot) end
+            self._is_busy = false
+            self._tasks_in_flight = 0
+
+            if self._grid_tiles[2] and self._grid_tiles[2].page and not self._grid_tiles[2].tile_bb then
+                local req_w = expected_req_w
+                local req_h = expected_req_h
+                local req_page = page
+
+                thumbnail:getPageThumbnail(req_page, req_w, req_h, batch_id, function(tile, resp_batch_id)
+                    if self._closing or resp_batch_id ~= self._grid_batch_id then return end
+                    local processed = processTile(tile, req_w, req_h)
+                    if processed and processed.bb and self._grid_tiles[2] then
+                        self._grid_tiles[2].tile_bb = processed.bb
+                        self._grid_tiles[2].is_scaled = processed.is_scaled
+                        self._grid_tiles[2].loading = false
+                        self._grid_tiles[2].error = nil
+                    elseif self._grid_tiles[2] then
+                        self._grid_tiles[2].loading = false
+                        self._grid_tiles[2].error = true
+                    end
+                    UIManager:setDirty(self, "ui", self._grid_dimen)
+                end)
+            end
+            UIManager:setDirty(self, "ui", self._grid_dimen)
+            return
+        end
+
         if self._grid_tiles[2] and self._grid_tiles[2].page and not self._grid_tiles[2].tile_bb then
             missing[#missing + 1] = 2
         end
@@ -1320,7 +1352,10 @@ function PageScrubber:_updateGridPages()
                 function(tile, resp_batch_id, async_response)
                     if self._closing then return end
                     if timed_out then return end
-                    if resp_batch_id ~= batch_id or self._grid_batch_id ~= batch_id then return end
+                    if resp_batch_id ~= batch_id or self._grid_batch_id ~= batch_id then 
+                        advance()
+                        return 
+                    end
 
                     local processed = processTile(tile, current_req_w, current_req_h)
                     local corrupted = false
@@ -1378,9 +1413,12 @@ end
 
 function PageScrubber:_clearGridTiles()
     for idx, slot in pairs(self._grid_tiles) do
-        self:_freeTile(slot)
-        slot.loading = true
-        slot.error = nil
+        -- Conservamos la página actual en memoria para que el cambio a Split View sea instantáneo
+        if slot.page ~= self._cur_page then
+            self:_freeTile(slot)
+            slot.loading = true
+            slot.error = nil
+        end
     end
 end
 
@@ -2521,9 +2559,10 @@ function PageScrubber:_previewPage(page, is_dragging)
     UIManager:setDirty(self, "ui", self.dimen)
 
     if self._is_busy then
-        -- SEMÁFORO: Lo saltamos en el Multi-Grid al tocar botones (no al arrastrar)
-        if self._view_mode == "grid_six" and not is_dragging then
-            -- Pasamos de largo para abortar la carga vieja y arrancar la nueva instantáneamente
+        -- En grid_six y split permitimos la actualización directa al tocar elementos
+        if (self._view_mode == "grid_six" or self._view_mode == "split") and not is_dragging then
+            self._is_busy = false
+            self._tasks_in_flight = 0
         else
             self._pending_grid_update = true
             return
