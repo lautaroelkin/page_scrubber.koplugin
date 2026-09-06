@@ -1,6 +1,6 @@
 --[[
     page_scrubber.koplugin/scrubber_toc.lua
-    Módulo interactivo de Tabla de Contenidos (ToC)
+    Módulo interactivo de Tabla de Contenidos (ToC) con persiana expandible
 ]]--
 
 local Blitbuffer      = require("ffi/blitbuffer")
@@ -18,7 +18,7 @@ local logger          = require("logger")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Widget          = require("ui/widget/widget")
 
--- Lector de .po en vivo (Estilo Storefront)
+-- Lector de .po en vivo
 local _dict = {}
 local _lang = "en"
 if G_reader_settings then
@@ -48,7 +48,7 @@ end
 local function _(text)
     return _dict[text] or text
 end
-local Screen          = Device.screen
+local Screen = Device.screen
 
 local function flatten_keys(...)
     local keys = {}
@@ -190,7 +190,6 @@ function GlimpseDots:paintTo(bb, x, y)
         local is_active = (i == self.cur)
         local color = is_active and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
         local r = is_active and r_max or self.dot_r
-        -- Dibujado 100% nativo (no congela el lector)
         paintRoundRect(bb, cx - r, cy - r, r * 2, r * 2, r, color)
     end
 end
@@ -206,11 +205,7 @@ function GlimpsePill:paintTo(bb, x, y)
     local size = self:getSize()
     local w, h = size.w, size.h
     self.dimen = Geom:new{ x = x, y = y, w = w, h = h }
-    
-    -- Fondo blanco puro y sin bordes, para que parezca invisible. 
-    -- KOReader lo invertirá a negro automáticamente en modo noche.
     paintRoundRect(bb, x, y, w, h, self.radius, Blitbuffer.COLOR_WHITE)
-    
     local inner_size = self.inner:getSize()
     self.inner:paintTo(bb, x + math.floor((w - inner_size.w) / 2), y + math.floor((h - inner_size.h) / 2))
 end
@@ -224,6 +219,7 @@ end
 local ScrubberToc = InputContainer:extend{
     name = "scrubber_toc",
     transparent = true,
+    alpha = 0.25,
 }
 
 function ScrubberToc:init()
@@ -250,6 +246,25 @@ function ScrubberToc:init()
     self._pressed_btn = nil
     self._closing     = false
     self._repeat_running = false
+    self._is_expanded = (self.initial_expanded == true)
+
+    self.is_rtl = self.is_rtl
+    if self.is_rtl == nil then
+        if self.parent_scrubber and self.parent_scrubber.is_rtl ~= nil then
+            self.is_rtl = self.parent_scrubber.is_rtl
+        else
+            local is_manga = false
+            if ui and ui.doc_settings and type(ui.doc_settings.readSetting) == "function" then
+                if ui.doc_settings:readSetting("inverse_reading_order") == true then is_manga = true end
+            end
+            local file_path = (doc and doc.file) or ""
+            local lp = file_path:lower()
+            if lp:find("[/%s%-_]mangas?[/%s%-_]") or lp:find("%[manga%]") or lp:find("%(manga%)") then
+                is_manga = true
+            end
+            self.is_rtl = is_manga
+        end
+    end
 
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
@@ -272,7 +287,6 @@ function ScrubberToc:init()
         return TextWidget:new{ text = icon_char, face = Font:getFace("cfont", sz), fgcolor = fg }
     end
 
-    -- Iconos Normales e Invertidos (Blanco)
     self.icon_wifi_0    = createSafeIcon("0", "wifi-zero.svg", S(42))
     self.icon_wifi_1    = createSafeIcon("1", "wifi-low.svg", S(42))
     self.icon_wifi_2    = createSafeIcon("2", "wifi-high.svg", S(42))
@@ -294,6 +308,11 @@ function ScrubberToc:init()
 
     self.icon_toc_last  = createSafeIcon(">>", "step-forward.svg", S(24))
     self.icon_toc_last_inv = createSafeIcon(">>", "step-forward.svg", S(24), Blitbuffer.COLOR_WHITE)
+
+    self.icon_chevron_down     = createSafeIcon("v", "chevron-down.svg", S(28))
+    self.icon_chevron_down_inv = createSafeIcon("v", "chevron-down.svg", S(28), Blitbuffer.COLOR_WHITE)
+    self.icon_chevron_up       = createSafeIcon("^", "chevron-up.svg", S(28))
+    self.icon_chevron_up_inv   = createSafeIcon("^", "chevron-up.svg", S(28), Blitbuffer.COLOR_WHITE)
 
     local function getBookProps()
         local title, author
@@ -376,7 +395,11 @@ function ScrubberToc:init()
     self._has_multiple_levels = (max_depth > 0)
     self._max_toc_depth = max_depth
 
-    self._filter_level = math.min(2, max_depth) 
+    if self.initial_filter_level ~= nil then
+        self._filter_level = self.initial_filter_level
+    else
+        self._filter_level = math.min(2, max_depth)
+    end
     self._filtered_toc = {}
     
     self.refreshFilter = function()
@@ -388,7 +411,6 @@ function ScrubberToc:init()
         end
         self:_syncTocPageWithCurrentPage()
     end
-    self.refreshFilter()
 
     local text_size_pref = G_reader_settings and G_reader_settings:readSetting("page_scrubber_text_size") or "medium"
     local t_off = 0
@@ -436,7 +458,7 @@ function ScrubberToc:init()
     local slider_pad_x = S(32)
     local slider_w = sw - (slider_pad_x * 2)
     self._slider_x = slider_pad_x
-    self._slider = ProgressSlider:new{ width = slider_w, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S }
+    self._slider = ProgressSlider:new{ width = slider_w, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S, is_rtl = self.is_rtl }
     self:_updateChapterMarks()
     local slider_h = self._slider:getSize().h
 
@@ -477,15 +499,13 @@ function ScrubberToc:init()
     
     local preview_w = math.floor(preview_h * sw / sh)
     local preview_x = math.floor((sw - preview_w) / 2)
-    
     local preview_y = self.slider_y_pos - preview_h - S(4)
     
     self._preview_dimen = Geom:new{ x = preview_x, y = preview_y, w = preview_w, h = preview_h }
     self._thumb_req_w = preview_w - S(4)
     self._thumb_req_h = preview_h - S(4)
 
-    local panel_h = preview_y - S(10)
-    self._top_panel_dimen = Geom:new{ x = 0, y = 0, w = sw, h = panel_h }
+    self._normal_panel_h = preview_y - S(10)
 
     local py = #self.tw_titles > 1 and S(8) or S(16)
     self._title_y = py 
@@ -499,26 +519,10 @@ function ScrubberToc:init()
 
     self._divider_y = py
     py = py + S(1) + S(8)
-
-    self._bot_internal_h = S(50)
-    self._bot_internal_y = panel_h - self._bot_internal_h - S(8)
-
-    local filter_sz = S(48)
-    if self._has_multiple_levels then
-        self._filter_dimen = Geom:new{ x = S(16), y = self._bot_internal_y + math.floor((self._bot_internal_h - filter_sz)/2), w = filter_sz, h = filter_sz }
-    else
-        self._filter_dimen = nil
-    end
-
-    local btn_sz_top = S(42)
-    self._close_dimen = Geom:new{ x = sw - S(14) - btn_sz_top, y = self._bot_internal_y + math.floor((self._bot_internal_h - btn_sz_top) / 2), w = btn_sz_top, h = btn_sz_top }
-
     self._list_y = py
-    self._list_avail_h = self._bot_internal_y - self._list_y - S(8)
-    
-    local target_row_h = S(48)
-    self._items_per_page = math.max(2, math.floor(self._list_avail_h / target_row_h))
-    self._row_h = math.floor(self._list_avail_h / self._items_per_page)
+
+    self:_updateLayout()
+    self.refreshFilter()
 
     self._slider.on_change = function(v)
         self:_previewPage(v, self._slider._dragging)
@@ -558,9 +562,57 @@ function ScrubberToc:init()
     UIManager:scheduleIn(0.05, function()
         if not self._closing then 
             UIManager:setDirty(self, "ui")
-            self:_updatePreviewTile() 
+            if not self._is_expanded then
+                self:_updatePreviewTile() 
+            end
         end
     end)
+end
+
+function ScrubberToc:_updateLayout()
+    local sw, sh = self._sw, self._sh
+    local S = self.S
+
+    -- Pantalla completa exacta cuando la persiana está baja
+    local panel_h = self._is_expanded and sh or self._normal_panel_h
+    self._top_panel_dimen = Geom:new{ x = 0, y = 0, w = sw, h = panel_h }
+
+    self._bot_internal_h = S(50)
+    local bot_margin = self._is_expanded and S(14) or S(8)
+    self._bot_internal_y = panel_h - self._bot_internal_h - bot_margin
+
+    local filter_sz = S(48)
+    if self._has_multiple_levels then
+        self._filter_dimen = Geom:new{
+            x = S(16),
+            y = self._bot_internal_y + math.floor((self._bot_internal_h - filter_sz) / 2),
+            w = filter_sz,
+            h = filter_sz
+        }
+    else
+        self._filter_dimen = nil
+    end
+
+    local btn_sz_top = S(42)
+    local btn_gap = S(6)
+    self._close_dimen = Geom:new{
+        x = sw - S(14) - btn_sz_top,
+        y = self._bot_internal_y + math.floor((self._bot_internal_h - btn_sz_top) / 2),
+        w = btn_sz_top,
+        h = btn_sz_top
+    }
+
+    self._toggle_expand_dimen = Geom:new{
+        x = self._close_dimen.x - btn_sz_top - btn_gap,
+        y = self._close_dimen.y,
+        w = btn_sz_top,
+        h = btn_sz_top
+    }
+
+    self._list_avail_h = self._bot_internal_y - self._list_y - S(8)
+    local target_row_h = S(48)
+    self._items_per_page = math.max(2, math.floor(self._list_avail_h / target_row_h))
+    self._row_h = math.floor(self._list_avail_h / self._items_per_page)
 end
 
 function ScrubberToc:_updateChapterMarks()
@@ -575,7 +627,6 @@ function ScrubberToc:_updateChapterMarks()
         return
     end
 
-    -- Si se abrió desde el Scrubber principal, reutiliza sus marcas ya calculadas
     if self.parent_scrubber and self.parent_scrubber._slider and self.parent_scrubber._slider.chapters then
         if self._slider then self._slider.chapters = self.parent_scrubber._slider.chapters end
         return
@@ -660,7 +711,7 @@ function ScrubberToc:_getNextChapterPage()
 end
 
 function ScrubberToc:_updatePreviewTile()
-    if self._closing then return end
+    if self._closing or self._is_expanded then return end
     local thumbnail = self.ui.thumbnail
     if not thumbnail or not thumbnail.getPageThumbnail then return end
 
@@ -709,11 +760,13 @@ function ScrubberToc:_previewPage(page, is_dragging)
         self._preview_drag_seq = (self._preview_drag_seq or 0) + 1
         local current_seq = self._preview_drag_seq
         UIManager:scheduleIn(0.08, function()
-            if self._closing or self._preview_drag_seq ~= current_seq then return end
+            if self._closing or self._preview_drag_seq ~= current_seq or self._is_expanded then return end
             self:_updatePreviewTile()
         end)
     else
-        self:_updatePreviewTile()
+        if not self._is_expanded then
+            self:_updatePreviewTile()
+        end
         UIManager:setDirty(self, "ui", self.dimen)
     end
 end
@@ -835,6 +888,37 @@ function ScrubberToc:_closeStay()
     end
 end
 
+function ScrubberToc:_toggleShutter()
+    if self._closing then return end
+    local ui = self.ui
+    local cur_page = self._cur_page
+    local origin_page = self._origin_page
+    local parent = self.parent_scrubber
+    local next_expanded = not self._is_expanded
+    local filt = self._filter_level
+    local scale_val = self.ui_scale
+    
+    self._closing = true
+    self:_stopRepeatAction()
+    UIManager:close(self)
+    
+    UIManager:nextTick(function()
+        local ScrubberTocMod = require("scrubber_toc")
+        local new_toc = ScrubberTocMod:new{
+            ui = ui,
+            parent_scrubber = parent,
+            initial_page = cur_page,
+            initial_origin = origin_page,
+            initial_expanded = next_expanded,
+            initial_filter_level = filt,
+            ui_scale = scale_val,
+            is_rtl = self.is_rtl,
+        }
+        UIManager:show(new_toc)
+        UIManager:setDirty(nil, "full")
+    end)
+end
+
 function ScrubberToc:onClose()
     self:_closeReturn()
     return true
@@ -856,15 +940,23 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     local b_thick = S(3)
     local shadow_offset = S(2)
 
-    local mesh_start_y = pd.h
-    local mesh_end_y = bd.y
-    for dy = mesh_start_y, mesh_end_y, 2 do
-        bb:paintRect(0, dy, sw, 1, Blitbuffer.COLOR_WHITE)
+    if not self._is_expanded then
+        -- Malla de puntos / Dithering sobre el libro limpio
+        local mesh_start_y = pd.h
+        local mesh_end_y = bd.y
+        for dy = mesh_start_y, mesh_end_y, 2 do
+            bb:paintRect(0, dy, sw, 1, Blitbuffer.COLOR_WHITE)
+        end
+        -- Sombra gris
+        paintBottomRoundedTab(bb, 0, shadow_offset, sw, pd.h, tab_radius, Blitbuffer.COLOR_GRAY)
+        -- Solapa redondeada normal
+        paintBottomRoundedTab(bb, 0, 0, sw, pd.h, tab_radius, Blitbuffer.COLOR_BLACK)
+        paintBottomRoundedTab(bb, b_thick, 0, sw - (b_thick * 2), pd.h - b_thick, math.max(1, tab_radius - b_thick), Blitbuffer.COLOR_WHITE)
+    else
+        -- Persiana expandida: la solapa llega hasta abajo de todo sin sombra exterior
+        paintBottomRoundedTab(bb, 0, 0, sw, pd.h, tab_radius, Blitbuffer.COLOR_BLACK)
+        paintBottomRoundedTab(bb, b_thick, 0, sw - (b_thick * 2), pd.h - b_thick, math.max(1, tab_radius - b_thick), Blitbuffer.COLOR_WHITE)
     end
-
-    paintBottomRoundedTab(bb, 0, shadow_offset, sw, pd.h, tab_radius, Blitbuffer.COLOR_GRAY)
-    paintBottomRoundedTab(bb, 0, 0, sw, pd.h, tab_radius, Blitbuffer.COLOR_BLACK)
-    paintBottomRoundedTab(bb, b_thick, 0, sw - (b_thick * 2), pd.h - b_thick, math.max(1, tab_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local head_pad_x = S(24)
     local current_py = self._title_y
@@ -889,9 +981,14 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                     break
                 end
             end
+            local cur_depth = ch.depth or 0
             local next_page = self._total_pages
-            if flat_idx < #self._flat_toc then
-                next_page = self._flat_toc[flat_idx + 1].page
+            for j = flat_idx + 1, #self._flat_toc do
+                local next_ch = self._flat_toc[j]
+                if (next_ch.depth or 0) <= cur_depth then
+                    next_page = next_ch.page
+                    break
+                end
             end
             local pages_len = math.max(0, next_page - ch.page)
             
@@ -1028,7 +1125,12 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         if dot_r < 2 then dot_r = 2 end
         local natural_pitch = S(11)
         local min_pitch = 2 * dot_r + S(3)
-        local budget = sw - (S(16) * 4) -- Espacio seguro
+        
+        local right_reserved = sw - self._toggle_expand_dimen.x + S(8)
+        local left_reserved = (self._has_multiple_levels and self._filter_dimen)
+            and (self._filter_dimen.x + self._filter_dimen.w + S(8)) or S(24)
+        local side_max = math.max(right_reserved, left_reserved)
+        local budget = sw - (side_max * 2)
         local pitch = natural_pitch
 
         if total_pages > 1 then
@@ -1041,14 +1143,14 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             pill_widget = GlimpsePill:new{
                 padding_h = S(9), height = S(21), radius = S(8), stroke = S(2),
                 bg_color = 0xFF,
-                border_color = 0xFF, -- Contorno invisible (blanco sobre blanco)
+                border_color = 0xFF,
                 inner = GlimpseDots:new{ nb = total_pages, cur = self._toc_page, pitch = math.floor(pitch), dot_r = dot_r, height = S(10) }
             }
         else
             pill_widget = GlimpsePill:new{
                 padding_h = S(9), height = S(21), radius = S(8), stroke = S(2),
                 bg_color = 0xFF,
-                border_color = 0xFF, -- Contorno invisible (blanco sobre blanco)
+                border_color = 0xFF,
                 inner = TextWidget:new{
                     text = self._toc_page .. " / " .. total_pages,
                     face = Font:getFace("cfont", S(11)),
@@ -1094,6 +1196,24 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         end
     end
 
+    -- Botón de la Persiana (Expandir / Contraer)
+    if self._toggle_expand_dimen then
+        local ed = self._toggle_expand_dimen
+        local icon_exp = self._is_expanded and self.icon_chevron_up or self.icon_chevron_down
+        local icon_exp_inv = self._is_expanded and self.icon_chevron_up_inv or self.icon_chevron_down_inv
+        local esz = icon_exp:getSize()
+        local ex = ed.x + math.floor((ed.w - esz.w) / 2)
+        local ey = ed.y + math.floor((ed.h - esz.h) / 2)
+
+        if self._pressed_btn == "toggle_expand" then
+            paintRoundRect(bb, ed.x, ed.y, ed.w, ed.h, S(12), Blitbuffer.COLOR_BLACK)
+            icon_exp_inv:paintTo(bb, ex, ey)
+        else
+            icon_exp:paintTo(bb, ex, ey)
+        end
+    end
+
+    -- Botón Cerrar (✕)
     local x_sz = self.tw_x:getSize()
     local cx = self._close_dimen.x + math.floor((self._close_dimen.w - x_sz.w) / 2)
     local cy = self._close_dimen.y + math.floor((self._close_dimen.h - x_sz.h) / 2)
@@ -1106,114 +1226,111 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     end
 
     -- =========================================================================
-    -- 2. BARRA INFERIOR (Capa base, botones, slider)
+    -- 2. BARRA INFERIOR Y PREVIEW (Solo visibles cuando la persiana está arriba)
     -- =========================================================================
-    bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
-    
-    -- Grosor S(3) IDÉNTICO AL GRID (scrubber_ui.lua)
-    bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK)
+    if not self._is_expanded then
+        bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
+        bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK)
 
-    local bloom_ch = S(4)
-    local rad_ch = S(12)
+        local bloom_ch = S(4)
+        local rad_ch = S(12)
 
-    local is_prev_ch = self._pressed_btn == "prev_ch" or self._repeat_running_id == "prev_ch"
-    local asz_pch = self.icon_ch_prev:getSize()
-    local pch_x = self._prev_ch_dimen.x + math.floor((self._prev_ch_dimen.w - asz_pch.w)/2)
-    local pch_y = self._prev_ch_dimen.y + math.floor((self._prev_ch_dimen.h - asz_pch.h)/2)
-    
-    if is_prev_ch then
-        local d = self._prev_ch_dimen
-        paintRoundRect(bb, d.x - bloom_ch, d.y - bloom_ch, d.w + bloom_ch*2, d.h + bloom_ch*2, rad_ch, Blitbuffer.COLOR_BLACK)
-        self.icon_ch_prev_inv:paintTo(bb, pch_x, pch_y)
-    else
-        self.icon_ch_prev:paintTo(bb, pch_x, pch_y)
-    end
-
-    local is_next_ch = self._pressed_btn == "next_ch" or self._repeat_running_id == "next_ch"
-    local asz_nch = self.icon_ch_next:getSize()
-    local nch_x = self._next_ch_dimen.x + math.floor((self._next_ch_dimen.w - asz_nch.w)/2)
-    local nch_y = self._next_ch_dimen.y + math.floor((self._next_ch_dimen.h - asz_nch.h)/2)
-    
-    if is_next_ch then
-        local d = self._next_ch_dimen
-        paintRoundRect(bb, d.x - bloom_ch, d.y - bloom_ch, d.w + bloom_ch*2, d.h + bloom_ch*2, rad_ch, Blitbuffer.COLOR_BLACK)
-        self.icon_ch_next_inv:paintTo(bb, nch_x, nch_y)
-    else
-        self.icon_ch_next:paintTo(bb, nch_x, nch_y)
-    end
-
-    local bloom_toc = S(4)
-    local rad_toc = S(10)
-
-    if self._toc_page > 1 then
-        local asz_f = self.icon_toc_first:getSize()
-        local f_x = self._first_toc_dimen.x + math.floor((self._first_toc_dimen.w - asz_f.w)/2)
-        local f_y = self._first_toc_dimen.y + math.floor((self._first_toc_dimen.h - asz_f.h)/2)
-        if self._pressed_btn == "first_toc" then 
-            local d = self._first_toc_dimen
-            paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
-            self.icon_toc_first_inv:paintTo(bb, f_x, f_y)
+        local is_prev_ch = self._pressed_btn == "prev_ch" or self._repeat_running_id == "prev_ch"
+        local asz_pch = self.icon_ch_prev:getSize()
+        local pch_x = self._prev_ch_dimen.x + math.floor((self._prev_ch_dimen.w - asz_pch.w)/2)
+        local pch_y = self._prev_ch_dimen.y + math.floor((self._prev_ch_dimen.h - asz_pch.h)/2)
+        
+        if is_prev_ch then
+            local d = self._prev_ch_dimen
+            paintRoundRect(bb, d.x - bloom_ch, d.y - bloom_ch, d.w + bloom_ch*2, d.h + bloom_ch*2, rad_ch, Blitbuffer.COLOR_BLACK)
+            self.icon_ch_prev_inv:paintTo(bb, pch_x, pch_y)
         else
-            self.icon_toc_first:paintTo(bb, f_x, f_y)
+            self.icon_ch_prev:paintTo(bb, pch_x, pch_y)
         end
 
-        local asz_p = self.icon_toc_prev:getSize()
-        local p_x = self._prev_toc_dimen.x + math.floor((self._prev_toc_dimen.w - asz_p.w)/2)
-        local p_y = self._prev_toc_dimen.y + math.floor((self._prev_toc_dimen.h - asz_p.h)/2)
-        if self._pressed_btn == "prev_toc" then 
-            local d = self._prev_toc_dimen
-            paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
-            self.icon_toc_prev_inv:paintTo(bb, p_x, p_y)
+        local is_next_ch = self._pressed_btn == "next_ch" or self._repeat_running_id == "next_ch"
+        local asz_nch = self.icon_ch_next:getSize()
+        local nch_x = self._next_ch_dimen.x + math.floor((self._next_ch_dimen.w - asz_nch.w)/2)
+        local nch_y = self._next_ch_dimen.y + math.floor((self._next_ch_dimen.h - asz_nch.h)/2)
+        
+        if is_next_ch then
+            local d = self._next_ch_dimen
+            paintRoundRect(bb, d.x - bloom_ch, d.y - bloom_ch, d.w + bloom_ch*2, d.h + bloom_ch*2, rad_ch, Blitbuffer.COLOR_BLACK)
+            self.icon_ch_next_inv:paintTo(bb, nch_x, nch_y)
         else
-            self.icon_toc_prev:paintTo(bb, p_x, p_y)
-        end
-    end
-
-    if self._toc_page < total_pages then
-        local asz_n = self.icon_toc_next:getSize()
-        local n_x = self._next_toc_dimen.x + math.floor((self._next_toc_dimen.w - asz_n.w)/2)
-        local n_y = self._next_toc_dimen.y + math.floor((self._next_toc_dimen.h - asz_n.h)/2)
-        if self._pressed_btn == "next_toc" then 
-            local d = self._next_toc_dimen
-            paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
-            self.icon_toc_next_inv:paintTo(bb, n_x, n_y)
-        else
-            self.icon_toc_next:paintTo(bb, n_x, n_y)
+            self.icon_ch_next:paintTo(bb, nch_x, nch_y)
         end
 
-        local asz_l = self.icon_toc_last:getSize()
-        local l_x = self._last_toc_dimen.x + math.floor((self._last_toc_dimen.w - asz_l.w)/2)
-        local l_y = self._last_toc_dimen.y + math.floor((self._last_toc_dimen.h - asz_l.h)/2)
-        if self._pressed_btn == "last_toc" then 
-            local d = self._last_toc_dimen
-            paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
-            self.icon_toc_last_inv:paintTo(bb, l_x, l_y)
-        else
-            self.icon_toc_last:paintTo(bb, l_x, l_y)
+        local bloom_toc = S(4)
+        local rad_toc = S(10)
+
+        if self._toc_page > 1 then
+            local asz_f = self.icon_toc_first:getSize()
+            local f_x = self._first_toc_dimen.x + math.floor((self._first_toc_dimen.w - asz_f.w)/2)
+            local f_y = self._first_toc_dimen.y + math.floor((self._first_toc_dimen.h - asz_f.h)/2)
+            if self._pressed_btn == "first_toc" then 
+                local d = self._first_toc_dimen
+                paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
+                self.icon_toc_first_inv:paintTo(bb, f_x, f_y)
+            else
+                self.icon_toc_first:paintTo(bb, f_x, f_y)
+            end
+
+            local asz_p = self.icon_toc_prev:getSize()
+            local p_x = self._prev_toc_dimen.x + math.floor((self._prev_toc_dimen.w - asz_p.w)/2)
+            local p_y = self._prev_toc_dimen.y + math.floor((self._prev_toc_dimen.h - asz_p.h)/2)
+            if self._pressed_btn == "prev_toc" then 
+                local d = self._prev_toc_dimen
+                paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
+                self.icon_toc_prev_inv:paintTo(bb, p_x, p_y)
+            else
+                self.icon_toc_prev:paintTo(bb, p_x, p_y)
+            end
         end
-    end
 
-    self._slider.value = self._cur_page
-    self._slider:paintTo(bb, self._slider_x, self.slider_y_pos)
+        if self._toc_page < total_pages then
+            local asz_n = self.icon_toc_next:getSize()
+            local n_x = self._next_toc_dimen.x + math.floor((self._next_toc_dimen.w - asz_n.w)/2)
+            local n_y = self._next_toc_dimen.y + math.floor((self._next_toc_dimen.h - asz_n.h)/2)
+            if self._pressed_btn == "next_toc" then 
+                local d = self._next_toc_dimen
+                paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
+                self.icon_toc_next_inv:paintTo(bb, n_x, n_y)
+            else
+                self.icon_toc_next:paintTo(bb, n_x, n_y)
+            end
 
-    -- =========================================================================
-    -- 3. MINI PREVIEW
-    -- =========================================================================
-    local pr = self._preview_dimen
-    paintRoundRect(bb, pr.x, pr.y + S(4), pr.w, pr.h, S(8), Blitbuffer.COLOR_DARK_GRAY)
-    paintRoundRect(bb, pr.x, pr.y, pr.w, pr.h, S(8), Blitbuffer.COLOR_BLACK)
-    local pr_b_thick = S(3)
-    paintRoundRect(bb, pr.x + pr_b_thick, pr.y + pr_b_thick, pr.w - pr_b_thick*2, pr.h - pr_b_thick*2, S(6), Blitbuffer.COLOR_WHITE)
+            local asz_l = self.icon_toc_last:getSize()
+            local l_x = self._last_toc_dimen.x + math.floor((self._last_toc_dimen.w - asz_l.w)/2)
+            local l_y = self._last_toc_dimen.y + math.floor((self._last_toc_dimen.h - asz_l.h)/2)
+            if self._pressed_btn == "last_toc" then 
+                local d = self._last_toc_dimen
+                paintRoundRect(bb, d.x - bloom_toc, d.y - bloom_toc, d.w + bloom_toc*2, d.h + bloom_toc*2, rad_toc, Blitbuffer.COLOR_BLACK)
+                self.icon_toc_last_inv:paintTo(bb, l_x, l_y)
+            else
+                self.icon_toc_last:paintTo(bb, l_x, l_y)
+            end
+        end
 
-    if self._preview_tile and self._preview_tile.bb then
-        local tw, th = self._preview_tile.bb:getWidth(), self._preview_tile.bb:getHeight()
-        local blit_w = math.min(tw, pr.w - pr_b_thick*2)
-        local blit_h = math.min(th, pr.h - pr_b_thick*2)
-        local ox = pr.x + pr_b_thick + math.floor((pr.w - pr_b_thick*2 - blit_w) / 2)
-        local oy = pr.y + pr_b_thick + math.floor((pr.h - pr_b_thick*2 - blit_h) / 2)
-        bb:blitFrom(self._preview_tile.bb, ox, oy, 0, 0, blit_w, blit_h)
-    else
-        bb:paintRect(pr.x + math.floor(pr.w/2) - 1, pr.y + math.floor(pr.h/2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
+        self._slider.value = self._cur_page
+        self._slider:paintTo(bb, self._slider_x, self.slider_y_pos)
+
+        local pr = self._preview_dimen
+        paintRoundRect(bb, pr.x, pr.y + S(4), pr.w, pr.h, S(8), Blitbuffer.COLOR_DARK_GRAY)
+        paintRoundRect(bb, pr.x, pr.y, pr.w, pr.h, S(8), Blitbuffer.COLOR_BLACK)
+        local pr_b_thick = S(3)
+        paintRoundRect(bb, pr.x + pr_b_thick, pr.y + pr_b_thick, pr.w - pr_b_thick*2, pr.h - pr_b_thick*2, S(6), Blitbuffer.COLOR_WHITE)
+
+        if self._preview_tile and self._preview_tile.bb then
+            local tw, th = self._preview_tile.bb:getWidth(), self._preview_tile.bb:getHeight()
+            local blit_w = math.min(tw, pr.w - pr_b_thick*2)
+            local blit_h = math.min(th, pr.h - pr_b_thick*2)
+            local ox = pr.x + pr_b_thick + math.floor((pr.w - pr_b_thick*2 - blit_w) / 2)
+            local oy = pr.y + pr_b_thick + math.floor((pr.h - pr_b_thick*2 - blit_h) / 2)
+            bb:blitFrom(self._preview_tile.bb, ox, oy, 0, 0, blit_w, blit_h)
+        else
+            bb:paintRect(pr.x + math.floor(pr.w/2) - 1, pr.y + math.floor(pr.h/2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
+        end
     end
 end
 
@@ -1231,7 +1348,7 @@ function ScrubberToc:onHold(arg1, arg2)
     local ges = arg2 or arg1
     if self._closing then return true end
 
-    if self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
+    if not self._is_expanded and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
         local target_page = self._cur_page
         self:_flashAndDo("hold_preview", self._preview_dimen, function()
             self:_gotoPageDirectly(target_page)
@@ -1251,7 +1368,7 @@ function ScrubberToc:onHold(arg1, arg2)
         end
     end
 
-    if self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen) then
+    if not self._is_expanded and self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen) then
         self._repeat_running_id = "prev_ch"
         self:_startRepeatAction(function()
             local p = self:_getPrevChapterPage()
@@ -1260,7 +1377,7 @@ function ScrubberToc:onHold(arg1, arg2)
         return true
     end
 
-    if self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen) then
+    if not self._is_expanded and self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen) then
         self._repeat_running_id = "next_ch"
         self:_startRepeatAction(function()
             local p = self:_getNextChapterPage()
@@ -1276,6 +1393,7 @@ function ScrubberToc:onTap(arg1, arg2)
     local ges = arg2 or arg1
     if self._closing then return true end
 
+    -- Botón Cerrar (✕)
     if self._close_dimen and ges.pos:intersectWith(self._close_dimen) then
         self:_flashAndDo("x", self._close_dimen, function() 
             self:_closeReturn()
@@ -1283,6 +1401,13 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
+    -- Botón de la Persiana (Expandir / Contraer)
+    if self._toggle_expand_dimen and ges.pos:intersectWith(self._toggle_expand_dimen) then
+        self:_toggleShutter()
+        return true
+    end
+
+    -- Botón Filtro Subcapítulos
     if self._has_multiple_levels and self._filter_dimen and ges.pos:intersectWith(self._filter_dimen) then
         self:_flashAndDo("filter", self._filter_dimen, function()
             local toggle_limit = (self._max_toc_depth == 1) and 2 or 3
@@ -1294,12 +1419,12 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
+    if not self._is_expanded and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
         self:_returnToGrid(self._cur_page)
         return true
     end
 
-    if self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen) then
+    if not self._is_expanded and self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen) then
         self:_flashAndDo("prev_ch", self._prev_ch_dimen, function()
             local p = self:_getPrevChapterPage()
             self:_previewPage(p, false)
@@ -1307,7 +1432,7 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen) then
+    if not self._is_expanded and self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen) then
         self:_flashAndDo("next_ch", self._next_ch_dimen, function()
             local p = self:_getNextChapterPage()
             self:_previewPage(p, false)
@@ -1315,7 +1440,7 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._first_toc_dimen and ges.pos:intersectWith(self._first_toc_dimen) then
+    if not self._is_expanded and self._first_toc_dimen and ges.pos:intersectWith(self._first_toc_dimen) then
         if self._toc_page > 1 then
             self:_flashAndDo("first_toc", self._first_toc_dimen, function()
                 self._toc_page = 1
@@ -1325,7 +1450,7 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._prev_toc_dimen and ges.pos:intersectWith(self._prev_toc_dimen) then
+    if not self._is_expanded and self._prev_toc_dimen and ges.pos:intersectWith(self._prev_toc_dimen) then
         if self._toc_page > 1 then
             self:_flashAndDo("prev_toc", self._prev_toc_dimen, function()
                 self._toc_page = self._toc_page - 1
@@ -1335,7 +1460,7 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._next_toc_dimen and ges.pos:intersectWith(self._next_toc_dimen) then
+    if not self._is_expanded and self._next_toc_dimen and ges.pos:intersectWith(self._next_toc_dimen) then
         local total_pages = math.max(1, math.ceil(#self._filtered_toc / (self._items_per_page or 6)))
         if self._toc_page < total_pages then
             self:_flashAndDo("next_toc", self._next_toc_dimen, function()
@@ -1346,7 +1471,7 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if self._last_toc_dimen and ges.pos:intersectWith(self._last_toc_dimen) then
+    if not self._is_expanded and self._last_toc_dimen and ges.pos:intersectWith(self._last_toc_dimen) then
         local total_pages = math.max(1, math.ceil(#self._filtered_toc / (self._items_per_page or 6)))
         if self._toc_page < total_pages then
             self:_flashAndDo("last_toc", self._last_toc_dimen, function()
@@ -1384,7 +1509,7 @@ function ScrubberToc:onTap(arg1, arg2)
         end
     end
 
-    if ges.pos.y > self._top_panel_dimen.h and ges.pos.y < self._bar_dimen.y then
+    if not self._is_expanded and ges.pos.y > self._top_panel_dimen.h and ges.pos.y < self._bar_dimen.y then
         if not (self._preview_dimen and ges.pos:intersectWith(self._preview_dimen)) and
            not (self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen)) and
            not (self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen)) then
@@ -1393,14 +1518,14 @@ function ScrubberToc:onTap(arg1, arg2)
         end
     end
 
-    if self._slider:handleTap(ges) then return true end
+    if not self._is_expanded and self._slider:handleTap(ges) then return true end
 
     return true
 end
 
 function ScrubberToc:onPan(arg1, arg2)
     local ges = arg2 or arg1
-    if self._closing then return true end
+    if self._closing or self._is_expanded then return true end
     
     if self._slider:handlePan(ges) then
         if self._slider._dragging then
@@ -1409,7 +1534,7 @@ function ScrubberToc:onPan(arg1, arg2)
             self._pan_watchdog_gen = (self._pan_watchdog_gen or 0) + 1
             local my_gen = self._pan_watchdog_gen
             UIManager:scheduleIn(0.6, function()
-                if self._closing then return end
+                if self._closing or self._is_expanded then return end
                 if self._pan_watchdog_gen == my_gen and self._slider._dragging then
                     self._slider._dragging = false
                     self:_previewPage(self._slider.value, false)
@@ -1423,7 +1548,7 @@ end
 
 function ScrubberToc:onPanRelease(arg1, arg2)
     local ges = arg2 or arg1
-    if self._closing then return true end
+    if self._closing or self._is_expanded then return true end
     
     local was_dragging = self._slider and self._slider._dragging
     if self._slider:handlePanRelease(ges) or was_dragging then
@@ -1450,13 +1575,13 @@ function ScrubberToc:onSwipe(arg1, arg2)
     if ges.direction == "west" then
         if self._toc_page < total_pages then
             self._toc_page = self._toc_page + 1
-            UIManager:setDirty(self, "ui", self._top_panel_dimen)
+            UIManager:setDirty(self, "ui", self.dimen)
             return true
         end
     elseif ges.direction == "east" then
         if self._toc_page > 1 then
             self._toc_page = self._toc_page - 1
-            UIManager:setDirty(self, "ui", self._top_panel_dimen)
+            UIManager:setDirty(self, "ui", self.dimen)
             return true
         end
     elseif ges.direction == "south" then
@@ -1476,7 +1601,9 @@ function ScrubberToc:onRelease(arg1, arg2)
 
     if self._repeat_running_id or was_repeating then
         self._repeat_running_id = nil
-        self:_updatePreviewTile() 
+        if not self._is_expanded then
+            self:_updatePreviewTile() 
+        end
         UIManager:setDirty(self, "ui", self.dimen)
     end
 
@@ -1504,7 +1631,6 @@ function ScrubberToc:onCloseWidget()
     if self._old_can_do then Device.canDoSwipeAnimation = self._old_can_do end
     if self._saved_swipe_animations ~= nil then Screen.swipe_animations = self._saved_swipe_animations end
 
-    -- Limpiamos de la RAM TODOS los gráficos para que el .sdr no se corrompa
     local widgets_to_free = { 
         self._tw_toc_empty, self._tw_pnum_normal, self._tw_pnum_bold,
         self._tw_ch_normal, self._tw_ch_bold, self._tw_toc_pag,
@@ -1517,6 +1643,8 @@ function ScrubberToc:onCloseWidget()
         self.icon_toc_prev, self.icon_toc_prev_inv,
         self.icon_toc_next, self.icon_toc_next_inv,
         self.icon_toc_last, self.icon_toc_last_inv,
+        self.icon_chevron_down, self.icon_chevron_down_inv,
+        self.icon_chevron_up, self.icon_chevron_up_inv,
         self.tw_x, self.tw_x_inv
     }
     

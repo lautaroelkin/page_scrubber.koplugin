@@ -8,7 +8,9 @@ local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 local os         = require("os")
 
--- 1. Importamos la matemática de bordes redondeados
+-- ==========================================
+-- DIBUJO DE BORDES REDONDEADOS
+-- ==========================================
 local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, round_bl, round_br)
     if w <= 0 or h <= 0 then return end
     r = math.min(r, math.floor(w / 2), math.floor(h / 2))
@@ -54,8 +56,8 @@ function GridSimpleView.paint(scrubber, bb)
 
     local pad_x = S(8)
     local arrow_area_w = S(38)
-    local top_offset = S(55) 
-    local bot_offset = S(12)
+    local top_offset = S(55)
+    local bot_offset = S(26)
 
     local panel_w = target_w + (arrow_area_w * 2) + (pad_x * 2)
     local panel_h = target_h + top_offset + bot_offset
@@ -67,16 +69,15 @@ function GridSimpleView.paint(scrubber, bb)
 
     scrubber._gs_panel_dimen = Geom:new{ x = panel_x, y = panel_y, w = panel_w, h = panel_h }
 
-    -- 2. MAGIA DE DISEÑO: Bordes redondeados y sombra offset dura
-    local shadow_offset = S(6)
-    local radius = S(12)
-    local border = S(3)
+    local shadow_offset = S(5)
+    local radius = S(18)
+    local border = S(2)
 
-    -- Sombreado SOLO ABAJO (Gris Oscuro para pantallas e-ink)
+    -- Sombra gris clásica offset inferior
     paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
-    -- Borde negro (fondo de la tarjeta)
+    -- Contorno negro de la tarjeta
     paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
-    -- Relleno blanco
+    -- Relleno blanco interior
     paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
     local time_str = os.date("%H:%M")
@@ -135,7 +136,6 @@ function GridSimpleView.paint(scrubber, bb)
         end
     end
 
-    -- 3. Dibujamos los Chevrons SVG (con tamaño doble exclusivo para el grid)
     local icon_l = scrubber.icon_gs_chevron_left or scrubber.icon_chevron_left
     local icon_r = scrubber.icon_gs_chevron_right or scrubber.icon_chevron_right
     local lsz = icon_l and icon_l:getSize() or {w = S(44), h = S(44)}
@@ -158,7 +158,6 @@ function GridSimpleView.paint(scrubber, bb)
         icon_r:paintTo(bb, right_arrow_x + 1, arrow_r_y) 
     end
 
-    -- 4. Dibujamos la Cruz SVG para cerrar (tamaño ajustado al grid simple)
     local icon_x = scrubber.icon_gs_x or scrubber.tw_x
     local xsz = icon_x and icon_x:getSize() or {w = S(36), h = S(36)}
     

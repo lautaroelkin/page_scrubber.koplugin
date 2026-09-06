@@ -35,9 +35,11 @@ function GridSixView.getSlotDimens(scrubber)
     local start_x = gd.x + math.floor((gd.w - (cell_w * cols + gap_x * (cols - 1))) / 2)
     local start_y = gd.y + math.floor((gd.h - (cell_h * rows + gap_y * (rows - 1))) / 2)
 
+    local is_rtl = scrubber.is_rtl == true
     local slots = {}
     for row = 0, rows - 1 do
-        for col = 0, cols - 1 do
+        for c = 0, cols - 1 do
+            local col = is_rtl and (cols - 1 - c) or c
             table.insert(slots, Geom:new{
                 x = start_x + col * (cell_w + gap_x),
                 y = start_y + row * (cell_h + gap_y),

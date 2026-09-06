@@ -243,11 +243,11 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
                                 end,
                             },
                             {
-                                text = _("Standard Buttons in dictionary"),
+                                text = _("Buttons in dictionary"),
                                 sub_item_table = dict_buttons_menu
                             },
                             {
-                                text = _("Show external plugin buttons in dictionary"),
+                                text = _("Plugin buttons in dictionary"),
                                 checked_func = function()
                                     local ok, val = pcall(function() return G_reader_settings and G_reader_settings:readSetting("page_scrubber_fdict_show_plugins") end)
                                     return (not ok or val == nil) and true or (val == true)
@@ -291,6 +291,67 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
                             {
                                 text = _("Buttons in selection menu"),
                                 sub_item_table = sel_buttons_menu
+                            },
+                            {
+                                text = _("Position of selection menu"),
+                                sub_item_table = {
+                                    {
+                                        text = _("Right (Vertical)"),
+                                        checked_func = function()
+                                            local pos = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position") or "right_v"
+                                            return pos == "right_v"
+                                        end,
+                                        callback = function(touchmenu_instance)
+                                            if G_reader_settings then
+                                                G_reader_settings:saveSetting("page_scrubber_sel_menu_position", "right_v")
+                                                G_reader_settings:flush()
+                                            end
+                                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                                        end,
+                                    },
+                                    {
+                                        text = _("Left (Vertical)"),
+                                        checked_func = function()
+                                            local pos = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position") or "right_v"
+                                            return pos == "left_v"
+                                        end,
+                                        callback = function(touchmenu_instance)
+                                            if G_reader_settings then
+                                                G_reader_settings:saveSetting("page_scrubber_sel_menu_position", "left_v")
+                                                G_reader_settings:flush()
+                                            end
+                                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                                        end,
+                                    },
+                                    {
+                                        text = _("Bottom (Horizontal)"),
+                                        checked_func = function()
+                                            local pos = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position") or "right_v"
+                                            return pos == "bottom_h"
+                                        end,
+                                        callback = function(touchmenu_instance)
+                                            if G_reader_settings then
+                                                G_reader_settings:saveSetting("page_scrubber_sel_menu_position", "bottom_h")
+                                                G_reader_settings:flush()
+                                            end
+                                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                                        end,
+                                    },
+                                    {
+                                        text = _("Center (Horizontal)"),
+                                        checked_func = function()
+                                            local pos = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position") or "right_v"
+                                            return pos == "center_h"
+                                        end,
+                                        callback = function(touchmenu_instance)
+                                            if G_reader_settings then
+                                                G_reader_settings:saveSetting("page_scrubber_sel_menu_position", "center_h")
+                                                G_reader_settings:flush()
+                                            end
+                                            if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                                        end,
+                                    },
+                                }
                             }
                         }
                     },

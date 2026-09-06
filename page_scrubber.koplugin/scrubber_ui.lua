@@ -147,6 +147,69 @@ local function processTile(tile, req_w, req_h)
     return { bb = tile.bb, is_scaled = false }
 end
 
+local function isDocRTL(ui)
+    if not ui then return false end
+
+    local function checkRTL(val)
+        if not val then return false end
+        local s = tostring(val):upper()
+        return s == "R2L" or s == "RTL" or s == "REVERSE" or s == "BACKWARD" or s:find("RIGHT") ~= nil
+    end
+
+    -- 1. Ajustes del documento en KOReader (orden invertido / dirección)
+    if ui.doc_settings and type(ui.doc_settings.readSetting) == "function" then
+        if ui.doc_settings:readSetting("inverse_reading_order") == true then return true end
+        if checkRTL(ui.doc_settings:readSetting("reading_direction")) then return true end
+        if checkRTL(ui.doc_settings:readSetting("page_turns_direction")) then return true end
+        local tap_zones = ui.doc_settings:readSetting("page_turns_tap_zones")
+        if tap_zones == "invert" or tap_zones == "inverted" then return true end
+    end
+
+    -- 2. Propiedades nativas del motor del documento
+    if ui.document then
+        if type(ui.document.getReadingDirection) == "function" then
+            local ok, dir = pcall(function() return ui.document:getReadingDirection() end)
+            if ok and (checkRTL(dir) or dir == 2) then return true end
+        end
+        if ui.document.info then
+            if checkRTL(ui.document.info.direction) then return true end
+            if checkRTL(ui.document.info.manga) or checkRTL(ui.document.info.reading_direction) then return true end
+        end
+        if ui.document.is_rtl == true then return true end
+    end
+
+    -- 3. Módulo de paginación activo
+    if ui.paging then
+        if checkRTL(ui.paging.reading_direction) or checkRTL(ui.paging.page_turns_direction) then
+            return true
+        end
+        if type(ui.paging.isRTL) == "function" then
+            local ok, res = pcall(function() return ui.paging:isRTL() end)
+            if ok and res == true then return true end
+        end
+    end
+
+    -- 4. Detección por nombre de carpeta o archivo
+    local file_path = (ui.document and ui.document.file) or ""
+    local lower_path = file_path:lower()
+    if lower_path:find("[/%s%-_]mangas?[/%s%-_]")
+        or lower_path:find("%[manga%]")
+        or lower_path:find("%(manga%)") then
+        return true
+    end
+
+    -- 5. Configuración global nativa de KOReader
+    if G_reader_settings then
+        if G_reader_settings:readSetting("inverse_reading_order") == true then return true end
+        if checkRTL(G_reader_settings:readSetting("reading_direction")) then return true end
+        if checkRTL(G_reader_settings:readSetting("page_turns_direction")) then return true end
+        local glob_tz = G_reader_settings:readSetting("page_turns_tap_zones")
+        if glob_tz == "invert" or glob_tz == "inverted" then return true end
+    end
+
+    return false
+end
+
 local PageScrubber = InputContainer:extend{ name = "page_scrubber", transparent = true }
 
 function PageScrubber:init()
@@ -168,6 +231,7 @@ function PageScrubber:init()
         end
     end
     self._is_comic = is_comic
+    self.is_rtl = isDocRTL(ui)
 
     local scale_factor = self.ui_scale or 1
     self.S = function(val)
@@ -286,7 +350,7 @@ function PageScrubber:init()
     local ch_h = self.tw_chapter:getSize().h
     local info_h = self.tw_info:getSize().h
 
-    self._slider = ProgressSlider:new{ width = sw - pad * 4, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S }
+    self._slider = ProgressSlider:new{ width = sw - pad * 4, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S, is_rtl = self.is_rtl }
     
     self:_updateChapterMarks()
     self:_invalidateBookmarksCache()
@@ -1156,7 +1220,11 @@ function PageScrubber:_updateGridPages()
     if self._view_mode == "grid" then
         local nb_items = self._grid_cols * self._grid_rows
         for idx = 1, nb_items do
-            local page = self._cur_page + (idx - 2)
+            local offset_p = idx - 2
+            if self.is_rtl then
+                offset_p = -offset_p
+            end
+            local page = self._cur_page + offset_p
             local valid = page >= 1 and page <= self._total_pages
             
             self._grid_tiles[idx] = { page = valid and page or nil, loading = valid, is_scaled = false, mode = "grid" }
@@ -1173,7 +1241,8 @@ function PageScrubber:_updateGridPages()
                 end
             end
         end
-        for _, idx in ipairs({ 2, 3, 1 }) do
+        local missing_order = self.is_rtl and { 2, 1, 3 } or { 2, 3, 1 }
+        for _, idx in ipairs(missing_order) do
             local slot = self._grid_tiles[idx]
             if slot and slot.page and not slot.tile_bb then missing[#missing + 1] = idx end
         end
@@ -2437,8 +2506,16 @@ function PageScrubber:_paintBackLabel(bb)
     if math.abs(self._cur_page - self._origin_page) < BACK_LABEL_THRESHOLD then return end
 
     local S = self.S
-    local ahead = self._cur_page > self._origin_page
-    local arrow_char = ahead and "\u{F104}" or "\u{F105}"
+    local origin_on_left
+    if self.is_rtl then
+        -- En RTL los números avanzan hacia la izquierda: si la página actual es menor, el origen está a la izquierda
+        origin_on_left = (self._cur_page < self._origin_page)
+    else
+        -- En LTR estándar: si la página actual es mayor, el origen quedó atrás (a la izquierda)
+        origin_on_left = (self._cur_page > self._origin_page)
+    end
+
+    local arrow_char = origin_on_left and "\u{F104}" or "\u{F105}"
     local bg_face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(14))
 
     if not self._tw_grid_back_icon then
@@ -2471,13 +2548,13 @@ function PageScrubber:_paintBackLabel(bb)
     local content_h = math.max(isz.h, tsz.h)
     local lbl_w = pad_x * 2 + isz.w + gap + tsz.w
     
-    local text_y_shift = ahead and S(4) or S(1)
-    local group_y_shift = ahead and 0 or S(3)
+    local text_y_shift = origin_on_left and S(4) or S(1)
+    local group_y_shift = origin_on_left and 0 or S(3)
     local icon_y = self.ctrl_y_pos + math.floor((self._ctrl_row_h - isz.h) / 2) - group_y_shift
     local text_y = self.ctrl_y_pos + math.floor((self._ctrl_row_h - tsz.h) / 2) - text_y_shift - group_y_shift
 
     local lbl_x
-    if ahead then
+    if origin_on_left then
         lbl_x = math.floor((self._ctrl_row_x0 - lbl_w) / 2)
     else
         local sw = Screen:getWidth()
@@ -2494,7 +2571,7 @@ function PageScrubber:_paintBackLabel(bb)
         self._tw_grid_back_icon.fgcolor = Blitbuffer.COLOR_WHITE
         self._tw_grid_back.fgcolor = Blitbuffer.COLOR_WHITE
         
-        if ahead then
+        if origin_on_left then
             self._tw_grid_back_icon:paintTo(bb, lbl_x + pad_x, icon_y)
             self._tw_grid_back:paintTo(bb, lbl_x + pad_x + isz.w + gap, text_y)
         else
@@ -2505,7 +2582,7 @@ function PageScrubber:_paintBackLabel(bb)
         self._tw_grid_back_icon.fgcolor = Blitbuffer.COLOR_DARK_GRAY
         self._tw_grid_back.fgcolor = Blitbuffer.COLOR_DARK_GRAY
         
-        if ahead then
+        if origin_on_left then
             paintTripleText(self._tw_grid_back_icon, bb, lbl_x + pad_x, icon_y)
             paintTripleText(self._tw_grid_back, bb, lbl_x + pad_x + isz.w + gap, text_y)
         else
@@ -3061,10 +3138,11 @@ function PageScrubber:_paintToImpl(bb, x, y)
 
         local new_info_y
         if self._gs_panel_dimen then
+            -- Aumentamos el valor sumado para bajar el texto más píxeles fuera de la tarjeta
             local card_bottom = self._gs_panel_dimen.y + self._gs_panel_dimen.h
-            new_info_y = card_bottom - isz.h - S(2)
+            new_info_y = card_bottom - isz.h + S(2)
         else
-            new_info_y = self._bar_dimen.y - isz.h - S(40)
+            new_info_y = self._bar_dimen.y - isz.h - S(30)
         end
         
         paintTripleText(self.tw_info, bb, infox, new_info_y)
@@ -3269,12 +3347,14 @@ function PageScrubber:onTap(_, ges)
         end
         if self._gs_prev_dimen and ges.pos:intersectWith(self._gs_prev_dimen) then
             self._force_menu_sync = true
-            self:_previewPage(self._cur_page - 1, false)
+            local delta = self.is_rtl and 1 or -1
+            self:_previewPage(self._cur_page + delta, false)
             return true
         end
         if self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
             self._force_menu_sync = true
-            self:_previewPage(self._cur_page + 1, false)
+            local delta = self.is_rtl and -1 or 1
+            self:_previewPage(self._cur_page + delta, false)
             return true
         end
         if self._gs_page_dimen and ges.pos:intersectWith(self._gs_page_dimen) then
@@ -3596,7 +3676,14 @@ function PageScrubber:onTap(_, ges)
             return true
         end
         if self._fn_dimen and ges.pos:intersectWith(self._fn_dimen) then
-            self:_flashAndDo("fn", self._fn_dimen, function() self:_closeAndShow("ShowMenu") end)
+            self:_flashAndDo("fn", self._fn_dimen, function() 
+                local ScrubberMenu = require("scrubber_menu")
+                local UIManager = require("ui/uimanager")
+                UIManager:show(ScrubberMenu:new{
+                    ui = self.ui,
+                    scrubber_ui = self,
+                })
+            end)
             return true
         end
 
@@ -3607,7 +3694,8 @@ function PageScrubber:onTap(_, ges)
                     ui = self.ui,
                     initial_page = self._cur_page,
                     initial_origin = self._origin_page,
-                    parent_scrubber = self
+                    parent_scrubber = self,
+                    is_rtl = self.is_rtl,
                 }
                 local UIManager = require("ui/uimanager")
                 UIManager:show(mi_nuevo_toc)
@@ -3622,7 +3710,7 @@ function PageScrubber:onTap(_, ges)
     end
 
     if self._ctrl_prev_dimen and ges.pos:intersectWith(self._ctrl_prev_dimen) then
-        local target = self:_findPrevBookmark()
+        local target = self.is_rtl and self:_findNextBookmark() or self:_findPrevBookmark()
         if target then
             self:_flashAndDo("ctrl_prev", self._ctrl_prev_dimen, function()
                 self._force_menu_sync = true
@@ -3633,11 +3721,8 @@ function PageScrubber:onTap(_, ges)
     end
     
     if self._ctrl_mark_dimen and ges.pos:intersectWith(self._ctrl_mark_dimen) then
-        -- MODIFICACIÓN SIMPLE GRID: Cambia la acción del botón central
         if self._view_mode == "grid_simple" then
             self:_flashAndDo("ctrl_mark", self._ctrl_mark_dimen, function()
-                -- Abrimos el Grid normal en la página que estamos mirando (cur_page).
-                -- _reopenWithMode se encarga de guardar y arrastrar el origin_page real en silencio.
                 self:_reopenWithMode("grid", self._cur_page)
             end)
             return true
@@ -3649,7 +3734,7 @@ function PageScrubber:onTap(_, ges)
     end
     
     if self._ctrl_next_dimen and ges.pos:intersectWith(self._ctrl_next_dimen) then
-        local target = self:_findNextBookmark()
+        local target = self.is_rtl and self:_findPrevBookmark() or self:_findNextBookmark()
         if target then
             self:_flashAndDo("ctrl_next", self._ctrl_next_dimen, function()
                 self._force_menu_sync = true
@@ -3660,11 +3745,11 @@ function PageScrubber:onTap(_, ges)
     end
     
     if self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen) then
-        self:_prevChapter()
+        if self.is_rtl then self:_nextChapter() else self:_prevChapter() end
         return true
     end
     if self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen) then
-        self:_nextChapter()
+        if self.is_rtl then self:_prevChapter() else self:_nextChapter() end
         return true
     end
     
@@ -3798,8 +3883,9 @@ function PageScrubber:onSwipe(_, ges)
     if self._view_mode == "split" and ges.pos then
         local sw = Screen:getWidth()
         local div_x = self._split_divider_x or math.floor(sw * 0.65)
-        
+
         if ges.pos.x > div_x then
+            -- Lado derecho (Lista): paginación estándar
             if ges.direction == "west" then
                 self._split_bm_page = (self._split_bm_page or 1) + 1
                 UIManager:setDirty(self, "ui", self.dimen)
@@ -3810,25 +3896,37 @@ function PageScrubber:onSwipe(_, ges)
                 return true
             end
         else
+            -- Lado izquierdo (Previsualización):
+            -- LTR: deslizar al oeste avanza (+1), al este retrocede (-1)
+            -- RTL: deslizar al este avanza (+1), al oeste retrocede (-1)
+            local step = 0
             if ges.direction == "west" then
-                self._force_menu_sync = false
-                self:_previewPage(self._cur_page + 1, false) 
-                return true
+                step = self.is_rtl and -1 or 1
             elseif ges.direction == "east" then
+                step = self.is_rtl and 1 or -1
+            end
+
+            if step ~= 0 then
                 self._force_menu_sync = false
-                self:_previewPage(self._cur_page - 1, false) 
+                self:_previewPage(self._cur_page + step, false)
                 return true
             end
         end
     end
 
     local jump = (self._view_mode == "grid_six") and 6 or 1
+    local swipe_forward = (ges.direction == "west")
+    local swipe_backward = (ges.direction == "east")
+    if self.is_rtl then
+        swipe_forward = (ges.direction == "east")
+        swipe_backward = (ges.direction == "west")
+    end
 
-    if ges.direction == "west" then
+    if swipe_forward then
         self._force_menu_sync = true
         self:_previewPage(self._cur_page + jump, false) 
         return true
-    elseif ges.direction == "east" then
+    elseif swipe_backward then
         self._force_menu_sync = true
         self:_previewPage(self._cur_page - jump, false) 
         return true
@@ -3858,10 +3956,10 @@ function PageScrubber:onHold(_, ges)
 
     if self._view_mode == "grid_simple" then
         if self._gs_prev_dimen and ges.pos:intersectWith(self._gs_prev_dimen) then
-            self:_startHold("prev"); return true
+            self:_startHold(self.is_rtl and "next" or "prev"); return true
         end
         if self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
-            self:_startHold("next"); return true
+            self:_startHold(self.is_rtl and "prev" or "next"); return true
         end
         if self._gs_page_dimen and ges.pos:intersectWith(self._gs_page_dimen) then
             self:_reopenWithMode("split", self._cur_page); return true
@@ -3940,10 +4038,10 @@ function PageScrubber:onHold(_, ges)
             return true
         elseif self._view_mode == "grid" then
             if ges.pos:intersectWith(self:_gridSlotDimen(1)) then
-                self:_startHold("prev"); return true
+                self:_startHold(self.is_rtl and "next" or "prev"); return true
             end
             if ges.pos:intersectWith(self:_gridSlotDimen(3)) then
-                self:_startHold("next"); return true
+                self:_startHold(self.is_rtl and "prev" or "next"); return true
             end
             if ges.pos:intersectWith(self:_gridSlotDimen(2)) then
                 self._view_mode = "split"

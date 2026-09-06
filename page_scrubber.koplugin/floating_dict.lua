@@ -278,12 +278,7 @@ function PreviewButton:init()
                 height = scale(24),
                 alpha = true,
                 fgcolor = Blitbuffer.COLOR_BLACK,
-                -- Por defecto, ImageWidget se "doble-invierte" para preservar sus
-                -- colores originales en modo noche (pensado para fotos/tapas de
-                -- libro) -- por eso los íconos quedaban con un cuadrado blanco fijo
-                -- detrás en modo oscuro. Con esto en false, se invierten normal
-                -- junto con el resto de la interfaz.
-                original_in_nightmode = false,
+                original_in_nightmode = false, -- <--- Esta es la clave para que se adapte limpiamente al modo oscuro sin fondos blancos
             }
         end)
         if ok and widget then
@@ -919,8 +914,11 @@ function FloatingActionMenu:init()
         table.insert(raw_buttons, { svg = "highlighter.svg", text = "HL", action = "highlight" })
     end
 
-    local btn_w = scale(50)
-    local btn_h = scale(42)
+    local pos_pref = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position")) or "right_v"
+    local is_horizontal = (pos_pref == "bottom_h" or pos_pref == "center_h")
+
+    local btn_w = is_horizontal and scale(44) or scale(50)
+    local btn_h = is_horizontal and scale(46) or scale(42)
     local icon_widgets = {}
 
     for _, spec in ipairs(raw_buttons) do
@@ -954,19 +952,28 @@ function FloatingActionMenu:init()
         table.insert(icon_widgets, btn)
     end
 
-    local rows = {
-        VerticalSpan:new({ width = scale(6) }),
-    }
-
-    for i, btn_widget in ipairs(icon_widgets) do
-        table.insert(rows, btn_widget)
-        if i < #icon_widgets then
-            table.insert(rows, VerticalSpan:new({ width = scale(2) }))
+    local popup_content
+    if is_horizontal then
+        local items = { HorizontalSpan:new({ width = scale(6) }) }
+        for i, btn_widget in ipairs(icon_widgets) do
+            table.insert(items, btn_widget)
+            if i < #icon_widgets then
+                table.insert(items, HorizontalSpan:new({ width = scale(2) }))
+            end
         end
+        table.insert(items, HorizontalSpan:new({ width = scale(6) }))
+        popup_content = HorizontalGroup:new(items)
+    else
+        local rows = { VerticalSpan:new({ width = scale(6) }) }
+        for i, btn_widget in ipairs(icon_widgets) do
+            table.insert(rows, btn_widget)
+            if i < #icon_widgets then
+                table.insert(rows, VerticalSpan:new({ width = scale(2) }))
+            end
+        end
+        table.insert(rows, VerticalSpan:new({ width = scale(6) }))
+        popup_content = VerticalGroup:new(rows)
     end
-    table.insert(rows, VerticalSpan:new({ width = scale(6) }))
-
-    local popup_content = VerticalGroup:new(rows)
 
     self.card = FloatingPillCard:new({
         content = popup_content, bordersize = scale(3), radius = scale(16)
@@ -976,14 +983,30 @@ function FloatingActionMenu:init()
     local card_w = card_size.w
     local card_h = card_size.h
 
-    -- Posicionamiento en el Sureste (Sur-Este / Bottom-Right)
-    local margin_right = scale(16)
-    local margin_bottom = scale(24)
-    local target_x = screen_width - card_w - margin_right
-    local target_y = screen_height - card_h - margin_bottom
+    -- Posicionamiento según preferencia
+    local margin_side = scale(24)   -- Más separado del borde (hacia el centro)
+    local margin_bottom = scale(54) -- Elevado para despejar Bookends y pie de página
+    local target_x, target_y
+
+    if pos_pref == "left_v" then
+        target_x = margin_side
+        target_y = screen_height - card_h - margin_bottom
+    elseif pos_pref == "bottom_h" then
+        target_x = math.floor((screen_width - card_w) / 2)
+        target_y = screen_height - card_h - margin_bottom
+    elseif pos_pref == "center_h" then
+        target_x = math.floor((screen_width - card_w) / 2)
+        target_y = math.floor((screen_height - card_h) / 2)
+    else -- "right_v" (por defecto)
+        target_x = screen_width - card_w - margin_side
+        target_y = screen_height - card_h - margin_bottom
+    end
 
     if target_y < scale(10) then
         target_y = scale(10)
+    end
+    if target_x < scale(10) then
+        target_x = scale(10)
     end
 
     self.popup_rect = Geom:new({ x = target_x, y = target_y, w = card_w, h = card_h })
