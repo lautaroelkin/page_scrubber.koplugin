@@ -184,4 +184,37 @@ msgstr "Ajustar Selección"
 msgid "Show chapter marks in slider"
 msgstr "Mostrar marcas de capítulos en la barra"
 
+# Botones acortados del diccionario
+msgid "Buttons in dictionary"
+msgstr "Botones en el diccionario"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Botones de plugins en diccionario"
+
+# Posición del menú de selección y orientaciones
+msgid "Position of selection menu"
+msgstr "Posición del menú de selección"
+
+msgid "Right (Vertical)"
+msgstr "Derecha (Vertical)"
+
+msgid "Left (Vertical)"
+msgstr "Izquierda (Vertical)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Abajo (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Centro (Horizontal)"
+
+# Submenús y opciones de selección relacionadas
+msgid "Buttons in selection menu"
+msgstr "Botones en el menú de selección"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menú de selección de Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Diccionario de Scrubber"
+
 

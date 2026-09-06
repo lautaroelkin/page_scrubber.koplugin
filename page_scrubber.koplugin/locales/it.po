@@ -199,5 +199,35 @@ msgstr "Reg"
 msgid "Show chapter marks in slider"
 msgstr "Mostra i segni dei capitoli nella barra"
 
+msgid "Buttons in dictionary"
+msgstr "Pulsanti nel dizionario"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Pulsanti dei plugin nel dizionario"
+
+msgid "Position of selection menu"
+msgstr "Posizione del menu di selezione"
+
+msgid "Right (Vertical)"
+msgstr "Destra (Verticale)"
+
+msgid "Left (Vertical)"
+msgstr "Sinistra (Verticale)"
+
+msgid "Bottom (Horizontal)"
+msgstr "In basso (Orizzontale)"
+
+msgid "Center (Horizontal)"
+msgstr "Centro (Orizzontale)"
+
+msgid "Buttons in selection menu"
+msgstr "Pulsanti nel menu di selezione"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu di selezione Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Dizionario Scrubber"
+
 
 

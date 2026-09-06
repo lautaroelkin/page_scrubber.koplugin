@@ -199,3 +199,34 @@ msgstr "Aanp"
 msgid "Show chapter marks in slider"
 msgstr "Hoofdstukmarkeringen weergeven op voortgangsbalk"
 
+msgid "Buttons in dictionary"
+msgstr "Knoppen in woordenboek"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Plugin-knoppen in woordenboek"
+
+msgid "Position of selection menu"
+msgstr "Positie van selectiemenu"
+
+msgid "Right (Vertical)"
+msgstr "Rechts (verticaal)"
+
+msgid "Left (Vertical)"
+msgstr "Links (verticaal)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Onder (horizontaal)"
+
+msgid "Center (Horizontal)"
+msgstr "Midden (horizontaal)"
+
+msgid "Buttons in selection menu"
+msgstr "Knoppen in selectiemenu"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber-selectiemenu"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber-woordenboek"
+
+

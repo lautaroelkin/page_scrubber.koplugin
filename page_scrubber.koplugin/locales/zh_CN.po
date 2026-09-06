@@ -199,4 +199,35 @@ msgstr "调整"
 msgid "Show chapter marks in slider"
 msgstr "在进度条上显示章节标记"
 
+msgid "Buttons in dictionary"
+msgstr "词典按钮"
+
+msgid "Plugin buttons in dictionary"
+msgstr "词典中的插件按钮"
+
+msgid "Position of selection menu"
+msgstr "选中文本菜单位置"
+
+msgid "Right (Vertical)"
+msgstr "右侧（纵向）"
+
+msgid "Left (Vertical)"
+msgstr "左侧（纵向）"
+
+msgid "Bottom (Horizontal)"
+msgstr "底部（横向）"
+
+msgid "Center (Horizontal)"
+msgstr "居中（横向）"
+
+msgid "Buttons in selection menu"
+msgstr "选中文本菜单按钮"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber 选中文本菜单"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber 词典"
+
+
 

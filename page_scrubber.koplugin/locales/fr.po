@@ -199,4 +199,35 @@ msgstr "Ajus"
 msgid "Show chapter marks in slider"
 msgstr "Afficher les repères de chapitre sur la barre"
 
+msgid "Buttons in dictionary"
+msgstr "Boutons dans le dictionnaire"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Boutons de plugins dans le dictionnaire"
+
+msgid "Position of selection menu"
+msgstr "Position du menu de sélection"
+
+msgid "Right (Vertical)"
+msgstr "Droite (Vertical)"
+
+msgid "Left (Vertical)"
+msgstr "Gauche (Vertical)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Bas (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Centre (Horizontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Boutons dans le menu de sélection"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu de sélection Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Dictionnaire Scrubber"
+
+
 

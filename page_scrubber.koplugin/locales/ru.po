@@ -199,5 +199,35 @@ msgstr "Настр"
 msgid "Show chapter marks in slider"
 msgstr "Показывать метки глав на ползунке"
 
+msgid "Buttons in dictionary"
+msgstr "Кнопки в словаре"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Кнопки плагинов в словаре"
+
+msgid "Position of selection menu"
+msgstr "Положение меню выделения"
+
+msgid "Right (Vertical)"
+msgstr "Справа (вертикально)"
+
+msgid "Left (Vertical)"
+msgstr "Слева (вертикально)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Снизу (горизонтально)"
+
+msgid "Center (Horizontal)"
+msgstr "По центру (горизонтально)"
+
+msgid "Buttons in selection menu"
+msgstr "Кнопки в меню выделения"
+
+msgid "Scrubber Selection Menu"
+msgstr "Меню выделения Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Словарь Scrubber"
+
 
 

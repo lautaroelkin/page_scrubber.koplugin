@@ -199,5 +199,35 @@ msgstr "Anp"
 msgid "Show chapter marks in slider"
 msgstr "Kapitelmarkierungen im Schieberegler anzeigen"
 
+msgid "Buttons in dictionary"
+msgstr "Schaltflächen im Wörterbuch"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Plugin-Schaltflächen im Wörterbuch"
+
+msgid "Position of selection menu"
+msgstr "Position des Auswahlmenüs"
+
+msgid "Right (Vertical)"
+msgstr "Rechts (Vertikal)"
+
+msgid "Left (Vertical)"
+msgstr "Links (Vertikal)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Unten (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Mitte (Horizontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Schaltflächen im Auswahlmenü"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber-Auswahlmenü"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber-Wörterbuch"
+
 
 

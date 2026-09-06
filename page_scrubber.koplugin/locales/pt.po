@@ -199,4 +199,34 @@ msgstr "Ajst"
 msgid "Show chapter marks in slider"
 msgstr "Mostrar marcas de capítulos na barra"
 
+msgid "Buttons in dictionary"
+msgstr "Botões no dicionário"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Botões de plugins no dicionário"
+
+msgid "Position of selection menu"
+msgstr "Posição do menu de seleção"
+
+msgid "Right (Vertical)"
+msgstr "Direita (Vertical)"
+
+msgid "Left (Vertical)"
+msgstr "Esquerda (Vertical)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Inferior (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Centro (Horizontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Botões no menu de seleção"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu de seleção do Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Dicionário do Scrubber"
+
 

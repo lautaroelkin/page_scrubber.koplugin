@@ -132,3 +132,34 @@ msgstr "शीर्षकहीन"
 
 msgid "Chapter"
 msgstr "अध्याय"
+
+msgid "Buttons in dictionary"
+msgstr "शब्दकोश में बटन"
+
+msgid "Plugin buttons in dictionary"
+msgstr "शब्दकोश में प्लगइन बटन"
+
+msgid "Position of selection menu"
+msgstr "चयन मेनू की स्थिति"
+
+msgid "Right (Vertical)"
+msgstr "दाएँ (ऊर्ध्वाधर)"
+
+msgid "Left (Vertical)"
+msgstr "बाएँ (ऊर्ध्वाधर)"
+
+msgid "Bottom (Horizontal)"
+msgstr "नीचे (क्षैतिज)"
+
+msgid "Center (Horizontal)"
+msgstr "मध्य (क्षैतिज)"
+
+msgid "Buttons in selection menu"
+msgstr "चयन मेनू में बटन"
+
+msgid "Scrubber Selection Menu"
+msgstr "स्क्रबर चयन मेनू"
+
+msgid "Scrubber Dictionary"
+msgstr "स्क्रबर शब्दकोश"
+

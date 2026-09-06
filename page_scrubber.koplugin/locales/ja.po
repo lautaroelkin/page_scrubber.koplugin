@@ -202,4 +202,35 @@ msgstr "調整"
 msgid "Show chapter marks in slider"
 msgstr "スライダーに章のマークを表示"
 
+msgid "Buttons in dictionary"
+msgstr "辞書のボタン"
+
+msgid "Plugin buttons in dictionary"
+msgstr "辞書内のプラグインボタン"
+
+msgid "Position of selection menu"
+msgstr "選択メニューの位置"
+
+msgid "Right (Vertical)"
+msgstr "右（縦）"
+
+msgid "Left (Vertical)"
+msgstr "左（縦）"
+
+msgid "Bottom (Horizontal)"
+msgstr "下（横）"
+
+msgid "Center (Horizontal)"
+msgstr "中央（横）"
+
+msgid "Buttons in selection menu"
+msgstr "選択メニューのボタン"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber 選択メニュー"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber 辞書"
+
+
 

@@ -199,5 +199,36 @@ msgstr "Dost"
 msgid "Show chapter marks in slider"
 msgstr "Pokaż znaczniki rozdziałów na suwaku"
 
+msgid "Buttons in dictionary"
+msgstr "Przyciski w słowniku"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Przyciski wtyczek w słowniku"
+
+msgid "Position of selection menu"
+msgstr "Pozycja menu zaznaczenia"
+
+msgid "Right (Vertical)"
+msgstr "Prawo (pionowo)"
+
+msgid "Left (Vertical)"
+msgstr "Lewo (pionowo)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Dół (poziomo)"
+
+msgid "Center (Horizontal)"
+msgstr "Środek (poziomo)"
+
+msgid "Buttons in selection menu"
+msgstr "Przyciski w menu zaznaczenia"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu zaznaczenia Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Słownik Scrubber"
+
+
 
 
