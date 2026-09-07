@@ -1293,16 +1293,27 @@ function PageScrubber:_updateGridPages()
         -- Carga directa para Split View: evita la cola por lotes y los descartes por timeout
         if self._view_mode == "split" then
             for _, old_slot in pairs(old_tiles) do self:_freeTile(old_slot) end
-            self._is_busy = false
-            self._tasks_in_flight = 0
 
             if self._grid_tiles[2] and self._grid_tiles[2].page and not self._grid_tiles[2].tile_bb then
+                self._is_busy = true
+                self._tasks_in_flight = 1
+
                 local req_w = expected_req_w
                 local req_h = expected_req_h
                 local req_page = page
 
                 thumbnail:getPageThumbnail(req_page, req_w, req_h, batch_id, function(tile, resp_batch_id)
-                    if self._closing or resp_batch_id ~= self._grid_batch_id then return end
+                    self._is_busy = false
+                    self._tasks_in_flight = 0
+
+                    if self._closing or resp_batch_id ~= self._grid_batch_id then
+                        if self._pending_grid_update and not self._closing then
+                            self._pending_grid_update = false
+                            self:_updateGridPages()
+                        end
+                        return
+                    end
+
                     local processed = processTile(tile, req_w, req_h)
                     if processed and processed.bb and self._grid_tiles[2] then
                         self._grid_tiles[2].tile_bb = processed.bb
@@ -1314,7 +1325,15 @@ function PageScrubber:_updateGridPages()
                         self._grid_tiles[2].error = true
                     end
                     UIManager:setDirty(self, "ui", self._grid_dimen)
+
+                    if self._pending_grid_update and not self._closing then
+                        self._pending_grid_update = false
+                        self:_updateGridPages()
+                    end
                 end)
+            else
+                self._is_busy = false
+                self._tasks_in_flight = 0
             end
             UIManager:setDirty(self, "ui", self._grid_dimen)
             return
