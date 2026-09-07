@@ -1,0 +1,233 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Library"
+msgstr "Bibliothek"
+
+msgid "Page"
+msgstr "Seite"
+
+msgid "Pages"
+msgstr "Seiten"
+
+msgid "Added on"
+msgstr "Hinzugefügt am"
+
+msgid "Bookmarked"
+msgstr "Lesezeichen"
+
+msgid "Delete"
+msgstr "Löschen"
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mär"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "Mai"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Okt"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dez"
+
+msgid "No chapters found"
+msgstr "Keine Kapitel gefunden"
+
+msgid "Updating highlight…"
+msgstr "Markierung wird aktualisiert…"
+
+msgid "Edit note"
+msgstr "Notiz bearbeiten"
+
+msgid "Cancel"
+msgstr "Abbrechen"
+
+msgid "Save"
+msgstr "Speichern"
+
+msgid "Configuration"
+msgstr "Konfiguration"
+
+msgid "UI Scale:"
+msgstr "Benutzeroberflächen-Skalierung:"
+
+msgid "UI Scale (%)"
+msgstr "Benutzeroberflächen-Skalierung (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3-Seiten-Raster: Ganze Seiten anzeigen"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Raster"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Einfaches Raster"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Multi-Raster"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Menü (Lesezeichen)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Menü (Markierungen)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Inhaltsverzeichnis"
+
+msgid "Export notes of this document"
+msgstr "Notizen dieses Dokuments exportieren"
+
+msgid "Notes"
+msgstr "Notizen"
+
+msgid "Export as..."
+msgstr "Exportieren als..."
+
+msgid "Exporting..."
+msgstr "Wird exportiert..."
+
+msgid "Saved successfully in:"
+msgstr "Erfolgreich gespeichert in:"
+
+msgid "Failed to export notes"
+msgstr "Fehler beim Exportieren der Notizen"
+
+msgid "Untitled"
+msgstr "Ohne Titel"
+
+msgid "Chapter"
+msgstr "Kapitel"
+
+msgid "Reading Pop-Ups"
+msgstr "Lese-Popups"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber-Wörterbuch"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Standard-Schaltflächen im Wörterbuch"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Externe Plugin-Schaltflächen im Wörterbuch anzeigen"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber-Auswahlmenü"
+
+msgid "Buttons in selection menu"
+msgstr "Schaltflächen im Auswahlmenü"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "Übersetzen"
+
+msgid "Highlight"
+msgstr "Markieren"
+
+msgid "Search"
+msgstr "Suchen"
+
+msgid "Note"
+msgstr "Notiz"
+
+msgid "Strikethrough"
+msgstr "Durchstreichen"
+
+msgid "Underline"
+msgstr "Unterstreichen"
+
+msgid "Invert"
+msgstr "Invertieren"
+
+msgid "AI Assistant"
+msgstr "KI-Assistent"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Textgröße"
+
+msgid "Small"
+msgstr "Klein"
+
+msgid "Medium"
+msgstr "Mittel"
+
+msgid "Large"
+msgstr "Groß"
+
+msgid "Adjust Selection"
+msgstr "Auswahl anpassen"
+
+msgid "Adj"
+msgstr "Anp"
+
+msgid "Show chapter marks in slider"
+msgstr "Kapitelmarkierungen im Schieberegler anzeigen"
+
+msgid "Buttons in dictionary"
+msgstr "Schaltflächen im Wörterbuch"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Plugin-Schaltflächen im Wörterbuch"
+
+msgid "Position of selection menu"
+msgstr "Position des Auswahlmenüs"
+
+msgid "Right (Vertical)"
+msgstr "Rechts (Vertikal)"
+
+msgid "Left (Vertical)"
+msgstr "Links (Vertikal)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Unten (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Mitte (Horizontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Schaltflächen im Auswahlmenü"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber-Auswahlmenü"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber-Wörterbuch"
+
+
+

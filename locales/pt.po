@@ -1,0 +1,232 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: pt\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Library"
+msgstr "Biblioteca"
+
+msgid "Page"
+msgstr "Pág"
+
+msgid "Pages"
+msgstr "Páginas"
+
+msgid "Added on"
+msgstr "Adicionado em"
+
+msgid "Bookmarked"
+msgstr "Marcado"
+
+msgid "Delete"
+msgstr "Excluir"
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Fev"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Abr"
+
+msgid "May"
+msgstr "Mai"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Ago"
+
+msgid "Sep"
+msgstr "Set"
+
+msgid "Oct"
+msgstr "Out"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Dez"
+
+msgid "No chapters found"
+msgstr "Nenhum capítulo encontrado"
+
+msgid "Updating highlight…"
+msgstr "Atualizando destaque…"
+
+msgid "Edit note"
+msgstr "Editar nota"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Save"
+msgstr "Salvar"
+
+msgid "Configuration"
+msgstr "Configuração"
+
+msgid "UI Scale:"
+msgstr "Escala da interface:"
+
+msgid "UI Scale (%)"
+msgstr "Escala da interface (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "Grade de 3 páginas: Mostrar páginas inteiras"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Grade"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Grade simples"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Multigrade"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Menu (Marcadores)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Menu (Destaques)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Índice"
+
+msgid "Export notes of this document"
+msgstr "Exportar notas deste documento"
+
+msgid "Notes"
+msgstr "Notas"
+
+msgid "Export as..."
+msgstr "Exportar como..."
+
+msgid "Exporting..."
+msgstr "Exportando..."
+
+msgid "Saved successfully in:"
+msgstr "Salvo com sucesso em:"
+
+msgid "Failed to export notes"
+msgstr "Falha ao exportar notas"
+
+msgid "Untitled"
+msgstr "Sem título"
+
+msgid "Chapter"
+msgstr "Capítulo"
+
+msgid "Reading Pop-Ups"
+msgstr "Pop-ups de Leitura"
+
+msgid "Scrubber Dictionary"
+msgstr "Dicionário do Scrubber"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Botões padrão no dicionário"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Mostrar botões de plugins externos no dicionário"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu de seleção do Scrubber"
+
+msgid "Buttons in selection menu"
+msgstr "Botões no menu de seleção"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "Traduzir"
+
+msgid "Highlight"
+msgstr "Destacar"
+
+msgid "Search"
+msgstr "Pesquisar"
+
+msgid "Note"
+msgstr "Nota"
+
+msgid "Strikethrough"
+msgstr "Tachar"
+
+msgid "Underline"
+msgstr "Sublinhar"
+
+msgid "Invert"
+msgstr "Inverter"
+
+msgid "AI Assistant"
+msgstr "Assistente de IA"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Tamanho do texto"
+
+msgid "Small"
+msgstr "Pequeno"
+
+msgid "Medium"
+msgstr "Médio"
+
+msgid "Large"
+msgstr "Grande"
+
+msgid "Adjust Selection"
+msgstr "Ajustar Seleção"
+
+msgid "Adj"
+msgstr "Ajst"
+
+msgid "Show chapter marks in slider"
+msgstr "Mostrar marcas de capítulos na barra"
+
+msgid "Buttons in dictionary"
+msgstr "Botões no dicionário"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Botões de plugins no dicionário"
+
+msgid "Position of selection menu"
+msgstr "Posição do menu de seleção"
+
+msgid "Right (Vertical)"
+msgstr "Direita (Vertical)"
+
+msgid "Left (Vertical)"
+msgstr "Esquerda (Vertical)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Inferior (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Centro (Horizontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Botões no menu de seleção"
+
+msgid "Scrubber Selection Menu"
+msgstr "Menu de seleção do Scrubber"
+
+msgid "Scrubber Dictionary"
+msgstr "Dicionário do Scrubber"
+
+
