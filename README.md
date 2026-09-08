@@ -90,4 +90,4 @@ Basically, it takes the native features, removes the friction, and puts them int
 
 > 💡 **Tip:** You don't *have* to use gestures! You can also launch all views and access the new configuration options directly from KOReader's top menu.
 
-> You can only run one patch of this collection at a time; if you try to activate more than one, it won't work.
+> When updating manually, do not overwrite the existing folder. Delete the previous page_scrubber.koplugin directory first, then place the new version to prevent caching issues and file conflicts.
