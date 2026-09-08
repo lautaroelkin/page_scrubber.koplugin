@@ -1054,25 +1054,26 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             end
 
             local disp_p = nil
-            if self.parent_scrubber and type(self.parent_scrubber._getDisplayPageInfo) == "function" then
-                local ok, dp = pcall(function() return self.parent_scrubber:_getDisplayPageInfo(ch.page) end)
-                if ok and dp and tostring(dp) ~= "" then
-                    disp_p = tostring(dp)
+            local ui = self.ui
+            local doc = ui and ui.document
+
+            -- 1. Consulta directa al motor del documento (Crengine / MuPDF)
+            if ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() then
+                if doc and type(doc.getPageLabel) == "function" then
+                    local ok, l = pcall(doc.getPageLabel, doc, ch.page)
+                    if ok and l and l ~= "" then disp_p = tostring(l) end
+                end
+                if not disp_p and type(ui.pagemap.getPageLabel) == "function" then
+                    local ok, l = pcall(ui.pagemap.getPageLabel, ui.pagemap, ch.page, true)
+                    if ok and l and l ~= "" then disp_p = tostring(l) end
                 end
             end
 
-            -- Fallback nativo directo al PageMap de KOReader si el scrubber no lo resolvió
-            if not disp_p and self.ui and self.ui.pagemap and type(self.ui.pagemap.wantsPageLabels) == "function" and self.ui.pagemap:wantsPageLabels() then
-                local pm = self.ui.pagemap
-                local funcs = { "getPageText", "getPageLabel", "pageNumberToLabel", "getLabel", "getPageString" }
-                for _, fn in ipairs(funcs) do
-                    if type(pm[fn]) == "function" then
-                        local ok, res = pcall(function() return pm[fn](pm, ch.page) end)
-                        if ok and res and res ~= "" then
-                            disp_p = tostring(res)
-                            break
-                        end
-                    end
+            -- 2. Fallback al scrubber si el libro no expone getPageLabel directo
+            if not disp_p and self.parent_scrubber and type(self.parent_scrubber._getDisplayPageInfo) == "function" then
+                local ok, dp = pcall(function() return self.parent_scrubber:_getDisplayPageInfo(ch.page) end)
+                if ok and dp and tostring(dp) ~= "" then
+                    disp_p = tostring(dp)
                 end
             end
 

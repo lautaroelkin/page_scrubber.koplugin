@@ -138,8 +138,10 @@ end
 
 local function processTile(tile, req_w, req_h)
     if not tile or not tile.bb then return nil end
-    local w, h = tile.bb:getWidth(), tile.bb:getHeight()
-    if w <= 0 or h <= 0 then return nil end
+    -- Protege la lectura de dimensiones contra buffers C en estado transitorio
+    local ok_dim, w, h = pcall(function() return tile.bb:getWidth(), tile.bb:getHeight() end)
+    if not ok_dim or not w or not h or w <= 0 or h <= 0 then return nil end
+
     if w > req_w + 4 or h > req_h + 4 then
         local ok, scaled = pcall(function() return tile.bb:scale(req_w, req_h) end)
         if ok and scaled then return { bb = scaled, is_scaled = true } end
@@ -594,23 +596,16 @@ function PageScrubber:init()
     end
 
     if not self._grid_disabled then
-        -- OPTIMIZACIÓN SEGURA: 
-        -- En cómics, borramos agresivamente por el peso de las imágenes.
-        if self._is_comic then
-            pcall(function() DocCache:clear() end)
-        else
-            -- En EPUB/PDF, usamos el limpiador nativo de KOReader. 
-            -- Libera RAM de miniaturas viejas pero no destruye la maquetación actual (carga ultra rápida).
-            if self.ui and self.ui.thumbnail and self.ui.thumbnail.tidyCache then
-                pcall(function() self.ui.thumbnail:tidyCache() end)
-            end
-        end
-        
         -- Retraso inteligente: 500ms para cómics pesados, 50ms para EPUBs.
-        -- 50ms es el tiempo exacto para que la UI se dibuje en pantalla antes de bloquear el CPU.
+        -- Permite que el motor gráfico asiente la lectura antes de pedir miniaturas.
         local start_delay = self._is_comic and 0.5 or 0.05
         UIManager:scheduleIn(start_delay, function()
-            if not self._closing then self:_updateGridPages() end
+            if not self._closing then
+                if self.ui and self.ui.thumbnail and self.ui.thumbnail.tidyCache then
+                    pcall(function() self.ui.thumbnail:tidyCache() end)
+                end
+                self:_updateGridPages()
+            end
         end)
     end
 end
@@ -1058,6 +1053,17 @@ function PageScrubber:_getDisplayPageInfo(raw_page)
             end
         end
 
+        -- Consulta nativa directa al motor del documento para cualquier página solicitada
+        local doc = ui.document
+        if doc and type(doc.getPageLabel) == "function" then
+            local ok, l = pcall(doc.getPageLabel, doc, raw_page)
+            if ok and l and l ~= "" then return tostring(l), disp_total end
+        end
+        if type(ui.pagemap.getPageLabel) == "function" then
+            local ok, l = pcall(ui.pagemap.getPageLabel, ui.pagemap, raw_page, true)
+            if ok and l and l ~= "" then return tostring(l), disp_total end
+        end
+
         if raw_page == self._origin_page and self._origin_stable_raw then
             return self._origin_stable_raw, disp_total
         end
@@ -1462,8 +1468,6 @@ function PageScrubber:_updateGridPages()
                         return
                     end
 
-                    if corrupted and self._is_comic then pcall(function() DocCache:clear() end) end
-
                     if not self._closing then
                         if not corrupted and processed then
                             slot.tile_bb = processed.bb
@@ -1545,8 +1549,6 @@ function PageScrubber:_forceRefreshCurrentTile()
         self._thumb_req_w = (self._thumb_req_w == self._grid_item_w)
                             and (self._grid_item_w + 1) or self._grid_item_w
 
-        if self._is_comic then pcall(function() DocCache:clear() end) end
-
         UIManager:setDirty(self, "ui", self._grid_dimen)
         self:_updateGridPages()
     end)
@@ -1600,7 +1602,13 @@ function PageScrubber:_paintGrid(bb)
                 bb:paintRect(box_x, box_y, box_w, box_h, Blitbuffer.COLOR_WHITE)
 
                 if blit_w > 0 and blit_h > 0 then
-                    bb:blitFrom(slot.tile_bb, ox, oy, src_x, src_y, blit_w, blit_h)
+                    local ok_blit = pcall(function()
+                        bb:blitFrom(slot.tile_bb, ox, oy, src_x, src_y, blit_w, blit_h)
+                    end)
+                    if not ok_blit then
+                        slot.tile_bb = nil
+                        slot.error = true
+                    end
                 end
 
                 if self._grid_flash_idx == idx then
@@ -3821,7 +3829,6 @@ function PageScrubber:onTap(_, ges)
                 local slot = self._grid_tiles[idx]
                 if slot and slot.page then
                     if idx == 2 then
-                        if slot.error then pcall(function() DocCache:clear() end) end
                         self:_gotoPage(slot.page)
                         self:_closeStay()
                     elseif slot.error then
