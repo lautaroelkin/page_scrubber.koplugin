@@ -232,5 +232,8 @@ msgstr "Scrubber 選択メニュー"
 msgid "Scrubber Dictionary"
 msgstr "Scrubber 辞書"
 
+msgid "Reverse selection buttons"
+msgstr "選択ボタンの順序を反転"
+
 
 

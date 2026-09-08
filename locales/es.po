@@ -217,4 +217,7 @@ msgstr "Menú de selección de Scrubber"
 msgid "Scrubber Dictionary"
 msgstr "Diccionario de Scrubber"
 
+msgid "Reverse selection buttons"
+msgstr "Invertir botones de selección"
+
 

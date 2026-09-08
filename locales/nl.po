@@ -229,4 +229,8 @@ msgstr "Scrubber-selectiemenu"
 msgid "Scrubber Dictionary"
 msgstr "Scrubber-woordenboek"
 
+msgid "Reverse selection buttons"
+msgstr "Selectieknoppen omkeren"
+
+
 

@@ -229,5 +229,6 @@ msgstr "Scrubber 选中文本菜单"
 msgid "Scrubber Dictionary"
 msgstr "Scrubber 词典"
 
-
+msgid "Reverse selection buttons"
+msgstr "反转选择菜单按钮顺序"
 

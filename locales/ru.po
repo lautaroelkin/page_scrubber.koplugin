@@ -229,5 +229,8 @@ msgstr "Меню выделения Scrubber"
 msgid "Scrubber Dictionary"
 msgstr "Словарь Scrubber"
 
+msgid "Reverse selection buttons"
+msgstr "Обратный порядок кнопок выделения"
+
 
 
