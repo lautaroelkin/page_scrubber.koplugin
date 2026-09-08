@@ -293,6 +293,14 @@ function ScrubberSettings:getPageDefinition(page_id)
                     target = "sel_buttons",
                     disabled = not sel_enabled,
                 },
+                {
+                    text = _("Reverse selection buttons"),
+                    icon = "arrow-down-wide-narrow.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_sel_reverse_order",
+                    default = false,
+                    disabled = not sel_enabled,
+                },
             }
         }
 

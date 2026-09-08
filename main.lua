@@ -352,6 +352,18 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
                                         end,
                                     },
                                 }
+                            },
+                            {
+                                text = _("Reverse selection buttons"),
+                                checked_func = function()
+                                    return G_reader_settings and G_reader_settings:isTrue("page_scrubber_sel_reverse_order")
+                                end,
+                                callback = function(touchmenu_instance)
+                                    if G_reader_settings then
+                                        G_reader_settings:flipNilOrFalse("page_scrubber_sel_reverse_order")
+                                    end
+                                    if touchmenu_instance then pcall(function() touchmenu_instance:updateItems() end) end
+                                end,
                             }
                         }
                     },

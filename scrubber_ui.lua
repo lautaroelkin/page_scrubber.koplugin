@@ -1790,49 +1790,57 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     self._tab_sort_dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = sort_tab_w, h = tab_h }
     current_tab_x = current_tab_x + sort_tab_w + tab_sp
 
-    local function drawTabWithSVG(id, icon_widget, count_num)
-        local is_active = (self._active_tab == id)
+        local function drawTabWithSVG(id, icon_widget, count_num)
+            local is_active = (self._active_tab == id)
 
-        -- Lazy caching para los contadores de pestañas
-        if not self._tw_tab_count_normal then
-            self._tw_tab_count_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
-            self._tw_tab_count_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-        end
-        
-        local tw_cnt = is_active and self._tw_tab_count_bold or self._tw_tab_count_normal
-        tw_cnt.text = nil
-        tw_cnt:setText("(" .. tostring(count_num) .. ")")
-        
-        local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
-        local csz = tw_cnt:getSize()
-        local gap = S(4)
-        local content_w = isz.w + gap + csz.w
-        local tab_w = content_w + S(16)
+            -- Lazy caching para los contadores de pestañas
+            if not self._tw_tab_count_normal then
+                self._tw_tab_count_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
+                self._tw_tab_count_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+            end
+            
+            local tw_cnt = is_active and self._tw_tab_count_bold or self._tw_tab_count_normal
+            tw_cnt.text = nil
+            tw_cnt.fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+            tw_cnt:setText("(" .. tostring(count_num) .. ")")
+            
+            local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
+            local csz = tw_cnt:getSize()
+            local gap = S(4)
+            local content_w = isz.w + gap + csz.w
+            local tab_w = content_w + S(16)
 
-        if is_active then
-            paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, current_tab_x + S(3), tab_draw_y + S(3), tab_w - S(6), tab_h - S(6), math.max(1, r - S(3)), Blitbuffer.COLOR_WHITE)
-        else
-            paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, current_tab_x + S(1), tab_draw_y + S(1), tab_w - S(2), tab_h - S(2), math.max(1, r - S(1)), Blitbuffer.COLOR_WHITE)
-        end
+            if is_active then
+                -- Relleno negro sólido completo sin marco blanco interno
+                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
+            else
+                -- Pestaña inactiva: fondo blanco con borde fino negro
+                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
+                paintRoundRect(bb, current_tab_x + S(1), tab_draw_y + S(1), tab_w - S(2), tab_h - S(2), math.max(1, r - S(1)), Blitbuffer.COLOR_WHITE)
+            end
 
-        local ix = current_tab_x + math.floor((tab_w - content_w) / 2)
-        local cx = ix + isz.w + gap
-        local iy = tab_draw_y + math.floor((tab_h - isz.h) / 2)
-        local cy = tab_draw_y + math.floor((tab_h - csz.h) / 2) - S(1)
+            local ix = current_tab_x + math.floor((tab_w - content_w) / 2)
+            local cx = ix + isz.w + gap
+            local iy = tab_draw_y + math.floor((tab_h - isz.h) / 2)
+            local cy = tab_draw_y + math.floor((tab_h - csz.h) / 2) - S(1)
 
-        if icon_widget then
-            icon_widget:paintTo(bb, ix, iy)
-        end
+            if icon_widget then
+                if is_active then
+                    -- Inversión del icono sobre fondo negro sólido para que quede blanco puro
+                    bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
+                    icon_widget:paintTo(bb, ix, iy)
+                    bb:invertRect(ix, iy, isz.w, isz.h)
+                else
+                    icon_widget:paintTo(bb, ix, iy)
+                end
+            end
 
-        tw_cnt:paintTo(bb, cx, cy)
-        -- Eliminamos el tw_cnt:free() para no matar al obrero
+            tw_cnt:paintTo(bb, cx, cy)
 
-        local dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
-        current_tab_x = current_tab_x + tab_w + tab_sp 
-        return dimen
-    end
+            local dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
+            current_tab_x = current_tab_x + tab_w + tab_sp 
+            return dimen
+        end        
     
     self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
     self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)

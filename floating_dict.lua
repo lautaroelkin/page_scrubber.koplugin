@@ -42,8 +42,8 @@ end
 local function getTextOffset()
     if not G_reader_settings then return 0 end
     local size = G_reader_settings:readSetting("page_scrubber_text_size")
-    if size == "small" then return -2
-    elseif size == "large" then return 2
+    if size == "small" then return -5
+    elseif size == "large" then return 5
     end
     return 0
 end
@@ -59,20 +59,6 @@ local function is_btn_enabled(key)
     local val = G_reader_settings:readSetting(key)
     if val == nil then return true end
     return val == true
-end
-
--- El ajuste guardado (is_btn_enabled) por sí solo no alcanza para decidir si
--- mostrar el botón de IA: si el usuario nunca tuvo el plugin Assistant
--- instalado, el toggle para desactivarlo ni siquiera aparece en Ajustes
--- (scrubber_settings.lua lo esconde con "if self.has_ai"), así que el ajuste
--- se queda pegado en su default (true) para siempre, sin forma de bajarlo.
--- Acá replicamos la misma detección real de scrubber_settings.lua, para que
--- el botón directamente no aparezca si no hay ningún Assistant instalado.
-local function hasAssistant(plugin)
-    local ui = plugin and plugin.ui
-    return (ui and ui.assistant ~= nil)
-        or (package.loaded["plugins/assistant"] ~= nil)
-        or (package.loaded["assistant"] ~= nil)
 end
 
 local function htmlEscape(text)
@@ -240,10 +226,10 @@ p { margin: 0 0 0.28em 0; }
 ol, ul { padding-left: 1.35em; margin-top: 0.18em; margin-bottom: 0.28em; }
 li { margin-bottom: 0.22em; }
 
-.floatingdictionary-word { font-size: 1.15em !important; font-weight: bold !important; line-height: 1.12; }
-.floatingdictionary-meta { margin-top: 0.18em; font-size: 0.78em !important; color: #555; font-style: italic; text-transform: uppercase; }
+.floatingdictionary-word { font-size: 1.30em !important; font-weight: bold !important; line-height: 1.15; }
+.floatingdictionary-meta { margin-top: 0.18em; font-size: 0.85em !important; color: #555; font-style: italic; text-transform: uppercase; }
 .floatingdictionary-separator { border-top: 1px solid #eee; margin: 0.3em 0 0.4em 0; }
-.search-content, .search-content * { font-size: 0.98em !important; line-height: 1.35; color: #222; }
+.search-content, .search-content * { font-size: 1.05em !important; line-height: 1.38; color: #222; }
 ]], reg, bld, ita, bita)
 end
 
@@ -318,7 +304,7 @@ function PreviewButton:init()
         end
         self._text_widget = TextWidget:new({
             text = self.text, 
-            face = Font:getFace("cfont", self.font_size or scaleText(8)), 
+            face = Font:getFace("cfont", self.font_size or scaleText(12)), 
             bold = true, 
             fgcolor = Blitbuffer.COLOR_BLACK,
             max_width = self.width and (self.width - scale(4)) or nil,
@@ -586,6 +572,16 @@ function FloatingDict:discoverExternalButtons(dict_self, word, result, result_in
     return final_rows
 end
 
+local function cleanWordForLookup(raw_word)
+    if not raw_word then return nil end
+    local s = tostring(raw_word)
+    s = s:gsub("<[^>]+>", "")
+    s = s:gsub("^[%s%p¿¡«»“”\"']+", ""):gsub("[%s%p¿¡«»“”\"']+$", "")
+    s = s:match("^%s*(.-)%s*$") or s
+    if #s > 0 then return s end
+    return nil
+end
+
 -- ==========================================
 -- TARJETA: PALABRA ÚNICA (DICCIONARIO ORIGINAL)
 -- ==========================================
@@ -621,13 +617,14 @@ function FloatingDictionaryPopup:init()
 
     self.htmlwidget = ScrollHtmlWidget:new({
         html_body = html_body, is_xhtml = true, css = getBaseCss(),
-        default_font_size = scaleText(18), width = self.width - scale(48), height = self.max_html_height,
+        default_font_size = scaleText(21), width = self.width - scale(48), height = self.max_html_height,
         scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
     })
     
     applyRoundedScrollbar(self.htmlwidget)
 
     local icon_btn_specs = {}
+
     local external_rows = {}
     
     local base_buttons = {}
@@ -637,7 +634,7 @@ function FloatingDictionaryPopup:init()
     if is_btn_enabled("page_scrubber_fdict_show_translate") then
         table.insert(base_buttons, { svg = "languages.svg", text = "Translate", action = "translate" })
     end
-    if is_btn_enabled("page_scrubber_fdict_show_ai") and hasAssistant(self.plugin) then
+    if is_btn_enabled("page_scrubber_fdict_show_ai") then
         table.insert(base_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
     end
     if is_btn_enabled("page_scrubber_fdict_show_highlight") then
@@ -656,7 +653,7 @@ function FloatingDictionaryPopup:init()
         if path then
             table.insert(icon_btn_specs, { icon_svg = path, text = nil, action = btn.action })
         else
-            table.insert(icon_btn_specs, { icon_svg = nil, text = btn.text, font_size = scaleText(8), action = btn.action })
+            table.insert(icon_btn_specs, { icon_svg = nil, text = btn.text, font_size = scaleText(12), action = btn.action })
         end
     end
     
@@ -687,7 +684,7 @@ function FloatingDictionaryPopup:init()
                             id = ext.id,
                             icon_svg = nil,
                             text = ext.text or "Plug-in",
-                            font_size = scaleText(8),
+                            font_size = scaleText(12),
                             external_callback = ext.callback,
                             fake_popup = ext.fake_popup
                         })
@@ -710,7 +707,7 @@ function FloatingDictionaryPopup:init()
                 text = spec.text,
                 font_size = spec.font_size,
                 width = icon_btn_w, 
-                height = scale(48), 
+                height = scale(40), 
                 always_show_text = false,
                 show_parent = self,
                 callback = function()
@@ -735,15 +732,23 @@ function FloatingDictionaryPopup:init()
     if #external_rows > 0 then
         for _, txt_row in ipairs(external_rows) do
             local row_widgets = {}
-            local btn_w = math.floor((self.width - (#txt_row - 1) * scale(1)) / #txt_row)
+            local count = #txt_row
+            local btn_w = math.floor((self.width - (count - 1) * scale(1)) / count)
+            
+            local auto_font_size = scaleText(11)
+            if count == 3 then
+                auto_font_size = scaleText(9)
+            elseif count >= 4 then
+                auto_font_size = scaleText(8)
+            end
             
             for _, spec in ipairs(txt_row) do
                 local btn = PreviewButton:new({
                     icon_svg = nil,
                     text = spec.text,
-                    font_size = spec.font_size or scaleText(8),
+                    font_size = auto_font_size,
                     width = btn_w, 
-                    height = scale(30), 
+                    height = scale(34), 
                     always_show_text = true,
                     show_parent = self,
                     callback = function()
@@ -811,9 +816,58 @@ function FloatingDictionaryPopup:init()
     if Device:isTouchDevice() then 
         self.ges_events = { 
             TapClose = { GestureRange:new({ ges = "tap", range = self.dimen }) },
-            Swipe = { GestureRange:new({ ges = "swipe", range = self.dimen }) }
+            Swipe    = { GestureRange:new({ ges = "swipe", range = self.dimen }) },
+            HoldStartText = {
+                GestureRange:new{
+                    ges = "hold",
+                    range = self.dimen,
+                },
+            },
+            HoldPanText = {
+                GestureRange:new{
+                    ges = "hold_pan",
+                    range = self.dimen,
+                },
+            },
+            HoldReleaseText = {
+                GestureRange:new{
+                    ges = "hold_release",
+                    range = self.dimen,
+                },
+                args = function(text)
+                    if text and text ~= "" then
+                        self:lookupWordDirect(text)
+                    end
+                end,
+            },
         } 
     end
+end
+
+function FloatingDictionaryPopup:onHoldStartText() return true end
+function FloatingDictionaryPopup:onHoldPanText() return true end
+function FloatingDictionaryPopup:onHoldReleaseText() return true end
+
+function FloatingDictionaryPopup:lookupWordDirect(word)
+    local clean = cleanWordForLookup(word)
+    if not clean or #clean == 0 then return false end
+
+    -- Preservar la posición actual (arriba o abajo) y las cajas de la palabra original
+    if self.plugin then
+        self.plugin._inherited_anchor_top = self.anchor_top
+    end
+    local original_boxes = self.boxes
+
+    local UIManager = require("ui/uimanager")
+    UIManager:close(self)
+
+    UIManager:scheduleIn(0.05, function()
+        if self.plugin and self.plugin.ui then
+            local Event = require("ui/event")
+            self.plugin.ui:handleEvent(Event:new("LookupWord", clean, true, original_boxes))
+        end
+    end)
+    return true
 end
 
 function FloatingDictionaryPopup:onSwipe(arg1, arg2)
@@ -856,12 +910,13 @@ function FloatingDictionaryPopup:switchDict(new_idx)
 
     self.htmlwidget = ScrollHtmlWidget:new({
         html_body = html_body, is_xhtml = true, css = getBaseCss(),
-        default_font_size = scaleText(18), width = self.width - scale(48), height = self.max_html_height,
+        default_font_size = scaleText(21), width = self.width - scale(48), height = self.max_html_height,
         scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
     })
     
     applyRoundedScrollbar(self.htmlwidget)
     self.html_row[2] = self.htmlwidget
+
     UIManager:setDirty(self.dialog, "ui", self.popup_rect)
 end
 
@@ -909,7 +964,7 @@ function FloatingActionMenu:init()
     if is_btn_enabled("page_scrubber_sel_show_translate") then
         table.insert(raw_buttons, { svg = "languages.svg", text = "Translate", action = "translate" })
     end
-    if is_btn_enabled("page_scrubber_sel_show_ai") and hasAssistant(self.plugin) then
+    if is_btn_enabled("page_scrubber_sel_show_ai") then
         table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
     end
     if is_btn_enabled("page_scrubber_sel_show_note") then
@@ -925,7 +980,16 @@ function FloatingActionMenu:init()
         table.insert(raw_buttons, { svg = "contrast.svg", text = "Inv", action = "invert" })
     end
     if is_btn_enabled("page_scrubber_sel_show_highlight") then
-        table.insert(raw_buttons, { svg = "highlighter.svg", text = "HL", action = "highlight" })
+        table.insert(raw_buttons, { svg = "droplet.svg", text = "HL", action = "highlight" })
+    end
+
+    -- Opción espejo: invierte el orden completo de las herramientas
+    if G_reader_settings and G_reader_settings:isTrue("page_scrubber_sel_reverse_order") then
+        local reversed = {}
+        for i = #raw_buttons, 1, -1 do
+            table.insert(reversed, raw_buttons[i])
+        end
+        raw_buttons = reversed
     end
 
     local pos_pref = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position")) or "right_v"
@@ -944,7 +1008,7 @@ function FloatingActionMenu:init()
         local btn = PreviewButton:new({
             icon_svg = path,
             text = not path and spec.text or nil,
-            font_size = scaleText(8),
+            font_size = scaleText(13),
             width = btn_w,
             height = btn_h,
             always_show_text = false,
@@ -1354,9 +1418,16 @@ function FloatingDict:patchSystem()
             pcall(function()
                 if dict_self.dismissLookupInfo then pcall(function() dict_self:dismissLookupInfo() end) end
                 
+                local anchor_top = plugin._inherited_anchor_top
+                if anchor_top ~= nil then
+                    plugin._inherited_anchor_top = nil
+                else
+                    anchor_top = shouldAnchorTop(boxes)
+                end
+
                 local popup = FloatingDictionaryPopup:new({
                     text = word, results = results, boxes = boxes,
-                    anchor_top = shouldAnchorTop(boxes), highlight_obj = highlight, plugin = plugin, current_result_idx = 1
+                    anchor_top = anchor_top, highlight_obj = highlight, plugin = plugin, current_result_idx = 1
                 })
                 UIManager:show(popup)
             end)

@@ -179,18 +179,20 @@ function ProgressSlider:paintTo(bb, x, y)
         end
     end
 
-    local kx = math.floor(x + self:_valueToX(self.value))
-    if self.chapters then
-        local kw, kh = S(6), S(16)
-        local kx_pos = kx - math.floor(kw / 2)
-        local ky_pos = cy - math.floor(kh / 2)
-        local kr = math.floor(kw / 2)
-        paintCornerRect(bb, kx_pos - 1, ky_pos - 1, kw + 2, kh + 2, kr + 1, Blitbuffer.COLOR_WHITE)
-        paintCornerRect(bb, kx_pos, ky_pos, kw, kh, kr, Blitbuffer.COLOR_BLACK)
-    else
-        local r = self.knob_r
-        paintCircle(bb, kx, cy, r, Blitbuffer.COLOR_BLACK)
-        paintCircle(bb, kx, cy, r - S(3), Blitbuffer.COLOR_WHITE)
+    if not self._dragging then
+        local kx = math.floor(x + self:_valueToX(self.value))
+        if self.chapters then
+            local kw, kh = S(6), S(16)
+            local kx_pos = kx - math.floor(kw / 2)
+            local ky_pos = cy - math.floor(kh / 2)
+            local kr = math.floor(kw / 2)
+            paintCornerRect(bb, kx_pos - 1, ky_pos - 1, kw + 2, kh + 2, kr + 1, Blitbuffer.COLOR_WHITE)
+            paintCornerRect(bb, kx_pos, ky_pos, kw, kh, kr, Blitbuffer.COLOR_BLACK)
+        else
+            local r = self.knob_r
+            paintCircle(bb, kx, cy, r, Blitbuffer.COLOR_BLACK)
+            paintCircle(bb, kx, cy, r - S(3), Blitbuffer.COLOR_WHITE)
+        end
     end
 end
 
