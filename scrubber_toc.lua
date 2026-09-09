@@ -248,6 +248,23 @@ function ScrubberToc:init()
     self._repeat_running = false
     self._is_expanded = (self.initial_expanded == true)
 
+    -- Si se abre de forma independiente (Dispatcher/Gesto), inicializar helper de paginación del scrubber
+    if not self.parent_scrubber then
+        local ok_scrubber, ScrubberUI = pcall(require, "scrubber_ui")
+        if ok_scrubber and ScrubberUI then
+            local ok_inst, inst = pcall(function()
+                return ScrubberUI:new{
+                    ui = ui,
+                    document = doc,
+                    ui_scale = scale_factor,
+                }
+            end)
+            if ok_inst and inst then
+                self._scrubber_helper = inst
+            end
+        end
+    end
+
     self.is_rtl = self.is_rtl
     if self.is_rtl == nil then
         if self.parent_scrubber and self.parent_scrubber.is_rtl ~= nil then
@@ -627,8 +644,9 @@ function ScrubberToc:_updateChapterMarks()
         return
     end
 
-    if self.parent_scrubber and self.parent_scrubber._slider and self.parent_scrubber._slider.chapters then
-        if self._slider then self._slider.chapters = self.parent_scrubber._slider.chapters end
+    local scrubber_source = self.parent_scrubber or self._scrubber_helper
+    if scrubber_source and scrubber_source._slider and scrubber_source._slider.chapters then
+        if self._slider then self._slider.chapters = scrubber_source._slider.chapters end
         return
     end
 
@@ -1057,8 +1075,17 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             local ui = self.ui
             local doc = ui and ui.document
 
-            -- 1. Consulta directa al motor del documento (Crengine / MuPDF)
-            if ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() then
+            -- 1. Consulta al método de paginación del Scrubber (padre o helper autónomo)
+            local scrubber = self.parent_scrubber or self._scrubber_helper
+            if scrubber and type(scrubber._getDisplayPageInfo) == "function" then
+                local ok, dp = pcall(function() return scrubber:_getDisplayPageInfo(ch.page) end)
+                if ok and dp and tostring(dp) ~= "" then
+                    disp_p = tostring(dp)
+                end
+            end
+
+            -- 2. Fallback al motor de etiquetas de página nativo
+            if not disp_p and ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() then
                 if doc and type(doc.getPageLabel) == "function" then
                     local ok, l = pcall(doc.getPageLabel, doc, ch.page)
                     if ok and l and l ~= "" then disp_p = tostring(l) end
@@ -1069,15 +1096,8 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 end
             end
 
-            -- 2. Fallback al scrubber si el libro no expone getPageLabel directo
-            if not disp_p and self.parent_scrubber and type(self.parent_scrubber._getDisplayPageInfo) == "function" then
-                local ok, dp = pcall(function() return self.parent_scrubber:_getDisplayPageInfo(ch.page) end)
-                if ok and dp and tostring(dp) ~= "" then
-                    disp_p = tostring(dp)
-                end
-            end
-
             disp_p = disp_p or tostring(ch.page)
+
             local pg_str = _("Page") .. " " .. disp_p
             
             if not self._tw_pnum_normal then
@@ -1643,6 +1663,11 @@ function ScrubberToc:onCloseWidget()
     self._closing = true
     self:_stopRepeatAction()
 
+    if self._scrubber_helper and self._scrubber_helper.free then
+        pcall(function() self._scrubber_helper:free() end)
+    end
+    self._scrubber_helper = nil
+
     if self._preview_tile and self._preview_tile.is_scaled and self._preview_tile.bb then
         pcall(function() self._preview_tile.bb:free() end)
     end
@@ -1653,7 +1678,7 @@ function ScrubberToc:onCloseWidget()
 
     local widgets_to_free = { 
         self._tw_toc_empty, self._tw_pnum_normal, self._tw_pnum_bold,
-        self._tw_ch_normal, self._tw_ch_bold, self._tw_toc_pag,
+        self._tw_ch_normal, self._tw_ch_bold,
         self.tw_author, self._tw_time, self._tw_origin_dot,
         self._slider,
         self.icon_wifi_0, self.icon_wifi_1, self.icon_wifi_2,

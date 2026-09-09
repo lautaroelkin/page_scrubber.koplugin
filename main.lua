@@ -147,10 +147,11 @@ function ReaderUI:onPageScrubberToc()
     if not ui.document then return end
     UIManager:nextTick(function()
         local ScrubberToc = require("scrubber_toc")
+        local cur_page = (ui.view and ui.view.state and ui.view.state.page) or 1
         UIManager:show(ScrubberToc:new{
             ui = ui,
-            initial_page = ui.view and ui.view.state and ui.view.state.page or 1,
-            initial_origin = ui.view and ui.view.state and ui.view.state.page or 1,
+            initial_page = cur_page,
+            initial_origin = cur_page,
         })
         if Device:isKindle() then UIManager:setDirty(nil, "full") end
     end)
