@@ -235,5 +235,35 @@ msgstr "Scrubber 辞書"
 msgid "Reverse selection buttons"
 msgstr "選択ボタンの順序を反転"
 
+msgid "Scrubber Actions"
+msgstr "Scrubber アクション"
+
+msgid "+ Add action"
+msgstr "+ アクションを追加"
+
+msgid "Add Scrubber Action"
+msgstr "Scrubber アクションを追加"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "Scrubber アクションから「%s」を削除しますか？"
+
+msgid "Remove"
+msgstr "削除"
+
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "アクションの最大数（8個）に達しました。先に1つ削除してください。"
+
+msgid "No system actions available."
+msgstr "利用可能なシステムアクションがありません。"
+
+msgid "Action unavailable in this document or view."
+msgstr "このドキュメントまたは表示モードでは利用できないアクションです。"
+
 
 

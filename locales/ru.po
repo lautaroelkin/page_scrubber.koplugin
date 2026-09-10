@@ -232,5 +232,34 @@ msgstr "Словарь Scrubber"
 msgid "Reverse selection buttons"
 msgstr "Обратный порядок кнопок выделения"
 
+msgid "Scrubber Actions"
+msgstr "Действия Scrubber"
+
+msgid "+ Add action"
+msgstr "+ Добавить действие"
+
+msgid "Add Scrubber Action"
+msgstr "Добавить действие Scrubber"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "Удалить «%s» из действий Scrubber?"
+
+msgid "Remove"
+msgstr "Удалить"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "OK"
+msgstr "ОК"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "Достигнут максимум из 8 действий. Сначала удалите одно."
+
+msgid "No system actions available."
+msgstr "Нет доступных системных действий."
+
+msgid "Action unavailable in this document or view."
+msgstr "Действие недоступно в этом документе или режиме просмотра."
 
 

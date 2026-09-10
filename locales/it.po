@@ -232,4 +232,34 @@ msgstr "Dizionario Scrubber"
 msgid "Reverse selection buttons"
 msgstr "Inverti pulsanti di selezione"
 
+msgid "Scrubber Actions"
+msgstr "Azioni dello Scrubber"
+
+msgid "+ Add action"
+msgstr "+ Aggiungi azione"
+
+msgid "Add Scrubber Action"
+msgstr "Aggiungi azione Scrubber"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "Rimuovere \"%s\" dalle azioni dello Scrubber?"
+
+msgid "Remove"
+msgstr "Rimuovi"
+
+msgid "Cancel"
+msgstr "Annulla"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "Raggiunto il limite di 8 azioni. Rimuovine prima una."
+
+msgid "No system actions available."
+msgstr "Nessuna azione di sistema disponibile."
+
+msgid "Action unavailable in this document or view."
+msgstr "Azione non disponibile in questo documento o visualizzazione."
+
 

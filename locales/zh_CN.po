@@ -232,3 +232,33 @@ msgstr "Scrubber 词典"
 msgid "Reverse selection buttons"
 msgstr "反转选择菜单按钮顺序"
 
+msgid "Scrubber Actions"
+msgstr "Scrubber 动作"
+
+msgid "+ Add action"
+msgstr "+ 添加动作"
+
+msgid "Add Scrubber Action"
+msgstr "添加 Scrubber 动作"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "是否从 Scrubber 动作中移除“%s”？"
+
+msgid "Remove"
+msgstr "移除"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "OK"
+msgstr "确定"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "已达到最多 8 个动作的限制。请先移除一个。"
+
+msgid "No system actions available."
+msgstr "没有可用的系统动作。"
+
+msgid "Action unavailable in this document or view."
+msgstr "该动作在此文档或视图中不可用。"
+
