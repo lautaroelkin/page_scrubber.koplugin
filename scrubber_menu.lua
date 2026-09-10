@@ -216,6 +216,7 @@ function ScrubberMenu:init()
 
     local icon_sz = scale(28)
     self.icon_sun = loadSvg("sun.svg", icon_sz, icon_sz)
+    self.icon_warehouse = loadSvg("warehouse.svg", icon_sz, icon_sz)
     self.icon_wifi = loadSvg("wifi-zero.svg", icon_sz, icon_sz)
     self.icon_toggle_on = loadSvg("toggle-right.svg", icon_sz, icon_sz)
     self.icon_toggle_off = loadSvg("toggle-left.svg", icon_sz, icon_sz)
@@ -435,6 +436,24 @@ function ScrubberMenu:paintTo(bb, x, y)
         h = bottom_h + scale(4)
     }
 
+    -- Botón de Scrubber Actions (warehouse a 28 px, a la izquierda de configuraciones)
+    local actions_sz = scale(28)
+    local actions_x = wifi_x - actions_sz - scale(12)
+    local actions_y = bottom_y + math.floor((bottom_h - actions_sz) / 2)
+    self.btn_actions_dimen = Geom:new{
+        x = actions_x - scale(4),
+        y = bottom_y - scale(2),
+        w = actions_sz + scale(8),
+        h = bottom_h + scale(4)
+    }
+
+    if self.icon_warehouse then
+        local isz = self.icon_warehouse:getSize()
+        local ix = actions_x + math.floor((actions_sz - isz.w) / 2)
+        local iy = actions_y + math.floor((actions_sz - isz.h) / 2)
+        self.icon_warehouse:paintTo(bb, ix, iy)
+    end
+
     if self._pressed_btn == "wifi" then
         paintRoundRect(bb, wifi_x, wifi_y, wifi_sz, wifi_sz, scale(6), Blitbuffer.COLOR_BLACK)
         if self.icon_wifi then
@@ -461,6 +480,11 @@ function ScrubberMenu:onTap(arg1, arg2)
 
     if not ges.pos:intersectWith(self.popup_rect) then
         UIManager:close(self)
+        return true
+    end
+
+    if self.btn_actions_dimen and ges.pos:intersectWith(self.btn_actions_dimen) then
+        self:openActionsLauncher()
         return true
     end
 
@@ -507,9 +531,24 @@ function ScrubberMenu:onShow()
     UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
 end
 
+function ScrubberMenu:openActionsLauncher()
+    local ui = self.ui
+    local scrubber_ui = self.scrubber_ui
+    UIManager:close(self)
+    UIManager:nextTick(function()
+        local ScrubberSettings = require("scrubber_settings")
+        local inst = ScrubberSettings:new{
+            ui = ui,
+            scrubber_ui = scrubber_ui,
+            current_view = "actions_launcher",
+        }
+        UIManager:show(inst)
+    end)
+end
+
 function ScrubberMenu:onCloseWidget()
     local to_free = {
-        self.icon_sun, self.icon_wifi,
+        self.icon_sun, self.icon_warehouse, self.icon_wifi,
         self.icon_toggle_on, self.icon_toggle_off,
         self.tw_check
     }
