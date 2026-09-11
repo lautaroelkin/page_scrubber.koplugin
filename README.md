@@ -89,5 +89,3 @@ Basically, it takes the native features, removes the friction, and puts them int
  3. Choose your preferred gesture and bind it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
 
 > 💡 **Tip:** You don't *have* to use gestures! You can also launch all views and access the new configuration options directly from KOReader's top menu.
-
-> When updating manually, do not overwrite the existing folder. Delete the previous page_scrubber.koplugin directory first, then place the new version to prevent caching issues and file conflicts.
