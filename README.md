@@ -26,7 +26,7 @@ Here is what it does differently:
 
 Basically, it takes the native features, removes the friction, and puts them into a streamlined tool. Give it a try!
 
-> ⚠️¡! **IMPORTANT:** You MUST delete any old or duplicate `.lua` scrubber/browser files from your KOReader plugins/patches folder before installing this new version.
+> ⚠️¡! **IMPORTANT:** When updating manually, do not overwrite the existing folder. Delete the previous page_scrubber.koplugin directory first, then place the new version to prevent caching issues and file conflicts.
 
 > ⚠️¡! **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
