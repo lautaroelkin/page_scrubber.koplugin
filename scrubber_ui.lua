@@ -267,6 +267,7 @@ function PageScrubber:init()
     self._split_fixed_page = self.initial_fixed_page or ((self._view_mode == "split") and self._cur_page or nil) 
     self._split_divider_x = nil
     self._hl_filter = self.initial_hl_filter or nil 
+    self._target_hl_order = self.initial_hl_order or self.hl_order or self.target_order or nil
     self._hl_types_present = { normal = false, invert = false, underline = false }
     self._hl_filter_dimens = {}
     self._hl_main_tab_dimen = nil
@@ -718,8 +719,7 @@ function PageScrubber:_extractAnnotations()
     self._cached_notes = {}
     self._page_data = {}
     self._hl_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
-    local hl_map = {}
-    local note_map = {}
+    self._note_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
     local tp = self._total_pages or 1
 
     local function drawer_to_filter(drawer)
@@ -731,90 +731,117 @@ function PageScrubber:_extractAnnotations()
         return "normal"
     end
 
-    local function process_item(v, k)
-        if type(v) == "table" then
-            local p = self:_getNumericalPage(v)
-            if type(p) == "number" and p >= 1 and p <= tp then
-                p = math.floor(p)
-                if not self._page_data[p] then self._page_data[p] = {} end
-                local date_val = v.datetime or v.time or v.date or v.timestamp
-                if date_val and not self._page_data[p].date then self._page_data[p].date = date_val end
+    -- 1. Recolectar todas las anotaciones válidas
+    local raw_anns = (self.ui.annotation and self.ui.annotation.annotations) or {}
+    local valid_entries = {}
 
-                local is_real_highlight = (v.drawer ~= nil) or (v.pos0 ~= nil and v.pos1 ~= nil) or (v.highlight == true)
-                local is_real_note = (v.note ~= nil and v.note ~= "")
-                
-                if is_real_note or is_real_highlight then
-                    if is_real_highlight and v.text and v.text ~= "" then
-                        local filt = drawer_to_filter(v.drawer)
-                        if filt then
-                            if not self._page_data[p].hl_types then self._page_data[p].hl_types = {} end
-                            self._page_data[p].hl_types[filt] = true
-                            self._hl_types_present[filt] = true
-
-                            if not self._page_data[p].texts_by_type then self._page_data[p].texts_by_type = {} end
-                            if self._page_data[p].texts_by_type[filt] then
-                                if not string.find(self._page_data[p].texts_by_type[filt], v.text, 1, true) then
-                                    self._page_data[p].texts_by_type[filt] = self._page_data[p].texts_by_type[filt] .. " | " .. v.text
-                                end
-                            else
-                                self._page_data[p].texts_by_type[filt] = v.text
-                            end
-                        end
-
-                        if self._page_data[p].text and not string.find(self._page_data[p].text, v.text, 1, true) then
-                            self._page_data[p].text = self._page_data[p].text .. " | " .. v.text
-                        else
-                            self._page_data[p].text = v.text
-                        end
-                        hl_map[p] = true
-                    end
-                    if is_real_note and v.note and v.note ~= "" then
-                        if self._page_data[p].note and not string.find(self._page_data[p].note, v.note, 1, true) then
-                            self._page_data[p].note = self._page_data[p].note .. " | " .. v.note
-                        else
-                            self._page_data[p].note = v.note
-                        end
-                        note_map[p] = true
-                    end
-                end
-            end
-        else
-            local p_val = tonumber(k)
-            if p_val and p_val >= 1 and p_val <= tp and (type(v) == "string" or type(v) == "number") then
-                p_val = math.floor(p_val)
-                if not self._page_data[p_val] then self._page_data[p_val] = {} end
-                if not self._page_data[p_val].date then self._page_data[p_val].date = v end
+    for idx, item in ipairs(raw_anns) do
+        local p = self:_getNumericalPage(item)
+        if type(p) == "number" and p >= 1 and p <= tp then
+            p = math.floor(p)
+            local is_real_hl = (item.drawer ~= nil) or (item.pos0 ~= nil and item.pos1 ~= nil) or (item.highlight == true)
+            local is_real_note = (item.note ~= nil and item.note ~= "")
+            if is_real_hl or is_real_note then
+                table.insert(valid_entries, { item = item, raw_index = idx, p = p })
             end
         end
     end
 
-    if self.ui.annotation and self.ui.annotation.annotations then
-        for k, v in pairs(self.ui.annotation.annotations) do process_item(v, k) end
-    end
-    if self.ui.doc_props and self.ui.doc_props.bookmarks then
-        for k, v in pairs(self.ui.doc_props.bookmarks) do process_item(v, k) end
-    end
-    if self.ui.bookmark and self.ui.bookmark._bookmarks then
-        for k, v in pairs(self.ui.bookmark._bookmarks) do process_item(v, k) end
-    end
-    if self.ui.bookmark and self.ui.bookmark.bookmarks then
-        for k, v in pairs(self.ui.bookmark.bookmarks) do process_item(v, k) end
-    end
-    
-    for p, _ in pairs(hl_map) do table.insert(self._cached_hl, p) end
-    for p, _ in pairs(note_map) do table.insert(self._cached_notes, p) end
-    table.sort(self._cached_hl, function(a,b) return tonumber(a) > tonumber(b) end)
-    table.sort(self._cached_notes, function(a,b) return tonumber(a) > tonumber(b) end)
+    -- Ordenar por posición real en el libro (pantalla de lectura y orden de creación)
+    table.sort(valid_entries, function(a, b)
+        if a.p ~= b.p then return a.p < b.p end
+        return a.raw_index < b.raw_index
+    end)
 
-    local types_count = 0
-    for _, present in pairs(self._hl_types_present) do
-        if present then types_count = types_count + 1 end
+    -- Agrupar por página visible en pantalla (disp_page)
+    local anns_by_disp = {}
+    local disp_order = {}
+
+    for _, entry in ipairs(valid_entries) do
+        local disp_p = tostring(self:_getDisplayPageInfo(entry.p))
+        if not anns_by_disp[disp_p] then
+            anns_by_disp[disp_p] = {}
+            table.insert(disp_order, disp_p)
+        end
+        table.insert(anns_by_disp[disp_p], entry)
     end
-    
-    if self._hl_filter and not self._hl_types_present[self._hl_filter] then
-        self._hl_filter = self.initial_hl_filter or nil
-    elseif types_count < 2 then
-        self._hl_filter = self.initial_hl_filter or nil
+
+    -- 2. Asignar el orden por página visible y registrar en las listas
+    for _, disp_p in ipairs(disp_order) do
+        local items_on_disp = anns_by_disp[disp_p]
+        local total_on_page = #items_on_disp
+
+        for order, entry in ipairs(items_on_disp) do
+            local item = entry.item
+            local p = entry.p
+            local filt = drawer_to_filter(item.drawer)
+            local date_val = item.datetime or item.time or item.date or item.timestamp
+
+            self._page_data[p] = self._page_data[p] or {}
+            if date_val and not self._page_data[p].date then
+                self._page_data[p].date = date_val
+            end
+
+            -- Poblar datos de la página para los verificadores de interfaz
+            if not self._page_data[p].hl_types then self._page_data[p].hl_types = {} end
+            self._page_data[p].hl_types[filt] = true
+            if item.text and item.text ~= "" then
+                self._page_data[p].text = (self._page_data[p].text and (self._page_data[p].text .. " | ") or "") .. item.text
+            end
+            if item.note and item.note ~= "" then
+                self._page_data[p].note = (self._page_data[p].note and (self._page_data[p].note .. " | ") or "") .. item.note
+            end
+
+            local data_entry = {
+                page = p,
+                disp_page = disp_p,
+                order = order,
+                total_on_page = total_on_page,
+                type = filt,
+                text = item.text or "",
+                note = item.note or "",
+                date = date_val,
+                annotation = item,
+                raw_index = entry.raw_index,
+            }
+
+            -- Destacados (Highlights)
+            if (item.text and item.text ~= "") or item.drawer then
+                table.insert(self._cached_hl, data_entry)
+                self._hl_types_present[filt] = true
+            end
+
+            -- Notas
+            if item.note and item.note ~= "" then
+                table.insert(self._cached_notes, data_entry)
+                self._note_types_present[filt] = true
+            end
+        end
+    end
+
+    -- Cargar fechas para páginas con marcadores puros
+    local function extract_dates(src)
+        if type(src) ~= "table" then return end
+        for k, v in pairs(src) do
+            local p = self:_getNumericalPage(v) or tonumber(k)
+            if p and p >= 1 and p <= tp then
+                p = math.floor(p)
+                self._page_data[p] = self._page_data[p] or {}
+                if not self._page_data[p].date then
+                    local d = (type(v) == "table") and (v.datetime or v.time or v.date or v.timestamp) or v
+                    if type(d) == "string" or type(d) == "number" then self._page_data[p].date = d end
+                end
+            end
+        end
+    end
+    extract_dates(self.ui.doc_props and self.ui.doc_props.bookmarks)
+    extract_dates(self.ui.bookmark and self.ui.bookmark._bookmarks)
+    extract_dates(self.ui.bookmark and self.ui.bookmark.bookmarks)
+
+    -- Validar que el filtro activo siga existiendo
+    local types_present = (self._active_tab == "notes") and self._note_types_present or self._hl_types_present
+    if self._hl_filter and not types_present[self._hl_filter] then
+        self._hl_filter = nil
     end
 end
 
@@ -826,22 +853,55 @@ function PageScrubber:_getFilteredActiveList()
     elseif self._active_tab == "notes" then active_list = self._cached_notes or {} end
 
     local other_items = {}
-    for _, p in ipairs(active_list) do
-        local is_excluded = (self._active_tab == "bookmarks") and (tonumber(p) == tonumber(fixed_page))
-        if not is_excluded then
-            local passes_filter = true
-            if self._active_tab == "highlights" and self._hl_filter then
-                local pdata = self._page_data[tonumber(p)]
-                passes_filter = pdata and pdata.hl_types and pdata.hl_types[self._hl_filter] or false
+    for _, it in ipairs(active_list) do
+        if self._active_tab == "bookmarks" then
+            local p = tonumber(it)
+            if p ~= tonumber(fixed_page) then
+                table.insert(other_items, p)
             end
-            if passes_filter then table.insert(other_items, p) end
+        else
+            local passes_filter = true
+            if self._hl_filter then
+                passes_filter = (it.type == self._hl_filter)
+            end
+            if passes_filter then
+                table.insert(other_items, it)
+            end
         end
     end
 
-    if self._sort_order == "asc" then
-        table.sort(other_items, function(a, b) return tonumber(a) < tonumber(b) end)
+    if self._active_tab == "bookmarks" then
+        if self._sort_order == "asc" then
+            table.sort(other_items, function(a, b) return tonumber(a) < tonumber(b) end)
+        else
+            table.sort(other_items, function(a, b) return tonumber(a) > tonumber(b) end)
+        end
     else
-        table.sort(other_items, function(a, b) return tonumber(a) > tonumber(b) end)
+        if self._sort_order == "asc" then
+            table.sort(other_items, function(a, b)
+                local da = tonumber(a.disp_page)
+                local db = tonumber(b.disp_page)
+                if da and db and da ~= db then
+                    return da < db
+                elseif a.disp_page ~= b.disp_page then
+                    return a.page < b.page
+                else
+                    return a.order < b.order
+                end
+            end)
+        else
+            table.sort(other_items, function(a, b)
+                local da = tonumber(a.disp_page)
+                local db = tonumber(b.disp_page)
+                if da and db and da ~= db then
+                    return da > db
+                elseif a.disp_page ~= b.disp_page then
+                    return a.page > b.page
+                else
+                    return a.order < b.order
+                end
+            end)
+        end
     end
     return other_items
 end
@@ -852,12 +912,20 @@ function PageScrubber:onNextChapterKey()
         local items = self:_getFilteredActiveList()
         if #items > 0 then
             local cur_idx = nil
-            for idx, p in ipairs(items) do
-                if tonumber(p) == tonumber(self._cur_page) then cur_idx = idx; break end
+            for idx, it in ipairs(items) do
+                if self._split_selected_item then
+                    if it == self._split_selected_item then cur_idx = idx; break end
+                else
+                    local p = (type(it) == "table") and it.page or it
+                    if tonumber(p) == tonumber(self._cur_page) then cur_idx = idx; break end
+                end
             end
             local target_idx = (cur_idx and cur_idx > 1) and (cur_idx - 1) or #items
+            local target_entry = items[target_idx]
+            self._split_selected_item = (type(target_entry) == "table") and target_entry or nil
+            local target_page = (type(target_entry) == "table") and target_entry.page or target_entry
             self._force_menu_sync = true
-            self:_previewPage(items[target_idx], false)
+            self:_previewPage(target_page, false)
             return true
         end
     else
@@ -872,12 +940,20 @@ function PageScrubber:onPrevChapterKey()
         local items = self:_getFilteredActiveList()
         if #items > 0 then
             local cur_idx = nil
-            for idx, p in ipairs(items) do
-                if tonumber(p) == tonumber(self._cur_page) then cur_idx = idx; break end
+            for idx, it in ipairs(items) do
+                if self._split_selected_item then
+                    if it == self._split_selected_item then cur_idx = idx; break end
+                else
+                    local p = (type(it) == "table") and it.page or it
+                    if tonumber(p) == tonumber(self._cur_page) then cur_idx = idx; break end
+                end
             end
             local target_idx = (cur_idx and cur_idx < #items) and (cur_idx + 1) or 1
+            local target_entry = items[target_idx]
+            self._split_selected_item = (type(target_entry) == "table") and target_entry or nil
+            local target_page = (type(target_entry) == "table") and target_entry.page or target_entry
             self._force_menu_sync = true
-            self:_previewPage(items[target_idx], false)
+            self:_previewPage(target_page, false)
             return true
         end
     else
@@ -1917,16 +1993,35 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         return str
     end
 
+    local function get_specific_style_icon(default_fallback)
+        if self._hl_filter ~= nil then
+            return default_fallback
+        end
+        local it_type = self._split_selected_item and self._split_selected_item.type
+        if it_type == "invert" then return self.icon_picker_inv
+        elseif it_type == "underline" then return self.icon_picker_ul
+        elseif it_type == "strikethrough" then return self.icon_picker_st
+        elseif it_type == "normal" then return self.icon_picker_hl
+        end
+        return default_fallback
+    end
+
     if self._active_tab == "highlights" then
-        active_pol_icon = self.icon_pol_hl
-        if self._hl_filter and pd and pd.texts_by_type and pd.texts_by_type[self._hl_filter] then
+        active_pol_icon = get_specific_style_icon(self.icon_pol_hl)
+        if self._split_selected_item and self._split_selected_item.page == self._cur_page and self._split_selected_item.text ~= "" then
+            text_str = "“" .. safe_string(self._split_selected_item.text, 500) .. "”"
+        elseif self._hl_filter and pd and pd.texts_by_type and pd.texts_by_type[self._hl_filter] then
             text_str = "“" .. safe_string(pd.texts_by_type[self._hl_filter], 500) .. "”"
         elseif pd and pd.text then
             text_str = "“" .. safe_string(pd.text, 500) .. "”"
         end
     elseif self._active_tab == "notes" then
-        active_pol_icon = self.icon_pol_note
-        if pd and pd.note then text_str = safe_string(pd.note, 500) end
+        active_pol_icon = get_specific_style_icon(self.icon_pol_note)
+        if self._split_selected_item and self._split_selected_item.page == self._cur_page and self._split_selected_item.note ~= "" then
+            text_str = safe_string(self._split_selected_item.note, 500)
+        elseif pd and pd.note then
+            text_str = safe_string(pd.note, 500)
+        end
     elseif self._active_tab == "bookmarks" then
         active_pol_icon = self.icon_pol_bm
         local is_bmed = false
@@ -2027,15 +2122,20 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local show_delete_btn = false
     
     if not self._is_comic then
-        local pd_edit = self._page_data[self._cur_page]
-        if self._active_tab == "notes" then
-            if pd_edit and pd_edit.note and pd_edit.note ~= "" then show_delete_btn = true end
-        elseif self._active_tab == "highlights" then
-            if pd_edit and pd_edit.text and pd_edit.text ~= "" then
-                if self._hl_filter then
-                    if pd_edit.hl_types and pd_edit.hl_types[self._hl_filter] then show_delete_btn = true end
+        if self._active_tab == "notes" or self._active_tab == "highlights" then
+            if self._split_selected_item and self._split_selected_item.page == self._cur_page then
+                if self._active_tab == "notes" then
+                    show_delete_btn = (self._split_selected_item.note and self._split_selected_item.note ~= "")
                 else
                     show_delete_btn = true
+                end
+            else
+                local items = (self._active_tab == "notes") and self._cached_notes or self._cached_hl
+                for _, it in ipairs(items or {}) do
+                    if it.page == self._cur_page then
+                        show_delete_btn = true
+                        break
+                    end
                 end
             end
         end
@@ -2157,18 +2257,22 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             paintRoundRect(bb, cx + b_thick, cy + b_thick, cw - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
 
             local current_drawer = "lighten"
-            local pd_edit = self._page_data[self._cur_page]
-            if self._hl_filter then
-                if self._hl_filter == "normal" then current_drawer = "lighten"
-                elseif self._hl_filter == "invert" then current_drawer = "invert"
-                elseif self._hl_filter == "underline" then current_drawer = "underscore"
-                elseif self._hl_filter == "strikethrough" then current_drawer = "strikeout"
-                end
-            elseif pd_edit and pd_edit.hl_types then
-                if pd_edit.hl_types["normal"] then current_drawer = "lighten"
-                elseif pd_edit.hl_types["underline"] then current_drawer = "underscore"
-                elseif pd_edit.hl_types["invert"] then current_drawer = "invert"
-                elseif pd_edit.hl_types["strikethrough"] then current_drawer = "strikeout"
+            if self._split_selected_item and self._split_selected_item.annotation then
+                current_drawer = self._split_selected_item.annotation.drawer or "lighten"
+            else
+                local pd_edit = self._page_data[self._cur_page]
+                if self._hl_filter then
+                    if self._hl_filter == "normal" then current_drawer = "lighten"
+                    elseif self._hl_filter == "invert" then current_drawer = "invert"
+                    elseif self._hl_filter == "underline" then current_drawer = "underscore"
+                    elseif self._hl_filter == "strikethrough" then current_drawer = "strikeout"
+                    end
+                elseif pd_edit and pd_edit.hl_types then
+                    if pd_edit.hl_types["normal"] then current_drawer = "lighten"
+                    elseif pd_edit.hl_types["underline"] then current_drawer = "underscore"
+                    elseif pd_edit.hl_types["invert"] then current_drawer = "invert"
+                    elseif pd_edit.hl_types["strikethrough"] then current_drawer = "strikeout"
+                    end
                 end
             end
 
@@ -2274,9 +2378,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         { key = "strikethrough", icon_on = self.icon_filter_st_on,  icon_off = self.icon_filter_st_off },
     }
     local present_filters = {}
-    if self._active_tab == "highlights" then
+    local types_source = (self._active_tab == "notes") and self._note_types_present or self._hl_types_present
+    if self._active_tab == "highlights" or self._active_tab == "notes" then
         for _, fd in ipairs(filter_defs) do
-            if self._hl_types_present[fd.key] then table.insert(present_filters, fd) end
+            if types_source and types_source[fd.key] then table.insert(present_filters, fd) end
         end
     end
 
@@ -2294,11 +2399,91 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
     if ITEMS_PER_PAGE < 1 then ITEMS_PER_PAGE = 1 end
 
+    -- Asegurar que en Destacados/Notas solo quede un ítem seleccionado a la vez
+    if self._active_tab ~= "bookmarks" then
+        local found = nil
+        local cur_disp = tostring(self:_getDisplayPageInfo(self._cur_page))
+
+        -- 1. Restauración post-edición (Bridge): solo aquí se sincroniza la pantalla interna
+        local target_order = PageScrubber._last_edited_order or self._target_hl_order
+        if not target_order then
+            pcall(function()
+                local Bridge = require("page_scrubber_bridge")
+                target_order = Bridge._last_edited_order
+            end)
+        end
+
+        if target_order then
+            for _, it in ipairs(other_items) do
+                if type(it) == "table" and it.disp_page == cur_disp and it.order == target_order then
+                    found = it
+                    break
+                end
+            end
+            if not found then
+                for _, it in ipairs(other_items) do
+                    if type(it) == "table" and it.page == self._cur_page and it.order == target_order then
+                        found = it
+                        break
+                    end
+                end
+            end
+
+            -- Solo salta de pantalla si venimos directamente de editar esa anotación
+            if found and found.page and found.page ~= self._cur_page then
+                self._cur_page = found.page
+                self._slider.value = self._cur_page
+                self._force_menu_sync = true
+            end
+
+            PageScrubber._last_edited_order = nil
+            self._target_hl_order = nil
+            pcall(function()
+                local Bridge = require("page_scrubber_bridge")
+                Bridge._last_edited_order = nil
+            end)
+        end
+
+        -- 2. Navegación normal: conservar la selección previa solo si pertenece a la página actual
+        if not found and self._split_selected_item then
+            local sel = self._split_selected_item
+            local is_on_current_page = (sel.disp_page and sel.disp_page == cur_disp) or (sel.page == self._cur_page)
+            if is_on_current_page then
+                for _, it in ipairs(other_items) do
+                    if it == sel then
+                        found = it
+                        break
+                    end
+                end
+            end
+        end
+
+        -- 3. Si cambiamos de página con el slider o swipe, seleccionar la primera anotación de la página activa
+        if not found then
+            for _, it in ipairs(other_items) do
+                if type(it) == "table" and (it.disp_page == cur_disp or it.page == self._cur_page) then
+                    found = it
+                    break
+                end
+            end
+        end
+
+        self._split_selected_item = found
+    end
+
     if self._force_menu_sync then
         local target_idx = nil
-        for i, p in ipairs(other_items) do
-            if tonumber(p) == tonumber(self._cur_page) then
-                target_idx = i; break
+        for i, it in ipairs(other_items) do
+            if self._active_tab == "bookmarks" then
+                if tonumber(it) == tonumber(self._cur_page) then
+                    target_idx = i; break
+                end
+            else
+                if self._split_selected_item and it == self._split_selected_item then
+                    target_idx = i; break
+                elseif not self._split_selected_item and it.page == self._cur_page then
+                    target_idx = i; break
+                end
             end
         end
         if target_idx then
@@ -2390,8 +2575,30 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local row_y_float = list_y
         for i = start_idx, end_idx do
             local current_row_y = math.floor(row_y_float)
-            local p = other_items[i]
-            local is_r_sel = (self._cur_page == p)
+            local it = other_items[i]
+            local p, order, total_on_page, item_obj
+            if type(it) == "table" then
+                p = it.page
+                order = it.order
+                total_on_page = it.total_on_page
+                item_obj = it
+            else
+                p = it
+                order = nil
+                total_on_page = 1
+                item_obj = nil
+            end
+
+            local is_r_sel = false
+            if self._active_tab == "bookmarks" then
+                is_r_sel = (self._cur_page == p)
+            else
+                if self._split_selected_item then
+                    is_r_sel = (self._split_selected_item == item_obj)
+                else
+                    is_r_sel = (self._cur_page == p)
+                end
+            end
             local physical_row = i - start_idx + 1
     
             if is_r_sel then
@@ -2446,6 +2653,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 self._tw_row_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", S_MEDIANO), fgcolor = Blitbuffer.COLOR_BLACK }
                 self._tw_row_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", S_MEDIANO), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
             end
+            if not self._tw_row_super_normal then
+                self._tw_row_super_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
+                self._tw_row_super_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
+            end
             
             local tw_pg = is_r_sel and self._tw_row_bold or self._tw_row_normal
             tw_pg.max_width = text_max_w_menu
@@ -2460,12 +2671,23 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local pg_y = current_row_y + math.floor((row_h - tw_pg_sz.h) / 2) + S(2) - 1
             
             tw_pg:paintTo(bb, pg_x, pg_y)
+
+            if total_on_page and total_on_page > 1 and order then
+                local tw_super = is_r_sel and self._tw_row_super_bold or self._tw_row_super_normal
+                tw_super.text = nil
+                tw_super.fgcolor = is_r_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+                tw_super:setText(tostring(order))
+
+                local super_x = pg_x + tw_pg_sz.w + S(2)
+                local super_y = pg_y - S(3)
+                tw_super:paintTo(bb, super_x, super_y)
+            end
             
             local t_dim = Geom:new{ x = rm_x - S(10), y = current_row_y, w = rm_sz.w + S(20), h = row_h }
             local dyn_clickable_w = (rm_x - S(10)) - lm_x
             local r_dim = Geom:new{ x = lm_x, y = current_row_y, w = dyn_clickable_w, h = row_h }
             
-            table.insert(self._split_rows, { dimen = r_dim, toggle_dimen = t_dim, page = p })
+            table.insert(self._split_rows, { dimen = r_dim, toggle_dimen = t_dim, page = p, item = item_obj })
             row_y_float = row_y_float + row_h
         end
         
@@ -2812,7 +3034,9 @@ end
 function PageScrubber:_openNoteTextEditor()
     local target_page = self._cur_page
     local target_item = nil
-    if self.ui.annotation and self.ui.annotation.annotations then
+    if self._split_selected_item and self._split_selected_item.annotation then
+        target_item = self._split_selected_item.annotation
+    elseif self.ui.annotation and self.ui.annotation.annotations then
         for _, item in ipairs(self.ui.annotation.annotations) do
             if math.floor(self:_getNumericalPage(item) or 0) == target_page then
                 target_item = item; break
@@ -2859,7 +3083,9 @@ function PageScrubber:_setHighlightType(new_drawer)
     local target_item = nil
     local current_filter = self._hl_filter
 
-    if self.ui.annotation and self.ui.annotation.annotations then
+    if self._split_selected_item and self._split_selected_item.annotation then
+        target_item = self._split_selected_item.annotation
+    elseif self.ui.annotation and self.ui.annotation.annotations then
         -- Priorizar el highlight que coincida con el filtro de tipo activo
         for _, item in ipairs(self.ui.annotation.annotations) do
             local p = self:_getNumericalPage(item)
@@ -2915,18 +3141,26 @@ function PageScrubber:_setHighlightType(new_drawer)
     UIManager:show(loading_widget)
 
     -- 5. Guardar el estado completo en el Bridge para restaurar exactamente la vista
+    local target_order = self._split_selected_item and self._split_selected_item.order
+    local target_screen_page = (self._split_selected_item and self._split_selected_item.page) or self._cur_page
+    PageScrubber._last_edited_order = target_order
+
     pcall(function()
         local Bridge = require("page_scrubber_bridge")
+        Bridge._last_edited_order = target_order
         Bridge.requestReopenAfterReload{
-            mode       = "split",
-            tab        = self._active_tab or "highlights",
-            page       = self._cur_page,
-            origin     = self._origin_page,
-            fixed_page = self._split_fixed_page,
-            base_mode  = self._base_grid_mode,
-            sort_order = self._sort_order,
-            bm_page    = self._split_bm_page,
-            hl_filter  = next_hl_filter,
+            mode             = "split",
+            tab              = self._active_tab or "highlights",
+            page             = target_screen_page,
+            origin           = self._origin_page,
+            fixed_page       = self._split_fixed_page,
+            base_mode        = self._base_grid_mode,
+            sort_order       = self._sort_order,
+            bm_page          = self._split_bm_page,
+            hl_filter        = next_hl_filter,
+            hl_order         = target_order,
+            target_order     = target_order,
+            initial_hl_order = target_order,
         }
         Bridge.setLoadingWidget(loading_widget)
     end)
@@ -3019,7 +3253,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
         end
 
         local function drawFloatingBtn(btn_id, dimen, tw, is_disabled)
-            local is_pressed = (self._pressed_btn == btn_id)
+            local is_pressed = (self._pressed_btn == btn_id and btn_id ~= "fn")
             
             local cx = dimen.x + math.floor(dimen.w / 2)
             local cy = dimen.y + math.floor(dimen.h / 2)
@@ -3458,6 +3692,7 @@ function PageScrubber:onTap(_, ges)
                 local target_page = self._cur_page
                 local current_tab = self._active_tab
                 local current_filter = self._hl_filter
+                local target_ann = self._split_selected_item and self._split_selected_item.annotation
 
                 self._show_delete_confirm = false
                 UIManager:setDirty(self, "ui", self.dimen)
@@ -3471,37 +3706,52 @@ function PageScrubber:onTap(_, ges)
                         local hl = self.ui.highlight
                         local bk = self.ui.bookmark
                         if an and an.annotations then
-                            for i = #an.annotations, 1, -1 do
-                                local item = an.annotations[i]
-                                local p = self:_getNumericalPage(item)
-                                if p and math.floor(p) == target_page then
-                                    local is_target = true
-                                    if current_tab == "highlights" and current_filter then
-                                        local d = item.drawer or "lighten"
-                                        local mapped = "normal"
-                                        if d == "invert" then mapped = "invert"
-                                        elseif d == "underscore" then mapped = "underline"
-                                        elseif d == "strikeout" then mapped = "strikethrough" end
-                                        if mapped ~= current_filter then is_target = false end
+                            local found_idx = nil
+                            for i, item in ipairs(an.annotations) do
+                                if target_ann then
+                                    if item == target_ann then
+                                        found_idx = i
+                                        break
                                     end
-                                    if current_tab == "notes" then
-                                        if not item.note or item.note == "" then is_target = false end
-                                    end
-                                    if is_target then
-                                        if item.drawer and hl and hl.deleteHighlight then
-                                            hl:deleteHighlight(i)
-                                        elseif bk and bk.removeItemByIndex then
-                                            bk:removeItemByIndex(i)
-                                        else
-                                            table.remove(an.annotations, i)
+                                else
+                                    local p = self:_getNumericalPage(item)
+                                    if p and math.floor(p) == target_page then
+                                        local is_target = true
+                                        if current_tab == "highlights" and current_filter then
+                                            local d = item.drawer or "lighten"
+                                            local mapped = "normal"
+                                            if d == "invert" then mapped = "invert"
+                                            elseif d == "underscore" then mapped = "underline"
+                                            elseif d == "strikeout" then mapped = "strikethrough" end
+                                            if mapped ~= current_filter then is_target = false end
+                                        end
+                                        if current_tab == "notes" then
+                                            if not item.note or item.note == "" then is_target = false end
+                                        end
+                                        if is_target then
+                                            found_idx = i
+                                            break
                                         end
                                     end
                                 end
                             end
-                            if an.saveAnnotations then an:saveAnnotations() end
+
+                            if found_idx then
+                                local item = an.annotations[found_idx]
+                                if item and item.drawer and hl and hl.deleteHighlight then
+                                    hl:deleteHighlight(found_idx)
+                                elseif bk and bk.removeItemByIndex then
+                                    bk:removeItemByIndex(found_idx)
+                                else
+                                    table.remove(an.annotations, found_idx)
+                                end
+                                if an.saveAnnotations then an:saveAnnotations() end
+                            end
                         end
                     end)
                     if not ok then logger.warn("page-scrubber: safe delete failed:", err) end
+                    self._split_selected_item = nil
+                    self._hide_action_buttons = true
                     self:_extractAnnotations()
                     self._split_bm_page = self.initial_bm_page or 1
                     if not self._closing then
@@ -3571,20 +3821,26 @@ function PageScrubber:onTap(_, ges)
             return true
         end
 
-        if self._active_tab == "highlights" and self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) then
+        if (self._active_tab == "highlights" or self._active_tab == "notes") and self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) then
             if self._hl_filter ~= nil then
-                self._hl_filter = self.initial_hl_filter or nil
-                self._split_bm_page = self.initial_bm_page or 1
+                self._hl_filter = nil
+                self._split_bm_page = 1
+                self._split_selected_item = nil
                 UIManager:setDirty(self, "ui", self.dimen)
                 return true
             end
         end
 
-        if self._active_tab == "highlights" and self._hl_filter_dimens then
+        if (self._active_tab == "highlights" or self._active_tab == "notes") and self._hl_filter_dimens then
             for _, f in ipairs(self._hl_filter_dimens) do
                 if ges.pos:intersectWith(f.dimen) then
-                    if self._hl_filter == f.key then self._hl_filter = self.initial_hl_filter or nil else self._hl_filter = f.key end
-                    self._split_bm_page = self.initial_bm_page or 1
+                    if self._hl_filter == f.key then
+                        self._hl_filter = nil
+                    else
+                        self._hl_filter = f.key
+                    end
+                    self._split_bm_page = 1
+                    self._split_selected_item = nil
                     UIManager:setDirty(self, "ui", self.dimen)
                     return true
                 end
@@ -3593,7 +3849,9 @@ function PageScrubber:onTap(_, ges)
         
         if self._tab_bm_dimen and ges.pos:intersectWith(self._tab_bm_dimen) then
             self._active_tab = "bookmarks"
-            self._split_bm_page = self.initial_bm_page or 1
+            self._hl_filter = nil
+            self._split_bm_page = 1
+            self._split_selected_item = nil
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
@@ -3601,7 +3859,9 @@ function PageScrubber:onTap(_, ges)
 
         if self._tab_note_dimen and ges.pos:intersectWith(self._tab_note_dimen) then
             self._active_tab = "notes"
-            self._split_bm_page = self.initial_bm_page or 1
+            self._hl_filter = nil
+            self._split_bm_page = 1
+            self._split_selected_item = nil
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
@@ -3650,12 +3910,14 @@ function PageScrubber:onTap(_, ges)
         if self._split_rows then
             for _, row in ipairs(self._split_rows) do
                 if ges.pos:intersectWith(row.toggle_dimen) then
-                    self:_flashAndDo("row_toggle_" .. row.page, row.toggle_dimen, function()
+                    local flash_id = "row_toggle_" .. tostring(row.page) .. "_" .. tostring(row.item and row.item.order or 1)
+                    self:_flashAndDo(flash_id, row.toggle_dimen, function()
                         if self._active_tab == "bookmarks" then
                             self:_safeBookmarkToggle(row.page)
                         else
-                            -- Si tocamos el lápiz (derecha) en Notas/Highlights:
-                            if self._cur_page == row.page then
+                            local was_same = (self._split_selected_item == row.item)
+                            self._split_selected_item = row.item
+                            if was_same then
                                 self._hide_action_buttons = not self._hide_action_buttons
                                 UIManager:setDirty(self, "ui", self.dimen)
                             else
@@ -3670,19 +3932,41 @@ function PageScrubber:onTap(_, ges)
                 end
                 
                 if ges.pos:intersectWith(row.dimen) then
-                    if self._cur_page == row.page then
-                        if self._base_grid_mode == "grid_simple" then
-                            self:_reopenWithMode("grid_simple", row.page)
+                    if self._active_tab == "bookmarks" then
+                        if self._cur_page == row.page then
+                            if self._base_grid_mode == "grid_simple" then
+                                self:_reopenWithMode("grid_simple", row.page)
+                            else
+                                self._view_mode = "grid"
+                                self:_clearGridTiles()
+                                self._force_menu_sync = true
+                                self:_previewPage(row.page, false)
+                                UIManager:setDirty(nil, "full")
+                            end
                         else
-                            self._view_mode = "grid"
-                            self:_clearGridTiles()
                             self._force_menu_sync = true
                             self:_previewPage(row.page, false)
-                            UIManager:setDirty(nil, "full")
                         end
                     else
-                        self._force_menu_sync = true
-                        self:_previewPage(row.page, false)
+                        -- En Destacados y Notas: solo sale al lector si se pulsa el MISMO ítem que ya estaba seleccionado
+                        local was_already_selected = (self._split_selected_item == row.item and self._cur_page == row.page)
+                        self._split_selected_item = row.item
+                        if was_already_selected then
+                            if self._base_grid_mode == "grid_simple" then
+                                self:_reopenWithMode("grid_simple", row.page)
+                            else
+                                self._view_mode = "grid"
+                                self:_clearGridTiles()
+                                self._force_menu_sync = true
+                                self:_previewPage(row.page, false)
+                                UIManager:setDirty(nil, "full")
+                            end
+                        else
+                            -- Cambia entre (1), (2), (3) en la misma página de forma suave sin salir
+                            self._force_menu_sync = true
+                            self:_previewPage(row.page, false)
+                            UIManager:setDirty(self, "ui", self.dimen)
+                        end
                     end
                     return true
                 end
@@ -3733,14 +4017,12 @@ function PageScrubber:onTap(_, ges)
             return true
         end
         if self._fn_dimen and ges.pos:intersectWith(self._fn_dimen) then
-            self:_flashAndDo("fn", self._fn_dimen, function() 
-                local ScrubberMenu = require("scrubber_menu")
-                local UIManager = require("ui/uimanager")
-                UIManager:show(ScrubberMenu:new{
-                    ui = self.ui,
-                    scrubber_ui = self,
-                })
-            end)
+            local ScrubberMenu = require("scrubber_menu")
+            local UIManager = require("ui/uimanager")
+            UIManager:show(ScrubberMenu:new{
+                ui = self.ui,
+                scrubber_ui = self,
+            })
             return true
         end
 
@@ -4019,8 +4301,54 @@ function PageScrubber:onHold(_, ges)
     if self._closing then return end
 
     if self._fn_dimen and ges.pos:intersectWith(self._fn_dimen) then
-        self:_showUIScaleSpinner()
+        self:_cancelHold()
+        local ScrubberSettings = require("scrubber_settings")
+        UIManager:show(ScrubberSettings:new{
+            ui = self.ui,
+            scrubber_ui = self,
+            current_view = "actions_launcher",
+        })
         return true
+    end
+
+    if self._view_mode ~= "grid_simple" then
+        if self._bm_dimen and ges.pos:intersectWith(self._bm_dimen) then
+            self:_cancelHold()
+            self._view_mode = "split"
+            self._active_tab = "highlights"
+            self._hl_filter = nil
+            self._split_fixed_page = self._cur_page
+            self._split_bm_page = 1
+            self._split_selected_item = nil
+            self._force_menu_sync = true
+            self:_extractAnnotations()
+            self:_clearGridTiles()
+            self:_previewPage(self._cur_page, false)
+            UIManager:setDirty(nil, "full")
+            return true
+        end
+
+        if self._grid_toggle_dimen and ges.pos:intersectWith(self._grid_toggle_dimen) then
+            self:_cancelHold()
+            self:_reopenWithMode("grid_simple", self._cur_page)
+            return true
+        end
+
+        if self._toc_dimen and ges.pos:intersectWith(self._toc_dimen) then
+            self:_cancelHold()
+            local ScrubberToc = require("scrubber_toc")
+            local mi_nuevo_toc = ScrubberToc:new{
+                ui = self.ui,
+                initial_page = self._cur_page,
+                initial_origin = self._origin_page,
+                parent_scrubber = self,
+                is_rtl = self.is_rtl,
+                initial_expanded = true,
+            }
+            local UIManager = require("ui/uimanager")
+            UIManager:show(mi_nuevo_toc)
+            return true
+        end
     end
 
     if self._view_mode == "grid_simple" then
@@ -4166,6 +4494,7 @@ function PageScrubber:onCloseWidget()
 
     local widgets_to_free = {
         self._tw_row_normal, self._tw_row_bold,
+        self._tw_row_super_normal, self._tw_row_super_bold,
         self._tw_tab_count_normal, self._tw_tab_count_bold, 
         self._tw_preview_text, self._tw_header_page, self._tw_empty_list, self._tw_pagination,
         self._tw_tab_sort, self._tw_tab_bm, self._tw_tab_hl, self._tw_tab_note,

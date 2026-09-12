@@ -192,12 +192,41 @@ end
 -- ==========================================
 -- CSS DINÁMICO (TIPOGRAFÍA AJUSTADA)
 -- ==========================================
-local function getUiFontPaths()
+local function getBookFontFamilyName(ui)
+    local doc_family
+    if ui and ui.font and ui.font.configurable then
+        doc_family = ui.font.configurable.font_face
+    end
+    if not doc_family and ui and ui.font then
+        doc_family = ui.font.font_face
+    end
+    if not doc_family and ui and ui.doc_settings then
+        doc_family = ui.doc_settings:readSetting("font_face")
+              or ui.doc_settings:readSetting("font_family")
+              or ui.doc_settings:readSetting("cre_font_family")
+    end
+    if not doc_family and G_reader_settings then
+        doc_family = G_reader_settings:readSetting("cre_font_family")
+              or G_reader_settings:readSetting("font_face")
+              or G_reader_settings:readSetting("font_family")
+    end
+    return doc_family
+end
+
+-- Cachea la resolución de archivos de fuente por nombre de familia + archivo
+-- del libro. Sin esto, getBookFontPaths llamaba a credoc.engineInit +
+-- cre.getFontFaceFilenameAndFaceIndex (hasta 4 veces) en CADA apertura del
+-- diccionario -- cada palabra mantenida, cada búsqueda interna. Se incluye el
+-- archivo del libro en la clave porque dos EPUBs distintos pueden tener una
+-- fuente EMBEBIDA con el mismo nombre genérico mapeando a archivos distintos.
+local _font_paths_cache = {}
+
+local function getBookFontPaths(ui)
     local regular = "fonts/noto/NotoSans-Regular.ttf"
     local bold = "fonts/noto/NotoSans-Bold.ttf"
     local italic = "fonts/noto/NotoSans-Italic.ttf"
     local bolditalic = "fonts/noto/NotoSans-BoldItalic.ttf"
-    
+
     if G_reader_settings then
         local cfont = G_reader_settings:readSetting("cfont")
         if type(cfont) == "string" and cfont ~= "" then
@@ -207,30 +236,119 @@ local function getUiFontPaths()
             bolditalic = G_reader_settings:readSetting("cfont_bi") or cfont
         end
     end
+
+    local doc_family = getBookFontFamilyName(ui)
+
+    if doc_family and doc_family ~= "" then
+        local doc_file = (ui and ui.document and ui.document.file) or ""
+        local cache_key = doc_family .. "|" .. doc_file
+        local cached = _font_paths_cache[cache_key]
+        if cached then
+            return cached[1], cached[2], cached[3], cached[4]
+        end
+
+        local ok, credoc = pcall(require, "document/credocument")
+        if ok and credoc and credoc.engineInit then
+            local ok2, cre = pcall(credoc.engineInit, credoc)
+            if ok2 and cre and cre.getFontFaceFilenameAndFaceIndex then
+                local fn_reg = cre.getFontFaceFilenameAndFaceIndex(doc_family, false, false)
+                            or cre.getFontFaceFilenameAndFaceIndex(doc_family)
+                            or cre.getFontFaceFilenameAndFaceIndex(doc_family, nil, true)
+                if fn_reg then
+                    regular = fn_reg
+                    bold = cre.getFontFaceFilenameAndFaceIndex(doc_family, true, false) or fn_reg
+                    italic = cre.getFontFaceFilenameAndFaceIndex(doc_family, false, true) or fn_reg
+                    bolditalic = cre.getFontFaceFilenameAndFaceIndex(doc_family, true, true) or bold or fn_reg
+                end
+            end
+        end
+        _font_paths_cache[cache_key] = { regular, bold, italic, bolditalic }
+    end
     return regular, bold, italic, bolditalic
 end
 
-local function getBaseCss()
-    local reg, bld, ita, bita = getUiFontPaths()
-    return string.format([[
-@font-face { font-family: "UIFont"; src: url("%s"); }
-@font-face { font-family: "UIFont"; src: url("%s"); font-weight: bold; }
-@font-face { font-family: "UIFont"; src: url("%s"); font-style: italic; }
-@font-face { font-family: "UIFont"; src: url("%s"); font-weight: bold; font-style: italic; }
+local function getDictFontSize(ui)
+    local size
+    if ui and ui.font and ui.font.configurable then
+        size = ui.font.configurable.font_size
+    end
+    if not size and ui and ui.font and type(ui.font.font_size) == "number" then
+        size = ui.font.font_size
+    end
+    if not size and ui and ui.doc_settings then
+        size = ui.doc_settings:readSetting("font_size")
+              or ui.doc_settings:readSetting("cre_font_size")
+    end
+    if not size and G_reader_settings then
+        size = G_reader_settings:readSetting("cre_font_size")
+              or G_reader_settings:readSetting("font_size")
+              or G_reader_settings:readSetting("kopt_font_size")
+    end
 
-* { font-family: "UIFont", sans-serif !important; }
+    local base_fs = size or 20
+    -- Factor 0.88: compensa la sobre-escala del widget HTML para igualar 1:1 al texto del libro
+    return math.floor(scale(base_fs) * 0.88 + 0.5)
+end
+
+local function getDictLineHeight(ui)
+    local pct
+    -- 1. Consultar el módulo de fuentes activo en vivo
+    if ui and ui.font then
+        if ui.font.configurable then
+            pct = ui.font.configurable.line_space_percent
+               or ui.font.configurable.line_spacing
+        end
+        if not pct then
+            pct = ui.font.line_space_percent
+               or ui.font.line_spacing
+        end
+    end
+    -- 2. Consultar ajustes guardados del documento
+    if not pct and ui and ui.doc_settings then
+        pct = ui.doc_settings:readSetting("line_space_percent")
+           or ui.doc_settings:readSetting("line_spacing")
+           or ui.doc_settings:readSetting("cre_line_space_percent")
+    end
+    -- 3. Consultar ajustes globales
+    if not pct and G_reader_settings then
+        pct = G_reader_settings:readSetting("line_space_percent")
+           or G_reader_settings:readSetting("line_spacing")
+           or G_reader_settings:readSetting("cre_line_space_percent")
+    end
+
+    pct = tonumber(pct) or 100
+    if pct > 0 and pct <= 3 then
+        pct = pct * 100
+    end
+
+    -- Base 1.30em multiplicado por la escala del libro con unidad explícita para CREngine
+    local base_em = 1.30
+    local calc_em = base_em * (pct / 100)
+    return string.format("%.2fem", calc_em)
+end
+
+local function getBaseCss(ui)
+    local reg, bld, ita, bita = getBookFontPaths(ui)
+    local doc_family = getBookFontFamilyName(ui) or "serif"
+    local lh = getDictLineHeight(ui)
+    return string.format([[
+@font-face { font-family: "BookFont"; src: url("%s"); }
+@font-face { font-family: "BookFont"; src: url("%s"); font-weight: bold; }
+@font-face { font-family: "BookFont"; src: url("%s"); font-style: italic; }
+@font-face { font-family: "BookFont"; src: url("%s"); font-weight: bold; font-style: italic; }
+
+* { font-family: "BookFont", "%s", serif !important; }
 
 @page { margin: 0; }
-body { margin: 0; padding: 0 0.45em; line-height: 1.3; }
-p { margin: 0 0 0.28em 0; }
+body { margin: 0; padding: 0 0.45em; line-height: %s; }
+p, div, li { line-height: %s !important; margin: 0 0 0.28em 0; }
 ol, ul { padding-left: 1.35em; margin-top: 0.18em; margin-bottom: 0.28em; }
-li { margin-bottom: 0.22em; }
 
-.floatingdictionary-word { font-size: 1.30em !important; font-weight: bold !important; line-height: 1.15; }
-.floatingdictionary-meta { margin-top: 0.18em; font-size: 0.85em !important; color: #555; font-style: italic; text-transform: uppercase; }
+.floatingdictionary-word { font-size: 1.15em !important; font-weight: bold !important; line-height: 1.20em !important; }
+.floatingdictionary-meta { margin-top: 0.15em; font-size: 0.70em !important; color: #555; font-style: italic; text-transform: uppercase; line-height: 1.20em !important; }
 .floatingdictionary-separator { border-top: 1px solid #eee; margin: 0.3em 0 0.4em 0; }
-.search-content, .search-content * { font-size: 1.05em !important; line-height: 1.38; color: #222; }
-]], reg, bld, ita, bita)
+.search-content, .search-content * { font-size: 1.0em !important; line-height: %s !important; color: #222; }
+]], reg, bld, ita, bita, doc_family, lh, lh, lh)
 end
 
 -- ==========================================
@@ -615,9 +733,10 @@ function FloatingDictionaryPopup:init()
         <div class="search-content">%s</div>
     ]], htmlEscape(entry.word or self.text), dict_indicator, htmlEscape(dict_name), def_body)
 
+    local ui_instance = self.plugin and self.plugin.ui
     self.htmlwidget = ScrollHtmlWidget:new({
-        html_body = html_body, is_xhtml = true, css = getBaseCss(),
-        default_font_size = scaleText(21), width = self.width - scale(48), height = self.max_html_height,
+        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
+        default_font_size = getDictFontSize(ui_instance), width = self.width - scale(48), height = self.max_html_height,
         scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
     })
     
@@ -908,9 +1027,10 @@ function FloatingDictionaryPopup:switchDict(new_idx)
 
     if self.htmlwidget.free then pcall(function() self.htmlwidget:free() end) end
 
+    local ui_instance = self.plugin and self.plugin.ui
     self.htmlwidget = ScrollHtmlWidget:new({
-        html_body = html_body, is_xhtml = true, css = getBaseCss(),
-        default_font_size = scaleText(21), width = self.width - scale(48), height = self.max_html_height,
+        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
+        default_font_size = getDictFontSize(ui_instance), width = self.width - scale(48), height = self.max_html_height,
         scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
     })
     
