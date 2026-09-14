@@ -1402,39 +1402,47 @@ function FloatingActionMenu:buildMoreCard()
                         local id_clean = tostring(btn.id or ""):lower()
                         local txt_clean = tostring(btn.text or ""):lower()
 
-                        -- Captura de callbacks nativos para la primera fila
-                        if id_clean:find("select") or k_clean:find("select") or txt_clean:find("seleccionar") then
+                        btn.id = btn.id or key
+
+                        -- Captura estricta de callbacks del sistema para la fila 1
+                        local is_native_select = (k_clean == "select" or k_clean == "start_selection" or id_clean == "select" or txt_clean == "select" or txt_clean == "seleccionar")
+                        local is_native_copy = (k_clean == "copy" or id_clean == "copy" or txt_clean == "copy" or txt_clean == "copiar")
+                        local is_native_dict = (k_clean == "dict" or k_clean == "dictionary" or id_clean == "dict" or id_clean == "dictionary" or txt_clean == "dictionary" or txt_clean == "diccionario")
+                        local is_native_wiki = (k_clean == "wiki" or k_clean == "wikipedia" or id_clean == "wiki" or id_clean == "wikipedia" or txt_clean == "wikipedia" or txt_clean == "wiki")
+                        local is_native_search = (k_clean == "search" or id_clean == "search" or txt_clean == "search" or txt_clean == "buscar")
+                        local is_native_trans = (k_clean == "translate" or id_clean == "translate" or txt_clean == "translate" or txt_clean == "traducir")
+
+                        if is_native_select then
                             native_buttons["select"] = btn
-                        elseif id_clean:find("copy") or k_clean:find("copy") or txt_clean:find("copiar") then
+                        elseif is_native_copy then
                             native_buttons["copy"] = btn
-                        elseif id_clean:find("dict") or k_clean:find("dict") or txt_clean:find("diccionario") then
+                        elseif is_native_dict then
                             native_buttons["dict"] = btn
-                        elseif id_clean:find("wiki") or k_clean:find("wiki") or txt_clean:find("wikipedia") then
+                        elseif is_native_wiki then
                             native_buttons["wiki"] = btn
-                        elseif id_clean:find("search") or k_clean:find("search") or txt_clean:find("buscar") then
+                        elseif is_native_search then
                             native_buttons["search"] = btn
-                        elseif id_clean:find("translate") or k_clean:find("translate") or txt_clean:find("traduc") then
+                        elseif is_native_trans then
                             native_buttons["translate"] = btn
                         end
 
-                        -- Filtro de botones ya resueltos en la barra principal o en la fila 1
+                        -- Bloqueo de duplicados y funciones sin soporte en Kindle
+                        local is_share = id_clean:find("share") or k_clean:find("share") or txt_clean:find("share") or txt_clean:find("compart")
+                        local is_html = id_clean:find("html") or k_clean:find("html") or txt_clean:find("html")
+                        local is_xray = id_clean:find("xray") or id_clean:find("x%-ray") or k_clean:find("xray") or k_clean:find("x%-ray") or txt_clean:find("xray") or txt_clean:find("x%-ray")
+
+                        -- Filtro estricto: descarta herramientas resueltas, duplicadas o bloqueadas
                         local is_known = (
-                            id_clean:find("highlight") or k_clean:find("highlight") or txt_clean:find("resaltar")
-                            or id_clean:find("note") or k_clean:find("note") or txt_clean:find("nota")
-                            or id_clean:find("search") or k_clean:find("search") or txt_clean:find("buscar")
-                            or id_clean:find("translate") or k_clean:find("translate") or txt_clean:find("traduc")
-                            or id_clean:find("assistant") or k_clean:find("assistant") or id_clean == "ai"
-                            or id_clean:find("xray") or k_clean:find("xray")
-                            or id_clean:find("select") or k_clean:find("select") or txt_clean:find("seleccionar")
-                            or id_clean:find("copy") or k_clean:find("copy") or txt_clean:find("copiar")
-                            or id_clean:find("dict") or k_clean:find("dict") or txt_clean:find("diccionario")
-                            or id_clean:find("wiki") or k_clean:find("wiki") or txt_clean:find("wikipedia")
-                            or id_clean:find("share") or k_clean:find("share") or txt_clean:find("compartir")
-                            or id_clean:find("html") or k_clean:find("html")
-                            or id_clean:find("strike") or id_clean:find("underl") or id_clean:find("invert")
+                            is_native_select or is_native_copy or is_native_dict
+                            or is_native_wiki or is_native_search or is_native_trans
+                            or is_share or is_html or is_xray
+                            or k_clean == "highlight" or id_clean == "highlight" or txt_clean == "highlight" or txt_clean == "resaltar"
+                            or k_clean == "note" or k_clean == "add_note" or id_clean == "note" or txt_clean == "note" or txt_clean == "nota"
+                            or k_clean == "assistant" or id_clean == "assistant" or id_clean == "ai" or txt_clean == "asistente de ia"
+                            or id_clean == "strike" or id_clean == "strikethrough" or id_clean == "underline" or id_clean == "invert"
                         )
 
-                        if not is_known then
+                        if not is_known and btn.enabled ~= false then
                             table.insert(unknown_buttons, btn)
                         end
                     end
