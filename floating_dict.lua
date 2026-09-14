@@ -82,6 +82,31 @@ local function shouldAnchorTop(boxes)
     return selection_bottom > (Screen:getHeight() / 2)
 end
 
+local function shouldAnchorLeft(boxes)
+    if type(boxes) ~= "table" or #boxes == 0 then return false end
+    local min_x, max_x
+    for _, box in ipairs(boxes) do
+        if type(box) == "table" and box.x and box.w then
+            if not min_x or box.x < min_x then min_x = box.x end
+            local right = box.x + box.w
+            if not max_x or right > max_x then max_x = right end
+        end
+    end
+    if not min_x or not max_x then return false end
+    -- Si la palabra está en la mitad derecha (> 50%), el diccionario ancla en la izquierda
+    return ((min_x + max_x) / 2) > (Screen:getWidth() / 2)
+end
+
+local function cleanWordForLookup(raw_word)
+    if not raw_word then return nil end
+    local s = tostring(raw_word)
+    s = s:gsub("<[^>]+>", "")
+    s = s:gsub("^[%s%p¿¡«»“”\"']+", ""):gsub("[%s%p¿¡«»“”\"']+$", "")
+    s = s:match("^%s*(.-)%s*$") or s
+    if #s > 0 then return s end
+    return nil
+end
+
 -- ==========================================
 -- DIBUJO DE BORDES REDONDEADOS
 -- ==========================================
@@ -108,24 +133,32 @@ local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, rou
 end
 
 -- ==========================================
--- TARJETA DICCIONARIO (ORIGINAL INTACTA)
+-- TARJETA DICCIONARIO (ADAPTABLE VERTICAL / HORIZONTAL)
 -- ==========================================
 local FloatingCard = WidgetContainer:extend({
     anchor_top = false,
+    anchor_left = false,
+    is_landscape = false,
     radius = scale(24),
     bordersize = scale(3),
     content = nil,
 })
 function FloatingCard:init()
     local c_sz = self.content:getSize()
-    self.dimen = Geom:new({ w = c_sz.w, h = c_sz.h + self.bordersize })
-    
-    local top_pad = self.anchor_top and 0 or self.bordersize
-    local bot_pad = self.anchor_top and self.bordersize or 0
+    local b = self.bordersize
+    local pad_top, pad_bot, pad_left, pad_right = 0, 0, 0, 0
+
+    if self.is_landscape then
+        self.dimen = Geom:new({ w = c_sz.w + b, h = Screen:getHeight() })
+        if self.anchor_left then pad_right = b else pad_left = b end
+    else
+        self.dimen = Geom:new({ w = c_sz.w, h = c_sz.h + b })
+        if self.anchor_top then pad_bot = b else pad_top = b end
+    end
     
     self.frame = FrameContainer:new({
-        padding_top = top_pad, padding_bottom = bot_pad,
-        padding_left = 0, padding_right = 0,
+        padding_top = pad_top, padding_bottom = pad_bot,
+        padding_left = pad_left, padding_right = pad_right,
         bordersize = 0, background = nil,
         self.content
     })
@@ -137,16 +170,36 @@ function FloatingCard:paintTo(bb, x, y)
     local b = self.bordersize
     local r = self.radius
 
-    local bx = x - b
-    local bw = w + (b * 2)
-    paintCornerRect(bb, bx, y, bw, h, r, Blitbuffer.COLOR_BLACK, 
-        not self.anchor_top, not self.anchor_top, self.anchor_top, self.anchor_top)
-    
-    local wy = self.anchor_top and y or (y + b)
-    local wh = h - b
-    local wr = math.max(0, r - b)
-    paintCornerRect(bb, x, wy, w, wh, wr, Blitbuffer.COLOR_WHITE,
-        not self.anchor_top, not self.anchor_top, self.anchor_top, self.anchor_top)
+    if self.is_landscape then
+        -- MODO HORIZONTAL: concéntrico usando paintCornerRect
+        local by = y - b
+        local bh = h + (b * 2)
+        local round_tl = not self.anchor_left
+        local round_tr = self.anchor_left
+        local round_bl = not self.anchor_left
+        local round_br = self.anchor_left
+
+        paintCornerRect(bb, x, by, w, bh, r, Blitbuffer.COLOR_BLACK,
+            round_tl, round_tr, round_bl, round_br)
+
+        local wx = self.anchor_left and x or (x + b)
+        local ww = w - b
+        local wr = math.max(0, r - b)
+        paintCornerRect(bb, wx, y, ww, h, wr, Blitbuffer.COLOR_WHITE,
+            round_tl, round_tr, round_bl, round_br)
+    else
+        -- MODO VERTICAL
+        local bx = x - b
+        local bw = w + (b * 2)
+        paintCornerRect(bb, bx, y, bw, h, r, Blitbuffer.COLOR_BLACK, 
+            not self.anchor_top, not self.anchor_top, self.anchor_top, self.anchor_top)
+        
+        local wy = self.anchor_top and y or (y + b)
+        local wh = h - b
+        local wr = math.max(0, r - b)
+        paintCornerRect(bb, x, wy, w, wh, wr, Blitbuffer.COLOR_WHITE,
+            not self.anchor_top, not self.anchor_top, self.anchor_top, self.anchor_top)
+    end
         
     if self[1] then self[1]:paintTo(bb, x, y) end
 end
@@ -289,8 +342,8 @@ end
 
 local function getDictFontSize(ui)
     local base_fs = getBookRawFontSize(ui) or 26
-    -- 1:1 con el libro: el cuerpo de la definición iguala al texto de lectura
-    return scale(base_fs)
+    -- Un chiquín más chica que el texto del libro
+    return scale(math.max(8, base_fs - 2))
 end
 
 local function getDictLineHeight(ui)
@@ -381,7 +434,9 @@ local function getValidSvgPath(svg_name)
     for _, name in ipairs(variants) do
         local paths = {
             plugin_path .. "icons/" .. name,
-            plugin_path .. name
+            plugin_path .. name,
+            "resources/icons/" .. name,
+            "resources/icons/svg/" .. name
         }
         for _, p in ipairs(paths) do
             local f = io.open(p, "r")
@@ -515,31 +570,59 @@ end
 -- ==========================================
 -- LÓGICA DE PLUGINS EXTERNOS (SOLO DICCIONARIO)
 -- ==========================================
-function FloatingDict:discoverExternalButtons(dict_self, word, result, result_index, results, boxes, link)
+function FloatingDict:discoverExternalButtons(dict_self, word, result, result_index, results, boxes, link, popup_instance)
     local all_buttons = {}
     if not (self.ui and self.ui.handleEvent) then return {} end
 
     result = result or {}
     
+    local active_highlight = (popup_instance and popup_instance.highlight_obj)
+        or (dict_self and dict_self.highlight)
+        or (self.ui and self.ui.highlight)
+
+    local active_selected_text = (active_highlight and active_highlight.selected_text)
+        or { text = word, pos0 = nil, pos1 = nil }
+
+    if active_highlight and not active_highlight.selected_text then
+        active_highlight.selected_text = active_selected_text
+    end
+
+    local clean_w = (type(cleanWordForLookup) == "function" and cleanWordForLookup(word)) or word
+
     local fake_popup = {
         ui = self.ui,
-        dialog = dict_self and dict_self.dialog,
+        dialog = popup_instance or (dict_self and dict_self.dialog),
         dimen = Geom:new({x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight()}),
-        highlight = dict_self and dict_self.highlight,
+        highlight = active_highlight,
+        selected_text = active_selected_text,
+        text = word,
         word = word,
+        clean_text = clean_w,
+        clean_word = clean_w,
         lookupword = result.word or word,
         results = results,
+        boxes = boxes,
         word_boxes = boxes,
         selected_link = link,
         is_wiki = false,
         dict_index = result_index or 1,
         dictionary = result.dict,
         lang = result.lang,
-        close = function() end,
-        onClose = function() end,
-        closeWidget = function() end,
+        close = function()
+            if popup_instance then UIManager:close(popup_instance) end
+        end,
+        onClose = function()
+            if popup_instance then UIManager:close(popup_instance) end
+        end,
+        closeWidget = function()
+            if popup_instance then UIManager:close(popup_instance) end
+        end,
         updateButtons = function() end,
     }
+
+    if popup_instance then
+        setmetatable(fake_popup, { __index = popup_instance })
+    end
 
     local fake_button_table = { 
         getButtonById = function(self_tbl, id)
@@ -708,28 +791,21 @@ function FloatingDict:discoverExternalButtons(dict_self, word, result, result_in
     return final_rows
 end
 
-local function cleanWordForLookup(raw_word)
-    if not raw_word then return nil end
-    local s = tostring(raw_word)
-    s = s:gsub("<[^>]+>", "")
-    s = s:gsub("^[%s%p¿¡«»“”\"']+", ""):gsub("[%s%p¿¡«»“”\"']+$", "")
-    s = s:match("^%s*(.-)%s*$") or s
-    if #s > 0 then return s end
-    return nil
-end
-
 -- ==========================================
 -- TARJETA: PALABRA ÚNICA (DICCIONARIO ORIGINAL)
 -- ==========================================
 local FloatingDictionaryPopup = InputContainer:extend({
-    text = nil, results = nil, boxes = nil, anchor_top = false, highlight_obj = nil, plugin = nil, current_result_idx = 1,
+    text = nil, results = nil, boxes = nil, anchor_top = false, anchor_left = false, is_landscape = false,
+    highlight_obj = nil, plugin = nil, current_result_idx = 1,
 })
 function FloatingDictionaryPopup:init()
     self.dialog = self.dialog or self
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
-    self.width = screen_width
-    self.max_html_height = math.floor(screen_height * 0.35)
+    self.is_landscape = (screen_width > screen_height)
+
+    self.width = self.is_landscape and math.floor(screen_width * 0.48) or screen_width
+    local content_w = self.is_landscape and (self.width - scale(3)) or self.width
 
     self.current_result_idx = self.current_result_idx or 1
     local total_dicts = self.results and #self.results or 1
@@ -745,21 +821,12 @@ function FloatingDictionaryPopup:init()
     end
 
     local html_body = string.format([[
-        <div class="floatingdictionary-word">%s</div>
         <div class="floatingdictionary-meta">%s%s</div>
         <div class="floatingdictionary-separator"></div>
         <div class="search-content">%s</div>
-    ]], htmlEscape(entry.word or self.text), dict_indicator, htmlEscape(dict_name), def_body)
+    ]], dict_indicator, htmlEscape(dict_name), def_body)
 
     local ui_instance = self.plugin and self.plugin.ui
-    self.htmlwidget = ScrollHtmlWidget:new({
-        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
-        default_font_size = getDictFontSize(ui_instance), width = self.width - scale(48), height = self.max_html_height,
-        scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
-    })
-    
-    applyRoundedScrollbar(self.htmlwidget)
-
     local icon_btn_specs = {}
 
     local external_rows = {}
@@ -794,9 +861,15 @@ function FloatingDictionaryPopup:init()
         end
     end
     
+    self.word = self.text
+    self.clean_text = cleanWordForLookup(self.text) or self.text
+    self.clean_word = self.clean_text
+    self.highlight = self.highlight_obj
+    self.selected_text = (self.highlight_obj and self.highlight_obj.selected_text) or { text = self.text }
+
     if is_btn_enabled("page_scrubber_fdict_show_plugins") then
         if self.plugin and type(self.plugin.discoverExternalButtons) == "function" then
-            local plugin_rows = self.plugin:discoverExternalButtons(self.plugin.patched_dictionary, self.text, entry, self.current_result_idx, self.results, self.boxes, nil)
+            local plugin_rows = self.plugin:discoverExternalButtons(self.plugin.patched_dictionary, self.text, entry, self.current_result_idx, self.results, self.boxes, nil, self)
             for _, row in ipairs(plugin_rows) do
                 local current_text_row = {}
                 for _, ext in ipairs(row) do
@@ -856,6 +929,7 @@ function FloatingDictionaryPopup:init()
                 show_parent = self,
                 callback = function()
                     if spec.external_callback then
+                        UIManager:close(self)
                         pcall(spec.external_callback)
                     else
                         self:invokeNative(spec.action)
@@ -874,49 +948,206 @@ function FloatingDictionaryPopup:init()
 
     local text_row_widgets = {}
     if #external_rows > 0 then
-        for _, txt_row in ipairs(external_rows) do
+        -- Agrupa plugins de a 2 por fila (2 columnas) en ambas orientaciones
+        local flat = {}
+        for _, r in ipairs(external_rows) do
+            for _, spec in ipairs(r) do
+                table.insert(flat, spec)
+            end
+        end
+        local rows_to_render = {}
+        for i = 1, #flat, 2 do
+            local pair = { flat[i] }
+            if flat[i + 1] then
+                table.insert(pair, flat[i + 1])
+            end
+            table.insert(rows_to_render, pair)
+        end
+
+        for _, txt_row in ipairs(rows_to_render) do
             local row_widgets = {}
             local count = #txt_row
-            local btn_w = math.floor((self.width - (count - 1) * scale(1)) / count)
-            
-            local auto_font_size = scaleText(11)
-            if count == 3 then
-                auto_font_size = scaleText(9)
+            local pad_x = scale(24)
+            local gap_x = (count > 1) and scale(6) or 0
+            local avail_w = content_w - (pad_x * 2) - ((count - 1) * gap_x)
+            local btn_w = math.floor(avail_w / count)
+            local max_text_w = btn_w - scale(8)
+
+            local base_target_fs = scaleText(14)
+            if count == 2 then
+                base_target_fs = scaleText(13)
+            elseif count == 3 then
+                base_target_fs = scaleText(12)
             elseif count >= 4 then
-                auto_font_size = scaleText(8)
+                base_target_fs = scaleText(11)
+            end
+            local min_allowed_fs = scaleText(10)
+
+            if pad_x > 0 then
+                table.insert(row_widgets, HorizontalSpan:new({ width = pad_x }))
             end
 
-            local plugin_face = getBookFace(ui_instance, auto_font_size, false)
-            
-            for _, spec in ipairs(txt_row) do
+            for i, spec in ipairs(txt_row) do
+                local btn_text = spec.text or "Plug-in"
+                local chosen_fs = min_allowed_fs
+
+                -- Comportamiento nativo de KOReader: reducción dinámica celda por celda
+                for test_fs = base_target_fs, min_allowed_fs, -1 do
+                    local test_face = getBookFace(ui_instance, test_fs, false)
+                    local tw = TextWidget:new({ text = btn_text, face = test_face })
+                    local needed_w = tw:getSize().w
+                    tw:free()
+                    if needed_w <= max_text_w then
+                        chosen_fs = test_fs
+                        break
+                    end
+                end
+
+                local plugin_face = getBookFace(ui_instance, chosen_fs, false)
+
                 local btn = PreviewButton:new({
                     icon_svg = nil,
-                    text = spec.text,
+                    text = btn_text,
                     face = plugin_face,
-                    font_size = auto_font_size,
+                    font_size = chosen_fs,
                     width = btn_w, 
                     height = scale(34), 
                     always_show_text = true,
                     show_parent = self,
                     callback = function()
-                        pcall(spec.external_callback)
+                        local id_lower = (spec.id or ""):lower()
+                        local text_lower = (spec.text or ""):lower()
+                        local is_vocab = id_lower:find("vocab") or text_lower:find("vocab")
+
+                        if is_vocab then
+                            -- Toggle en vivo: agrega/elimina la palabra y actualiza el texto sin cerrar el popup
+                            pcall(spec.external_callback)
+                        else
+                            -- Plugins de reproducción/acción (TTS, audiolibros, etc.): ejecutan y cierran el panel
+                            UIManager:close(self)
+                            pcall(spec.external_callback)
+                        end
                     end
                 })
-                
-                if spec.fake_popup and spec.id then
+
+                if spec.fake_popup then
                     spec.fake_popup._real_buttons = spec.fake_popup._real_buttons or {}
-                    spec.fake_popup._real_buttons[spec.id] = btn
+                    if spec.id then
+                        spec.fake_popup._real_buttons[spec.id] = btn
+                    end
+                    local t_lower = (spec.text or ""):lower()
+                    if t_lower:find("vocab") then
+                        spec.fake_popup._real_buttons["vocab_toggle"] = btn
+                        spec.fake_popup._real_buttons["vocabulary_builder"] = btn
+                        spec.fake_popup._real_buttons["vocab"] = btn
+                    end
                 end
 
                 table.insert(row_widgets, btn)
+                if i < count and gap_x > 0 then
+                    table.insert(row_widgets, HorizontalSpan:new({ width = gap_x }))
+                end
             end
+
+            if pad_x > 0 then
+                table.insert(row_widgets, HorizontalSpan:new({ width = pad_x }))
+            end
+
             table.insert(text_row_widgets, HorizontalGroup:new(row_widgets))
         end
     end
     
-    local top_pad = self.anchor_top and scale(32) or scale(20)
-    local bot_pad = self.anchor_top and scale(20) or scale(8)
-    
+    local content_w = self.is_landscape and (self.width - scale(3)) or self.width
+    local top_pad = self.is_landscape and scale(20) or (self.anchor_top and scale(32) or scale(20))
+    local bot_pad = self.is_landscape and scale(14) or (self.anchor_top and scale(20) or scale(8))
+
+    -- Cabecera fija: palabra en 1 sola línea con elipsis + botón de búsqueda manual
+    local title_avail_w = content_w - scale(48)
+    local edit_btn_sz = scale(28)
+    local title_gap = scale(8)
+    local max_word_w = title_avail_w - edit_btn_sz - title_gap
+
+    local base_fs = getBookRawFontSize(ui_instance) or 26
+    local word_fs = scale(base_fs + 4) -- Un poco más grande que el texto del libro
+    local word_face = getBookFace(ui_instance, word_fs, true)
+    local raw_display_word = tostring(entry.word or self.text or ""):gsub("\n", " ")
+
+    self.word_widget = TextWidget:new({
+        text = raw_display_word,
+        face = word_face,
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_BLACK,
+        max_width = max_word_w,
+        truncate_with_ellipsis = true,
+    })
+
+    local actual_word_w = self.word_widget:getSize().w
+    local spacer_w = math.max(title_gap, title_avail_w - actual_word_w - edit_btn_sz)
+
+    local more_svg = getValidSvgPath("more.svg")
+
+    local edit_btn = PreviewButton:new({
+        icon_svg = more_svg,
+        icon_char = not more_svg and "..." or nil,
+        icon_size = scale(22),
+        font_size = scaleText(14),
+        width = edit_btn_sz,
+        height = edit_btn_sz,
+        show_parent = self,
+        callback = function()
+            local clean_w = (type(cleanWordForLookup) == "function" and cleanWordForLookup(self.text)) or self.text
+            local ui = self.plugin and self.plugin.ui
+            local dict = (ui and ui.dictionary) or (self.plugin and self.plugin.patched_dictionary)
+
+            UIManager:close(self)
+
+            UIManager:scheduleIn(0.05, function()
+                if dict and type(dict.onShowDictionaryLookup) == "function" then
+                    dict:onShowDictionaryLookup(clean_w)
+                elseif ui and type(ui.handleEvent) == "function" then
+                    ui:handleEvent(Event:new("ShowDictionaryLookup", clean_w))
+                end
+            end)
+        end
+    })
+
+    self.title_row = HorizontalGroup:new({
+        align = "center",
+        HorizontalSpan:new({ width = scale(24) }),
+        self.word_widget,
+        HorizontalSpan:new({ width = spacer_w }),
+        edit_btn,
+        HorizontalSpan:new({ width = scale(24) })
+    })
+
+    local title_row_h = math.max(self.word_widget:getSize().h, edit_btn_sz)
+    local title_bot_pad = scale(6)
+
+    -- Descuenta con precisión matemática todas las filas de cabecera, plugins e iconos existentes
+    local fixed_h = top_pad + title_row_h + title_bot_pad + scale(12) + bot_pad
+    local num_text_rows = #text_row_widgets
+    if num_text_rows > 0 then
+        local sep_h = scale(4) + math.max(1, scale(1)) + scale(4)
+        local num_seps = (#icon_widgets > 0) and num_text_rows or (num_text_rows - 1)
+        fixed_h = fixed_h + (num_text_rows * scale(34)) + (math.max(0, num_seps) * sep_h)
+    end
+    if #icon_widgets > 0 then
+        fixed_h = fixed_h + scale(56)
+    end
+
+    -- Margen de resguardo inferior y piso protegido de lectura (40% de la pantalla)
+    local safety_pad = self.is_landscape and scale(20) or 0
+    local min_reading_h = math.floor(screen_height * 0.40)
+    local avail_h = screen_height - fixed_h - safety_pad
+    self.max_html_height = self.is_landscape and math.max(min_reading_h, avail_h) or math.floor(screen_height * 0.35)
+
+    self.htmlwidget = ScrollHtmlWidget:new({
+        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
+        default_font_size = getDictFontSize(ui_instance), width = content_w - scale(48), height = self.max_html_height,
+        scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
+    })
+    applyRoundedScrollbar(self.htmlwidget)
+
     self.html_row = HorizontalGroup:new({
         HorizontalSpan:new({ width = scale(24) }),
         self.htmlwidget,
@@ -925,12 +1156,14 @@ function FloatingDictionaryPopup:init()
 
     local rows = {
         VerticalSpan:new({ width = top_pad }),
+        self.title_row,
+        VerticalSpan:new({ width = title_bot_pad }),
         self.html_row,
         VerticalSpan:new({ width = scale(12) })
     }
 
     local function createDictSeparator()
-        local line_w = self.width - scale(48)
+        local line_w = content_w - scale(48)
         return HorizontalGroup:new({
             HorizontalSpan:new({ width = scale(24) }),
             LineWidget:new({
@@ -966,17 +1199,37 @@ function FloatingDictionaryPopup:init()
     local popup_content = VerticalGroup:new(rows)
 
     self.container = FloatingCard:new({
-        anchor_top = self.anchor_top, content = popup_content, bordersize = scale(3), radius = scale(24)
+        anchor_top = self.anchor_top,
+        anchor_left = self.anchor_left,
+        is_landscape = self.is_landscape,
+        content = popup_content,
+        bordersize = scale(3),
+        radius = scale(24)
     })
 
+    local container_w = self.container:getSize().w
     local container_h = self.container:getSize().h
-    local target_y = self.anchor_top and 0 or (screen_height - container_h)
-    self.popup_rect = Geom:new({ x = 0, y = target_y, w = self.width, h = container_h })
 
-    self[1] = VerticalGroup:new({
-        VerticalSpan:new({ width = math.max(0, math.floor(target_y)) }),
-        self.container
-    })
+    if self.is_landscape then
+        local target_x = self.anchor_left and 0 or (screen_width - container_w)
+        self.popup_rect = Geom:new({ x = target_x, y = 0, w = container_w, h = screen_height })
+
+        self[1] = VerticalGroup:new({
+            align = "left",
+            HorizontalGroup:new({
+                HorizontalSpan:new({ width = target_x }),
+                self.container
+            })
+        })
+    else
+        local target_y = self.anchor_top and 0 or (screen_height - container_h)
+        self.popup_rect = Geom:new({ x = 0, y = target_y, w = self.width, h = container_h })
+
+        self[1] = VerticalGroup:new({
+            VerticalSpan:new({ width = math.max(0, math.floor(target_y)) }),
+            self.container
+        })
+    end
     
     self.dimen = Geom:new({ x = 0, y = 0, w = screen_width, h = screen_height })
     
@@ -1011,6 +1264,10 @@ function FloatingDictionaryPopup:init()
     end
 end
 
+function FloatingDictionaryPopup:onClose() UIManager:close(self) end
+function FloatingDictionaryPopup:close() UIManager:close(self) end
+function FloatingDictionaryPopup:closeWidget() UIManager:close(self) end
+
 function FloatingDictionaryPopup:onHoldStartText() return true end
 function FloatingDictionaryPopup:onHoldPanText() return true end
 function FloatingDictionaryPopup:onHoldReleaseText() return true end
@@ -1019,9 +1276,10 @@ function FloatingDictionaryPopup:lookupWordDirect(word)
     local clean = cleanWordForLookup(word)
     if not clean or #clean == 0 then return false end
 
-    -- Preservar la posición actual (arriba o abajo) y las cajas de la palabra original
+    -- Preservar la posición actual (arriba/abajo o lateral) y las cajas de la palabra original
     if self.plugin then
         self.plugin._inherited_anchor_top = self.anchor_top
+        self.plugin._inherited_anchor_left = self.anchor_left
     end
     local original_boxes = self.boxes
 
@@ -1067,18 +1325,23 @@ function FloatingDictionaryPopup:switchDict(new_idx)
     local dict_indicator = string.format("<b>[%d/%d]</b> &nbsp;&bull;&nbsp; ", new_idx, total_dicts)
 
     local html_body = string.format([[
-        <div class="floatingdictionary-word">%s</div>
         <div class="floatingdictionary-meta">%s%s</div>
         <div class="floatingdictionary-separator"></div>
         <div class="search-content">%s</div>
-    ]], htmlEscape(entry.word or self.text), dict_indicator, htmlEscape(dict_name), def_body)
+    ]], dict_indicator, htmlEscape(dict_name), def_body)
+
+    if self.word_widget and self.word_widget.setText then
+        local raw_display_word = tostring(entry.word or self.text or ""):gsub("\n", " ")
+        self.word_widget:setText(raw_display_word)
+    end
 
     if self.htmlwidget.free then pcall(function() self.htmlwidget:free() end) end
 
     local ui_instance = self.plugin and self.plugin.ui
+    local content_w = self.is_landscape and (self.width - scale(3)) or self.width
     self.htmlwidget = ScrollHtmlWidget:new({
         html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
-        default_font_size = getDictFontSize(ui_instance), width = self.width - scale(48), height = self.max_html_height,
+        default_font_size = getDictFontSize(ui_instance), width = content_w - scale(48), height = self.max_html_height,
         scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
     })
     
@@ -1128,9 +1391,7 @@ function FloatingActionMenu:init()
     end
 
     -- 2. Herramientas principales de lectura (Ajustar selección, Buscar y Traducir están en el '+')
-    if is_btn_enabled("page_scrubber_sel_show_ai") then
-        table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
-    end
+    table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
     if is_btn_enabled("page_scrubber_sel_show_note") then
         table.insert(raw_buttons, { svg = "notepad-text.svg", text = "Note", action = "note" })
     end
@@ -1430,15 +1691,20 @@ function FloatingActionMenu:buildMoreCard()
                         local is_share = id_clean:find("share") or k_clean:find("share") or txt_clean:find("share") or txt_clean:find("compart")
                         local is_html = id_clean:find("html") or k_clean:find("html") or txt_clean:find("html")
                         local is_xray = id_clean:find("xray") or id_clean:find("x%-ray") or k_clean:find("xray") or k_clean:find("x%-ray") or txt_clean:find("xray") or txt_clean:find("x%-ray")
+                        local is_native_assistant = (
+                            k_clean == "assistant" or id_clean == "assistant" or 
+                            k_clean == "ai" or id_clean == "ai" or
+                            txt_clean:find("assistant") or txt_clean:find("asistente") or
+                            txt_clean:find("ai assistant") or txt_clean:find("ia assistant")
+                        )
 
                         -- Filtro estricto: descarta herramientas resueltas, duplicadas o bloqueadas
                         local is_known = (
                             is_native_select or is_native_copy or is_native_dict
                             or is_native_wiki or is_native_search or is_native_trans
-                            or is_share or is_html or is_xray
+                            or is_share or is_html or is_xray or is_native_assistant
                             or k_clean == "highlight" or id_clean == "highlight" or txt_clean == "highlight" or txt_clean == "resaltar"
                             or k_clean == "note" or k_clean == "add_note" or id_clean == "note" or txt_clean == "note" or txt_clean == "nota"
-                            or k_clean == "assistant" or id_clean == "assistant" or id_clean == "ai" or txt_clean == "asistente de ia"
                             or id_clean == "strike" or id_clean == "strikethrough" or id_clean == "underline" or id_clean == "invert"
                         )
 
@@ -1567,8 +1833,8 @@ function FloatingActionMenu:buildMoreCard()
     -- Filas siguientes: reducción tipográfica dinámica para que no aparezcan puntos suspensivos
     if #unknown_buttons > 0 then
         local max_text_avail_w = u_btn_w - scale(12)
-        local target_fs = scaleText(11)
-        local min_fs = scaleText(8)
+        local target_fs = scaleText(14)
+        local min_fs = scaleText(10)
 
         for idx, u_btn in ipairs(unknown_buttons) do
             table.insert(card_vertical_items, VerticalSpan:new({ width = scale(4) }))
@@ -2164,16 +2430,30 @@ function FloatingDict:patchSystem()
             pcall(function()
                 if dict_self.dismissLookupInfo then pcall(function() dict_self:dismissLookupInfo() end) end
                 
-                local anchor_top = plugin._inherited_anchor_top
-                if anchor_top ~= nil then
-                    plugin._inherited_anchor_top = nil
+                local is_landscape = Screen:getWidth() > Screen:getHeight()
+                local anchor_top = false
+                local anchor_left = false
+
+                if is_landscape then
+                    if plugin._inherited_anchor_left ~= nil then
+                        anchor_left = plugin._inherited_anchor_left
+                        plugin._inherited_anchor_left = nil
+                    else
+                        anchor_left = shouldAnchorLeft(boxes)
+                    end
                 else
-                    anchor_top = shouldAnchorTop(boxes)
+                    if plugin._inherited_anchor_top ~= nil then
+                        anchor_top = plugin._inherited_anchor_top
+                        plugin._inherited_anchor_top = nil
+                    else
+                        anchor_top = shouldAnchorTop(boxes)
+                    end
                 end
 
                 local popup = FloatingDictionaryPopup:new({
                     text = word, results = results, boxes = boxes,
-                    anchor_top = anchor_top, highlight_obj = highlight, plugin = plugin, current_result_idx = 1
+                    anchor_top = anchor_top, anchor_left = anchor_left, is_landscape = is_landscape,
+                    highlight_obj = highlight, plugin = plugin, current_result_idx = 1
                 })
                 UIManager:show(popup)
             end)
