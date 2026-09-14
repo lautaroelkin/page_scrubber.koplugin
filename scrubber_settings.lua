@@ -362,15 +362,12 @@ function ScrubberSettings:getPageDefinition(page_id)
 
     elseif page_id == "sel_buttons" then
         local items = {
-            { text = _("Search"), icon = "search.svg", kind = "toggle", setting = "page_scrubber_sel_show_search", default = true },
-            { text = _("Translate"), icon = "languages.svg", kind = "toggle", setting = "page_scrubber_sel_show_translate", default = true },
-            { text = _("Adjust Selection"), icon = "crop.svg", kind = "toggle", setting = "page_scrubber_sel_show_adjust", default = true },
+            { text = _("AI Assistant"), icon = "sparkles.svg", kind = "toggle", setting = "page_scrubber_sel_show_ai", default = true },
             { text = _("Note"), icon = "notepad-text.svg", kind = "toggle", setting = "page_scrubber_sel_show_note", default = true },
             { text = _("Strikethrough"), icon = "strikethrough.svg", kind = "toggle", setting = "page_scrubber_sel_show_strikethrough", default = true },
             { text = _("Underline"), icon = "underline.svg", kind = "toggle", setting = "page_scrubber_sel_show_underline", default = true },
             { text = _("Invert"), icon = "contrast.svg", kind = "toggle", setting = "page_scrubber_sel_show_invert", default = true },
             { text = _("Highlight"), icon = "highlighter.svg", kind = "toggle", setting = "page_scrubber_sel_show_highlight", default = true },
-            { text = _("AI Assistant"), icon = "sparkles.svg", kind = "toggle", setting = "page_scrubber_sel_show_ai", default = true },
         }
         return { title = _("Buttons in selection menu"), items = items }
 
@@ -454,7 +451,13 @@ function ScrubberSettings:updateLayout()
     local top_bar_bottom = top_bar and (top_bar.y + top_bar.h) or scale(58)
     local target_y = top_bar_bottom + scale(6)
 
-    local target_x = math.floor((sw - self.card_w) / 2)
+    local target_x = math.floor((sw * 0.75) - (self.card_w / 2))
+    if target_x + self.card_w > sw - scale(8) then
+        target_x = sw - self.card_w - scale(8)
+    end
+    if target_x < scale(8) then
+        target_x = scale(8)
+    end
 
     if target_y + self.card_h > sh - scale(10) then target_y = sh - self.card_h - scale(10) end
 
