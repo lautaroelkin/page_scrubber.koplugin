@@ -98,7 +98,7 @@ Basically, it takes the native features, removes the friction, and puts them int
 >* **Long press 6-grid button:** Switches to Simple Grid.
 >* **Long press TOC button:** Opens the full index with the bottom bar hidden.
 >* **Notes button / Long press bottom bookmark icon:** Opens the split menu.
->* **Long press Notes button:** Opens the split menu directly on the highlights (`hg`) tab.
+>* **Long press Notes button:** Opens the split menu directly on the highlights tab.
 >* **Settings button:** Opens the mini menu (open Scrubber Action with the wharehouse icon).
 >* **Long press Settings button:** Opens Scrubber Actions (configurable in settings).
 >* **Long press any page thumbnail:** Opens the split menu focused on that specific page.
