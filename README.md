@@ -83,18 +83,12 @@ Basically, it takes the native features, removes the friction, and puts them int
  2. Extract the archive. You will get a folder named `page_scrubber.koplugin`.
  3. Place that entire folder in your KOReader user plugins directory (usually `koreader/plugins/`).
  4. Restart KOReader.
-   
-## 🚀 Setup & Activation
- 1. Open a book in KOReader.
- 2. Go to **Settings** (⚙️) > **Gestures** > **Reader**.
- 3. Choose your preferred gesture and bind it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
-
-> 💡 **Tip:** You don't *have* to use gestures! You can also launch all views and access the new configuration options directly from KOReader's top menu.
 
 ---
+
 ## Tutorial if needed: **How to Open Page Scrubber**
 * **Option 1 (Menu):** Open a book in KOReader, go to the document menu tab (where native Table of Contents, Bookmarks, etc. live — often on the second page), and tap **Page Scrubber** to access all grids, widgets, and settings.
-* **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select your preferred Page Scrubber action (e.g., *Page scrubber: grid*, *page scrubber: index*).
+* **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
 
 ---
 
