@@ -99,8 +99,8 @@ Basically, it takes the native features, removes the friction, and puts them int
 ---
 
 ## Useful Gestures & Shortcuts
->
-* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 6-grid and the standard grid.
+
+>* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 6-grid and the standard grid.
 * **Long press 6-grid button:** Switches to Simple Grid.
 * **Long press TOC button:** Opens the full index with the bottom bar hidden.
 * **Notes button / Long press bottom bookmark icon:** Opens the split menu.
