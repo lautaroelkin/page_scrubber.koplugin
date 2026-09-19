@@ -342,8 +342,14 @@ end
 
 local function getDictFontSize(ui)
     local base_fs = getBookRawFontSize(ui) or 26
-    -- Un chiquín más chica que el texto del libro
-    return scale(math.max(8, base_fs - 2))
+    -- Tamaño exacto 1:1 con la letra del libro
+    return scale(math.max(8, base_fs))
+end
+
+local function getMetaFontSize(ui)
+    local base_fs = getBookRawFontSize(ui) or 26
+    -- Exactamente 1 punto más chica que la letra del libro
+    return scale(math.max(7, base_fs - 1))
 end
 
 local function getDictLineHeight(ui)
@@ -387,6 +393,7 @@ local function getBaseCss(ui)
     local reg, bld, ita, bita = getBookFontPaths(ui)
     local doc_family = getBookFontFamilyName(ui) or "serif"
     local lh = getDictLineHeight(ui)
+    local meta_fs = getMetaFontSize(ui)
     return string.format([[
 @font-face { font-family: "BookFont"; src: url("%s"); }
 @font-face { font-family: "BookFont"; src: url("%s"); font-weight: bold; }
@@ -401,12 +408,12 @@ p, div, li { line-height: %s !important; margin: 0 0 0.28em 0; }
 ol, ul { padding-left: 1.35em; margin-top: 0.18em; margin-bottom: 0.28em; }
 
 .floatingdictionary-word { font-size: 1.20em !important; font-weight: bold !important; line-height: 1.20em !important; color: #000000 !important; }
-.floatingdictionary-meta { margin-top: 0.20em; font-size: 0.75em !important; color: #111111 !important; font-style: italic; text-transform: uppercase; line-height: 1.20em !important; }
+.floatingdictionary-meta { margin-top: 0.20em; font-size: %dpx !important; color: #111111 !important; font-style: italic; text-transform: uppercase; line-height: 1.25em !important; }
 .floatingdictionary-separator { border-top: 1px solid #666; margin: 0.35em 0 0.45em 0; }
 .search-content, .search-content * { font-size: 1.0em !important; line-height: %s !important; color: #000000 !important; }
 .search-content { font-weight: normal !important; }
 .search-content b, .search-content strong { font-weight: bold !important; }
-]], reg, bld, ita, bita, doc_family, lh, lh, lh)
+]], reg, bld, ita, bita, doc_family, lh, lh, meta_fs, lh)
 end
 
 local function getBookFace(ui, size, bold)
@@ -1391,7 +1398,9 @@ function FloatingActionMenu:init()
     end
 
     -- 2. Herramientas principales de lectura (Ajustar selección, Buscar y Traducir están en el '+')
-    table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
+    if is_btn_enabled("page_scrubber_sel_show_ai") then
+        table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
+    end
     if is_btn_enabled("page_scrubber_sel_show_note") then
         table.insert(raw_buttons, { svg = "notepad-text.svg", text = "Note", action = "note" })
     end

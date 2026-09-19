@@ -57,7 +57,7 @@ function GridSimpleView.paint(scrubber, bb)
     local pad_x = S(8)
     local arrow_area_w = S(38)
     local top_offset = S(55)
-    local bot_offset = S(26)
+    local bot_offset = S(34)
 
     local panel_w = target_w + (arrow_area_w * 2) + (pad_x * 2)
     local panel_h = target_h + top_offset + bot_offset
@@ -136,6 +136,12 @@ function GridSimpleView.paint(scrubber, bb)
         end
     end
 
+    -- Máscara blanca en la esquina superior derecha para tapar el dogear nativo de KOReader
+    if scrubber:_isCurrentPageBookmarked(scrubber._cur_page) then
+        local mask_sz = S(28)
+        bb:paintRect(page_x + target_w - mask_sz, page_y, mask_sz, mask_sz, Blitbuffer.COLOR_WHITE)
+    end
+
     local icon_l = scrubber.icon_gs_chevron_left or scrubber.icon_chevron_left
     local icon_r = scrubber.icon_gs_chevron_right or scrubber.icon_chevron_right
     local lsz = icon_l and icon_l:getSize() or {w = S(44), h = S(44)}
@@ -175,6 +181,33 @@ function GridSimpleView.paint(scrubber, bb)
     if icon_x then
         icon_x.fgcolor = Blitbuffer.COLOR_BLACK
         icon_x:paintTo(bb, xx, xy)
+    end
+
+    -- Máscara blanca en la esquina superior derecha de la página (tapa la orejita nativa)
+    local is_cur_bmed = scrubber:_isCurrentPageBookmarked(scrubber._cur_page)
+    if is_cur_bmed then
+        local mask_sz = S(28)
+        bb:paintRect(page_x + target_w - mask_sz, page_y, mask_sz, mask_sz, Blitbuffer.COLOR_WHITE)
+    end
+
+    -- Indicadores en la cabecera de la ventana (a la misma altura que la ✕)
+    local header_x = panel_x + S(16)
+    if is_cur_bmed then
+        local bm_icon = scrubber.icon_pol_bm or scrubber.icon_mark_filled
+        if bm_icon then
+            local bmsz = bm_icon:getSize()
+            local bmy = xy + math.floor((xsz.h - bmsz.h) / 2)
+            bm_icon.fgcolor = Blitbuffer.COLOR_BLACK
+            bm_icon:paintTo(bb, header_x, bmy)
+            header_x = header_x + bmsz.w + S(8)
+        end
+    end
+
+    -- Punto gris en la cabecera solo en la página de origen
+    if tonumber(scrubber._cur_page) == tonumber(scrubber._origin_page) then
+        local dot_sz = S(8)
+        local dot_y = xy + math.floor((xsz.h - dot_sz) / 2)
+        paintRoundRect(bb, header_x, dot_y, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
     end
 
     scrubber._gs_prev_dimen = Geom:new{ x = panel_x, y = panel_y, w = pad_x + arrow_area_w, h = panel_h }
