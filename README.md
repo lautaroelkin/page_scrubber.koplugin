@@ -1,5 +1,5 @@
 # Page Scrubber Plugin! 
-This plugin allows you to quickly flip back and forth through the book, with the option to easily return to your original page using the 'x' button or stay on the new page. You can also use the interactive progress bar and bookmark browser. Streamlined, E-ink optimized, based on KOReader's browser architecture and inspired by the native Kindle page picker experience. Compatible with EPUB, CBZ, and PDFs!
+This plugin allows you to quickly flip back and forth through the book, with the option to easily return to your original page using the 'x' button or stay on the new page. You can also use the interactive progress bar and bookmark browser. Streamlined, E-ink optimized, based on KOReader's browser architecture and inspired by the native Kindle page picker experience. Compatible with EPUB, CBZ, and PDFs and works seamlessly in both portrait and landscape modes! 
    
 ### Features
 *   **Thumbnail Grids:** Live 3-page and 6-page previews, plus a minimalist distraction-free "Simple Grid" mode.
