@@ -8,7 +8,7 @@ This plugin allows you to quickly flip back and forth through the book, with the
 *   **Split-View Annotations:** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
 *   **Redesigned Reading Pop-Ups :** Features a modern, pill-shaped floating dictionary and multi-word selection menu. It intelligently anchors away from your finger so it never blocks your text. Fully compatible with the AI Assistant, X-Ray, and other external plugins.
 *   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large) that prevents crashes or overlapping at any resolution.
-*   * **Mini Menu:** Quick-access overlay for device controls (toggle front light, day/night mode), custom shortcut execution (scrubber actions), and settings navigation.
+* **Mini Menu:** Quick-access overlay for device controls (toggle front light, day/night mode), custom shortcut execution (scrubber actions), and settings navigation.
 *   **Markdown Export:** Export your highlights and notes directly to a `.md` file on your device.
 *   **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu, or bind them to your own custom gestures.
 
