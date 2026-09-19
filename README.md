@@ -90,3 +90,22 @@ Basically, it takes the native features, removes the friction, and puts them int
  3. Choose your preferred gesture and bind it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
 
 > 💡 **Tip:** You don't *have* to use gestures! You can also launch all views and access the new configuration options directly from KOReader's top menu.
+
+---
+## Tutorial if needed: How to Open Page Scrubber:
+* **Option 1 (Menu):** Open a book in KOReader, go to the document menu tab (where native Table of Contents, Bookmarks, etc. live — often on the second page), and tap **Page Scrubber** to access all grids, widgets, and settings.
+* **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select your preferred Page Scrubber action (e.g., *Page scrubber: grid*, *page scrubber: index*).
+
+---
+
+## Useful Gestures & Shortcuts
+
+* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 6-grid and the standard grid.
+* **Long press 6-grid button:** Switches to Simple Grid.
+* **Long press TOC button:** Opens the full index with the bottom bar hidden.
+* **Notes button / Long press bottom bookmark icon:** Opens the split menu.
+* **Long press Notes button:** Opens the split menu directly on the highlights (`hg`) tab.
+* **Settings button:** Opens the mini menu (open Scrubber Action with the wharehouse icon).
+* **Long press Settings button:** Opens Scrubber Actions (configurable in settings).
+* **Long press any page thumbnail:** Opens the split menu focused on that specific page.
+* **Tap top-right corner:** Toggle bookmark.
