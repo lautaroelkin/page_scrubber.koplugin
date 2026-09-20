@@ -62,6 +62,7 @@ function PageScrubberPlugin:init()
     Dispatcher:registerAction("page_scrubber_menu_bm_action", { category = "none", event = "PageScrubberMenuBM", title = _("Page Scrubber: Menu (Bookmarks)"), reader = true })
     Dispatcher:registerAction("page_scrubber_menu_hl_action", { category = "none", event = "PageScrubberMenuHL", title = _("Page Scrubber: Menu (Highlights)"), reader = true })
     Dispatcher:registerAction("page_scrubber_toc_action", { category = "none", event = "PageScrubberToc", title = _("Page Scrubber: Index"), reader = true })
+    Dispatcher:registerAction("page_scrubber_toggle_rtl_action", { category = "none", event = "PageScrubberToggleRTL", title = _("Page Scrubber: Toggle RTL"), reader = true })
 
     if self.ui.menu then self.ui.menu:registerToMainMenu(self) end
 
@@ -145,6 +146,38 @@ function ReaderUI:onPageScrubberToc()
         })
         if Device:isKindle() then UIManager:setDirty(nil, "full") end
     end)
+end
+
+function ReaderUI:onPageScrubberToggleRTL()
+    local ui = self
+    if not ui.document or not ui.doc_settings then return true end
+
+    local doc_val = ui.doc_settings:readSetting("page_scrubber_rtl")
+    local is_rtl = false
+    if doc_val ~= nil then
+        is_rtl = (doc_val == true)
+    else
+        if ui.doc_settings:readSetting("inverse_reading_order") == true then
+            is_rtl = true
+        else
+            local dir = tostring(ui.doc_settings:readSetting("reading_direction") or ""):upper()
+            is_rtl = (dir == "R2L" or dir == "RTL")
+        end
+    end
+
+    local new_val = not is_rtl
+    ui.doc_settings:saveSetting("page_scrubber_rtl", new_val)
+    if ui.doc_settings.flush then
+        pcall(function() ui.doc_settings:flush() end)
+    end
+
+    local InfoMessage = require("ui/widget/infomessage")
+    local msg = new_val and _("Page Scrubber: RTL (ON)") or _("Page Scrubber: RTL (OFF)")
+    UIManager:show(InfoMessage:new{
+        text = msg,
+        timeout = 1.5,
+    })
+    return true
 end
 
 function PageScrubberPlugin:addToMainMenu(menu_items)

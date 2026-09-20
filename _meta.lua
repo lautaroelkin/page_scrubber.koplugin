@@ -2,6 +2,6 @@ return {
     name = "page_scrubber",
     fullname = "Page Scrubber",
     description = "Advanced page scrubber overlay with split-screen, smart tabs, and gesture support.",
-    version = "7.0.0",
+    version = "7.1.0",
     author = "Lautaro",
 }

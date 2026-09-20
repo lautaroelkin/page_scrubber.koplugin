@@ -234,7 +234,19 @@ function PageScrubber:init()
         end
     end
     self._is_comic = is_comic
-    self.is_rtl = isDocRTL(ui)
+    local manual_rtl = nil
+    if ui and ui.doc_settings then
+        manual_rtl = ui.doc_settings:readSetting("page_scrubber_rtl")
+    end
+    if manual_rtl == nil and G_reader_settings then
+        manual_rtl = G_reader_settings:readSetting("page_scrubber_rtl")
+    end
+
+    if manual_rtl ~= nil then
+        self.is_rtl = (manual_rtl == true)
+    else
+        self.is_rtl = isDocRTL(ui)
+    end
 
     local scale_factor = self.ui_scale or 1
     self.S = function(val)
