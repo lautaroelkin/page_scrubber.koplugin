@@ -103,3 +103,13 @@ Basically, it takes the native features, removes the friction, and puts them int
 >* **Long press Settings button:** Opens Scrubber Actions (configurable in settings).
 >* **Long press any page thumbnail:** Opens the split menu focused on that specific page.
 >* **Tap top-right corner:** Toggle bookmark.
+
+---
+
+## _RTL Support_
+Page Scrubber fully supports Right-to-Left reading order for manga, comics, and right-to-left documents:
+
+* **Automatic Detection:** Automatically adapts to RTL if detected in document metadata such as CBZ or CBR files or KOReader native reading order settings.
+* **Manual Override:** Easily force RTL mode for any specific book by going to Settings > Layout > RTL.
+* **Gestures & Quick Actions:** Toggle RTL on the fly via KOReader native Gesture Manager under Reader > Page Scrubber: Toggle RTL or by adding it directly to your Scrubber Actions launcher.
+* **Per-Document Isolation:** Manual overrides are saved exclusively to the active book local settings in doc_settings, leaving the rest of your library untouched.
