@@ -291,13 +291,11 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
         local wx = dim.x + math.floor((dim.w - wsz.w)/2)
         local wy = dim.y + math.floor((dim.h - wsz.h)/2) + (y_off or 0)
 
-        if is_disabled then
-            widget.fgcolor = Blitbuffer.COLOR_LIGHT_GRAY
-            widget:paintTo(bb, wx, wy)
-        elseif is_p then
+        if is_disabled then return end
+        if is_p then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
             local btn_rad = is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8)
-            local bg_y = is_bm_ctrl and (dim.y + (y_off or 0) - S(2)) or dim.y
+            local bg_y = dim.y
             paintRoundRect(bb, dim.x, bg_y, dim.w, dim.h, btn_rad, Blitbuffer.COLOR_BLACK)
             if widget.text then
                 widget.fgcolor = Blitbuffer.COLOR_WHITE
@@ -338,7 +336,7 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
     -- Nivel 2: Título de capítulo a la izquierda, controles centrales (‹ [🖼️] ›) y botón volver al origen
     local l2_y = l1_y + l1_h + bar_gap
     local mark_sz = S(36)
-    local side_sz = S(30)
+    local side_sz = S(36)
     local ctrl_sp = S(12)
     local total_ctrl_w = side_sz * 2 + mark_sz + ctrl_sp * 2
     local ctrl_x = math.floor((sw - total_ctrl_w) / 2)
@@ -347,16 +345,16 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
     scrubber._ctrl_row_x1 = ctrl_x + total_ctrl_w
     scrubber._ctrl_row_h = mark_sz
 
-    scrubber._ctrl_prev_dimen = Geom:new{ x = ctrl_x, y = l2_y + math.floor((mark_sz - side_sz)/2), w = side_sz, h = side_sz }
+    scrubber._ctrl_prev_dimen = Geom:new{ x = ctrl_x, y = l2_y, w = side_sz, h = side_sz }
     scrubber._ctrl_mark_dimen = Geom:new{ x = ctrl_x + side_sz + ctrl_sp, y = l2_y, w = mark_sz, h = mark_sz }
-    scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y + math.floor((mark_sz - side_sz)/2), w = side_sz, h = side_sz }
+    scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y, w = side_sz, h = side_sz }
 
     local has_prev_bm = scrubber:_findPrevBookmark() ~= nil
     local has_next_bm = scrubber:_findNextBookmark() ~= nil
 
-    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, -S(2), not has_prev_bm)
+    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_prev_bm)
     drawBtnWithPress("ctrl_mark", scrubber._ctrl_mark_dimen, scrubber.tw_gallery, 0, false)
-    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, -S(2), not has_next_bm)
+    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_next_bm)
 
     -- Botón volver al origen anclado siempre a la derecha con flecha direccional
     local has_back = math.abs(scrubber._cur_page - scrubber._origin_page) >= 10

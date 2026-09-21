@@ -159,7 +159,7 @@ function GridLandscapeView.paint(scrubber, bb)
     for idx = 1, 3 do
         local slot = scrubber._grid_tiles[idx]
         local is_cur = (idx == 2)
-        local border = S(1)
+        local border = is_cur and S(3) or S(1)
 
         local box_x = start_x + (idx - 1) * (item_w + gap)
         local box_y = start_y
@@ -281,13 +281,11 @@ function GridLandscapeView.paint(scrubber, bb)
         local wx = dim.x + math.floor((dim.w - wsz.w)/2)
         local wy = dim.y + math.floor((dim.h - wsz.h)/2) + (y_off or 0)
 
-        if is_disabled then
-            widget.fgcolor = Blitbuffer.COLOR_LIGHT_GRAY
-            widget:paintTo(bb, wx, wy)
-        elseif is_p then
+        if is_disabled then return end
+        if is_p then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
             local btn_rad = is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8)
-            local bg_y = is_bm_ctrl and (dim.y + (y_off or 0) - S(2)) or dim.y
+            local bg_y = dim.y
             paintRoundRect(bb, dim.x, bg_y, dim.w, dim.h, btn_rad, Blitbuffer.COLOR_BLACK)
             if widget.text then
                 widget.fgcolor = Blitbuffer.COLOR_WHITE
@@ -317,7 +315,7 @@ function GridLandscapeView.paint(scrubber, bb)
     local l2_y = l1_y + l1_h + bar_gap
     scrubber.ctrl_y_pos = l2_y
     local mark_sz = S(36)
-    local side_sz = S(30)
+    local side_sz = S(36)
     local ctrl_sp = S(12)
     local total_ctrl_w = side_sz * 2 + mark_sz + ctrl_sp * 2
     local ctrl_x = math.floor((sw - total_ctrl_w) / 2)
@@ -325,19 +323,19 @@ function GridLandscapeView.paint(scrubber, bb)
     scrubber._ctrl_row_x1 = ctrl_x + total_ctrl_w
     scrubber._ctrl_row_h = mark_sz
 
-    scrubber._ctrl_prev_dimen = Geom:new{ x = ctrl_x, y = l2_y + math.floor((mark_sz - side_sz)/2), w = side_sz, h = side_sz }
+    scrubber._ctrl_prev_dimen = Geom:new{ x = ctrl_x, y = l2_y, w = side_sz, h = side_sz }
     scrubber._ctrl_mark_dimen = Geom:new{ x = ctrl_x + side_sz + ctrl_sp, y = l2_y, w = mark_sz, h = mark_sz }
-    scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y + math.floor((mark_sz - side_sz)/2), w = side_sz, h = side_sz }
+    scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y, w = side_sz, h = side_sz }
 
     local has_prev_bm = scrubber:_findPrevBookmark() ~= nil
-    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, -S(2), not has_prev_bm)
+    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_prev_bm)
 
     local is_bmed_page = scrubber:_isCurrentPageBookmarked(scrubber._cur_page)
     scrubber.tw_ctrl_mark = is_bmed_page and scrubber.icon_mark_filled or scrubber.icon_mark_empty
     drawBtnWithPress("ctrl_mark", scrubber._ctrl_mark_dimen, scrubber.tw_ctrl_mark, -S(1), false)
 
     local has_next_bm = scrubber:_findNextBookmark() ~= nil
-    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, -S(2), not has_next_bm)
+    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_next_bm)
 
     local has_back = math.abs(scrubber._cur_page - scrubber._origin_page) >= 10
     scrubber._grid_back_dimen = nil
