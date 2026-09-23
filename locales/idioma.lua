@@ -1,1 +1,0 @@
-idioma.lua
