@@ -349,17 +349,29 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
     scrubber._ctrl_mark_dimen = Geom:new{ x = ctrl_x + side_sz + ctrl_sp, y = l2_y, w = mark_sz, h = mark_sz }
     scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y, w = side_sz, h = side_sz }
 
-    local has_prev_bm = scrubber:_findPrevBookmark() ~= nil
-    local has_next_bm = scrubber:_findNextBookmark() ~= nil
+    local has_left_bm, has_right_bm
+    if scrubber.is_rtl then
+        has_left_bm  = (scrubber:_findNextBookmark() ~= nil)
+        has_right_bm = (scrubber:_findPrevBookmark() ~= nil)
+    else
+        has_left_bm  = (scrubber:_findPrevBookmark() ~= nil)
+        has_right_bm = (scrubber:_findNextBookmark() ~= nil)
+    end
 
-    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_prev_bm)
+    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_left_bm)
     drawBtnWithPress("ctrl_mark", scrubber._ctrl_mark_dimen, scrubber.tw_gallery, 0, false)
-    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_next_bm)
+    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_right_bm)
 
     -- Botón volver al origen anclado siempre a la derecha con flecha direccional
     local has_back = math.abs(scrubber._cur_page - scrubber._origin_page) >= 10
     scrubber._grid_back_dimen = nil
-    local origin_on_left = scrubber.is_rtl and (scrubber._cur_page < scrubber._origin_page) or (scrubber._cur_page > scrubber._origin_page)
+
+    local origin_on_left
+    if scrubber.is_rtl then
+        origin_on_left = (scrubber._cur_page < scrubber._origin_page)
+    else
+        origin_on_left = (scrubber._cur_page > scrubber._origin_page)
+    end
 
     if has_back then
         local disp_orig = scrubber:_getDisplayPageInfo(scrubber._origin_page)

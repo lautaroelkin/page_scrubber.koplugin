@@ -89,6 +89,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
 
     local tab_sp = S(6)
     local tab_h = S(32)
+    local b_thick = S(2)
     local actual_top_space = top_box_y - title_strip_y
     local ratio = (actual_top_space > tab_h * 1.5) and 0.8 or 0.5
     local tab_draw_y = title_strip_y + math.floor((actual_top_space - tab_h) * ratio)
@@ -102,7 +103,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     local sort_tab_w = sort_tsz.w + S(16)
 
     scrubber.paintRoundRect(bb, current_tab_x, tab_draw_y, sort_tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-    scrubber.paintRoundRect(bb, current_tab_x + S(2), tab_draw_y + S(2), sort_tab_w - S(4), tab_h - S(4), math.max(1, r - S(2)), Blitbuffer.COLOR_WHITE)
+    scrubber.paintRoundRect(bb, current_tab_x + b_thick, tab_draw_y + b_thick, sort_tab_w - b_thick * 2, tab_h - b_thick * 2, math.max(1, r - b_thick), Blitbuffer.COLOR_WHITE)
 
     scrubber._tw_tab_sort.fgcolor = Blitbuffer.COLOR_BLACK
     local stx = current_tab_x + math.floor((sort_tab_w - sort_tsz.w) / 2)
@@ -131,7 +132,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
 
         scrubber.paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
         if not is_active then
-            scrubber.paintRoundRect(bb, current_tab_x + S(2), tab_draw_y + S(2), tab_w - S(4), tab_h - S(4), math.max(1, r - S(2)), Blitbuffer.COLOR_WHITE)
+            scrubber.paintRoundRect(bb, current_tab_x + b_thick, tab_draw_y + b_thick, tab_w - b_thick * 2, tab_h - b_thick * 2, math.max(1, r - b_thick), Blitbuffer.COLOR_WHITE)
         end
 
         local ix = current_tab_x + math.floor((tab_w - content_w) / 2)
@@ -167,7 +168,6 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     
     scrubber.paintTopSquareBottomRounded(bb, card_x + shadow_offset, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
     scrubber.paintTopSquareBottomRounded(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    local b_thick = S(2)
     scrubber.paintTopSquareBottomRounded(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local tile = scrubber._grid_tiles[2] or {}
@@ -375,11 +375,11 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     end
 
     scrubber.paintRoundRect(bb, lm_x + shadow_offset, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
-    scrubber.paintRoundRect(bb, lm_x, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
-    scrubber.paintRoundRect(bb, lm_x + S(2), fx_y + S(2), lm_w - S(4), fx_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
-
     if is_f_sel then
-        scrubber.paintRoundRect(bb, lm_x + S(4), fx_y + S(4), lm_w - S(8), fx_h - S(8), S(8), Blitbuffer.COLOR_BLACK)
+        scrubber.paintRoundRect(bb, lm_x, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
+    else
+        scrubber.paintRoundRect(bb, lm_x, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
+        scrubber.paintRoundRect(bb, lm_x + b_thick, fx_y + b_thick, lm_w - b_thick * 2, fx_h - b_thick * 2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
     end
     
     local tw_pg_f = TextWidget:new{ text = tostring(fixed_page), face = Font:getFace("cfont", S_MEDIANO), fgcolor = fg_f }
@@ -490,15 +490,16 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
 
     bb:paintRect(lm_x, menu_y, pag_tab_w, header_h, Blitbuffer.COLOR_BLACK)
 
-    local inner_r = math.max(1, box_radius - S(2))
-    scrubber.paintCornerRect(bb, lm_x + shadow_offset, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_DARK_GRAY, false, true, true, true)
-    scrubber.paintCornerRect(bb, lm_x, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_BLACK, false, true, true, true)
+    local inner_r = math.max(1, box_radius - b_thick)
+    -- Igualamos la geometría con la Polaroid: esquina superior recta, inferior redondeada
+    scrubber.paintTopSquareBottomRounded(bb, lm_x + shadow_offset, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_DARK_GRAY)
+    scrubber.paintTopSquareBottomRounded(bb, lm_x, body_y, lm_w, body_h, box_radius, Blitbuffer.COLOR_BLACK)
 
-    local list_y = body_y + S(2)
-    local list_h = body_h - S(4)
-    scrubber.paintCornerRect(bb, lm_x + S(2), list_y, lm_w - S(4), list_h, inner_r, Blitbuffer.COLOR_WHITE, false, true, true, true)
+    local list_y = body_y + b_thick
+    local list_h = body_h - b_thick * 2
+    scrubber.paintTopSquareBottomRounded(bb, lm_x + b_thick, list_y, lm_w - b_thick * 2, list_h, inner_r, Blitbuffer.COLOR_WHITE)
 
-    bb:paintRect(lm_x + S(2), menu_y + S(2), pag_tab_w - S(4), header_h, Blitbuffer.COLOR_WHITE)
+    bb:paintRect(lm_x + b_thick, menu_y + b_thick, pag_tab_w - b_thick * 2, header_h, Blitbuffer.COLOR_WHITE)
 
     local start_x = lm_x + hdr_left_pad
     local hty = menu_y + S(2) + math.floor((header_h - S(2) - hsz.h) / 2)
@@ -551,7 +552,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
 
             for _, fd in ipairs(unselected_filters) do
                 scrubber.paintCornerRect(bb, curr_folder_x, curr_folder_y, folder_w, folder_h, folder_r, Blitbuffer.COLOR_BLACK, true, true, false, false)
-                scrubber.paintCornerRect(bb, curr_folder_x + S(2), curr_folder_y + S(2), folder_w - S(4), folder_h - S(2), math.max(1, folder_r - S(2)), Blitbuffer.COLOR_WHITE, true, true, false, false)
+                scrubber.paintCornerRect(bb, curr_folder_x + b_thick, curr_folder_y + b_thick, folder_w - b_thick * 2, folder_h - b_thick, math.max(1, folder_r - b_thick), Blitbuffer.COLOR_WHITE, true, true, false, false)
 
                 if fd.key == "underline" then
                     local ul_w = S(11)
@@ -592,11 +593,16 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
             local fg_r = is_r_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
     
             if is_r_sel then
-                scrubber.paintRoundRect(bb, lm_x + S(4), current_row_y + S(4), lm_w - S(8), row_h - S(8), S(8), Blitbuffer.COLOR_BLACK)
+                local is_touching_bottom = (not needs_pagination) and (i == end_idx)
+                if is_touching_bottom then
+                    scrubber.paintTopSquareBottomRounded(bb, lm_x + b_thick, current_row_y, lm_w - b_thick*2, row_h - b_thick, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_BLACK)
+                else
+                    bb:paintRect(lm_x + b_thick, current_row_y, lm_w - b_thick*2, row_h, Blitbuffer.COLOR_BLACK)
+                end
             end
             
             if not is_r_sel and i < end_idx then
-                bb:paintRect(lm_x + S(15), current_row_y + row_h - 1, lm_w - S(30), 1, Blitbuffer.COLOR_GRAY)
+                bb:paintRect(lm_x + b_thick, current_row_y + row_h - 1, lm_w - b_thick*2, 1, Blitbuffer.COLOR_LIGHT_GRAY)
             end
             
             local icon_str = (scrubber._active_tab == "bookmarks") and "\u{F147}" or "\u{F105}" 
@@ -638,7 +644,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
             local pag_h = row_h
             local pag_y = list_y + (num_rows - 1) * row_h
             
-            bb:paintRect(lm_x + S(15), pag_y, lm_w - S(30), S(1), Blitbuffer.COLOR_GRAY)
+            bb:paintRect(lm_x + b_thick, pag_y, lm_w - b_thick*2, S(1), Blitbuffer.COLOR_BLACK)
             
             local pag_str = cur_page .. " / " .. total_pages
             local pag_tw = TextWidget:new{ text = pag_str, face = Font:getFace("cfont", S(12)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
