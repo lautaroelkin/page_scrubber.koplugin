@@ -262,4 +262,46 @@ msgstr "Geen systeemacties beschikbaar."
 msgid "Action unavailable in this document or view."
 msgstr "Actie niet beschikbaar in dit document of deze weergave."
 
+# Lay-out & Achtergrond
+msgid "Layout"
+msgstr "Lay-out"
+
+msgid "Wallpaper"
+msgstr "Achtergrond"
+
+msgid "Choose wallpaper"
+msgstr "Achtergrond kiezen"
+
+msgid "Add wallpaper"
+msgstr "Achtergrond toevoegen"
+
+msgid "None"
+msgstr "Geen"
+
+# Boektitelachtergrond
+msgid "Book title background"
+msgstr "Achtergrond van boektitel"
+
+msgid "With border"
+msgstr "Met rand"
+
+msgid "No border"
+msgstr "Zonder rand"
+
+msgid "Translucent"
+msgstr "Doorschijnend"
+
+msgid "Off"
+msgstr "Uit"
+
+# Mapinformatie
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Om je eigen achtergronden toe te voegen, kopieer afbeeldingen (.png, .jpg) naar:"
+
+msgid "Shared folders also detected:"
+msgstr "Gedeelde mappen ook gedetecteerd:"
+
+# Systeem
+msgid "System Error exporting notes."
+msgstr "Systeemfout bij exporteren van notities."
 

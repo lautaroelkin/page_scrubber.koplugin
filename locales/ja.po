@@ -265,5 +265,47 @@ msgstr "利用可能なシステムアクションがありません。"
 msgid "Action unavailable in this document or view."
 msgstr "このドキュメントまたは表示モードでは利用できないアクションです。"
 
+# レイアウトと壁紙
+msgid "Layout"
+msgstr "レイアウト"
+
+msgid "Wallpaper"
+msgstr "壁紙"
+
+msgid "Choose wallpaper"
+msgstr "壁紙を選択"
+
+msgid "Add wallpaper"
+msgstr "壁紙を追加"
+
+msgid "None"
+msgstr "なし"
+
+# タイトル背景スタイル
+msgid "Book title background"
+msgstr "本のタイトルの背景"
+
+msgid "With border"
+msgstr "枠線あり"
+
+msgid "No border"
+msgstr "枠線なし"
+
+msgid "Translucent"
+msgstr "半透明"
+
+msgid "Off"
+msgstr "オフ"
+
+# フォルダ情報
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "独自の壁紙を追加するには、画像（.png、.jpg）を以下にコピーしてください:"
+
+msgid "Shared folders also detected:"
+msgstr "検出された共有フォルダ:"
+
+# システム
+msgid "System Error exporting notes."
+msgstr "メモのエクスポート中にシステムエラーが発生しました。"
 
 

@@ -262,4 +262,46 @@ msgstr "Brak dostępnych akcji systemowych."
 msgid "Action unavailable in this document or view."
 msgstr "Akcja niedostępna w tym dokumencie lub widoku."
 
+# Układ i Tapeta
+msgid "Layout"
+msgstr "Układ"
+
+msgid "Wallpaper"
+msgstr "Tapeta"
+
+msgid "Choose wallpaper"
+msgstr "Wybierz tapetę"
+
+msgid "Add wallpaper"
+msgstr "Dodaj tapetę"
+
+msgid "None"
+msgstr "Brak"
+
+# Tło tytułu książki
+msgid "Book title background"
+msgstr "Tło tytułu książki"
+
+msgid "With border"
+msgstr "Z ramką"
+
+msgid "No border"
+msgstr "Bez ramki"
+
+msgid "Translucent"
+msgstr "Półprzezroczysty"
+
+msgid "Off"
+msgstr "Wyłączone"
+
+# Informacje o folderach
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Aby dodać własne tapety, skopiuj obrazy (.png, .jpg) do:"
+
+msgid "Shared folders also detected:"
+msgstr "Wykryto również foldery współdzielone:"
+
+# System
+msgid "System Error exporting notes."
+msgstr "Błąd systemowy podczas eksportowania notatek."
 

@@ -262,3 +262,45 @@ msgstr "没有可用的系统动作。"
 msgid "Action unavailable in this document or view."
 msgstr "该动作在此文档或视图中不可用。"
 
+# 布局与壁纸
+msgid "Layout"
+msgstr "布局"
+
+msgid "Wallpaper"
+msgstr "壁纸"
+
+msgid "Choose wallpaper"
+msgstr "选择壁纸"
+
+msgid "Add wallpaper"
+msgstr "添加壁纸"
+
+msgid "None"
+msgstr "无"
+
+# 书名背景样式
+msgid "Book title background"
+msgstr "书名背景"
+
+msgid "With border"
+msgstr "带边框"
+
+msgid "No border"
+msgstr "无边框"
+
+msgid "Translucent"
+msgstr "半透明"
+
+msgid "Off"
+msgstr "关闭"
+
+# 文件夹说明
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "如需添加自定义壁纸，请将图片 (.png, .jpg) 复制到："
+
+msgid "Shared folders also detected:"
+msgstr "同时检测到的共享文件夹："
+
+# 系统
+msgid "System Error exporting notes."
+msgstr "导出笔记时发生系统错误。"

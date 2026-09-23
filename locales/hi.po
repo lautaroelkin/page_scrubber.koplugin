@@ -163,3 +163,47 @@ msgstr "स्क्रबर चयन मेनू"
 msgid "Scrubber Dictionary"
 msgstr "स्क्रबर शब्दकोश"
 
+# लेआउट और वॉलपेपर
+msgid "Layout"
+msgstr "लेआउट"
+
+msgid "Wallpaper"
+msgstr "वॉलपेपर"
+
+msgid "Choose wallpaper"
+msgstr "वॉलपेपर चुनें"
+
+msgid "Add wallpaper"
+msgstr "वॉलपेपर जोड़ें"
+
+msgid "None"
+msgstr "कोई नहीं"
+
+# पुस्तक शीर्षक पृष्ठभूमि
+msgid "Book title background"
+msgstr "पुस्तक शीर्षक पृष्ठभूमि"
+
+msgid "With border"
+msgstr "बॉर्डर के साथ"
+
+msgid "No border"
+msgstr "बिना बॉर्डर"
+
+msgid "Translucent"
+msgstr "पारभासी"
+
+msgid "Off"
+msgstr "बंद"
+
+# फ़ोल्डर जानकारी
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "अपने वॉलपेपर जोड़ने के लिए, छवियों (.png, .jpg) को यहाँ कॉपी करें:"
+
+msgid "Shared folders also detected:"
+msgstr "साझा फ़ोल्डर भी मिले:"
+
+# सिस्टम
+msgid "System Error exporting notes."
+msgstr "नोट्स निर्यात करने में सिस्टम त्रुटि।"
+
+

@@ -262,3 +262,46 @@ msgstr "Nenhuma ação do sistema disponível."
 msgid "Action unavailable in this document or view."
 msgstr "Ação indisponível neste documento ou visualização."
 
+# Layout & Papel de parede
+msgid "Layout"
+msgstr "Layout"
+
+msgid "Wallpaper"
+msgstr "Papel de parede"
+
+msgid "Choose wallpaper"
+msgstr "Escolher papel de parede"
+
+msgid "Add wallpaper"
+msgstr "Adicionar papel de parede"
+
+msgid "None"
+msgstr "Nenhum"
+
+# Fundo do título
+msgid "Book title background"
+msgstr "Fundo do título do livro"
+
+msgid "With border"
+msgstr "Com borda"
+
+msgid "No border"
+msgstr "Sem borda"
+
+msgid "Translucent"
+msgstr "Translúcido"
+
+msgid "Off"
+msgstr "Desativado"
+
+# Informações de pastas
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Para adicionar seus próprios papéis de parede, copie imagens (.png, .jpg) para:"
+
+msgid "Shared folders also detected:"
+msgstr "Pastas compartilhadas também detectadas:"
+
+# Sistema
+msgid "System Error exporting notes."
+msgstr "Erro do sistema ao exportar notas."
+

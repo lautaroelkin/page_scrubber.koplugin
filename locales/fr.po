@@ -262,4 +262,47 @@ msgstr "Aucune action système disponible."
 msgid "Action unavailable in this document or view."
 msgstr "Action indisponible dans ce document ou cette vue."
 
+# Disposition & Fond d'écran
+msgid "Layout"
+msgstr "Disposition"
+
+msgid "Wallpaper"
+msgstr "Fond d'écran"
+
+msgid "Choose wallpaper"
+msgstr "Choisir un fond d'écran"
+
+msgid "Add wallpaper"
+msgstr "Ajouter un fond d'écran"
+
+msgid "None"
+msgstr "Aucun"
+
+# Arrière-plan du titre
+msgid "Book title background"
+msgstr "Arrière-plan du titre du livre"
+
+msgid "With border"
+msgstr "Avec bordure"
+
+msgid "No border"
+msgstr "Sans bordure"
+
+msgid "Translucent"
+msgstr "Translucide"
+
+msgid "Off"
+msgstr "Désactivé"
+
+# Informations sur les dossiers
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Pour ajouter vos propres fonds d'écran, copiez des images (.png, .jpg) dans :"
+
+msgid "Shared folders also detected:"
+msgstr "Dossiers partagés également détectés :"
+
+# Système
+msgid "System Error exporting notes."
+msgstr "Erreur système lors de l'exportation des notes."
+
 

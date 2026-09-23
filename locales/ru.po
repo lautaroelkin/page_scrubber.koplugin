@@ -262,4 +262,46 @@ msgstr "Нет доступных системных действий."
 msgid "Action unavailable in this document or view."
 msgstr "Действие недоступно в этом документе или режиме просмотра."
 
+# Макет и Обои
+msgid "Layout"
+msgstr "Макет"
+
+msgid "Wallpaper"
+msgstr "Обои"
+
+msgid "Choose wallpaper"
+msgstr "Выбрать обои"
+
+msgid "Add wallpaper"
+msgstr "Добавить обои"
+
+msgid "None"
+msgstr "Нет"
+
+# Фон названия книги
+msgid "Book title background"
+msgstr "Фон названия книги"
+
+msgid "With border"
+msgstr "С рамкой"
+
+msgid "No border"
+msgstr "Без рамки"
+
+msgid "Translucent"
+msgstr "Полупрозрачный"
+
+msgid "Off"
+msgstr "Выкл."
+
+# Информация о папках
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Чтобы добавить свои обои, скопируйте изображения (.png, .jpg) в:"
+
+msgid "Shared folders also detected:"
+msgstr "Также обнаружены общие папки:"
+
+# Система
+msgid "System Error exporting notes."
+msgstr "Системная ошибка при экспорте заметок."
 

@@ -250,5 +250,59 @@ msgstr "No hay acciones del sistema disponibles."
 msgid "Action unavailable in this document or view."
 msgstr "Acción no disponible en este documento o vista."
 
+# Layout y Wallpaper
+msgid "Layout"
+msgstr "Diseño"
+
+msgid "Wallpaper"
+msgstr "Fondo de pantalla"
+
+msgid "Choose wallpaper"
+msgstr "Elegir fondo de pantalla"
+
+msgid "Add wallpaper"
+msgstr "Añadir fondo de pantalla"
+
+msgid "None"
+msgstr "Ninguno"
+
+# Fondo del título y estilos de cápsula
+msgid "Book title background"
+msgstr "Fondo del título del libro"
+
+msgid "With border"
+msgstr "Con borde"
+
+msgid "No border"
+msgstr "Sin borde"
+
+msgid "Translucent"
+msgstr "Translúcido"
+
+msgid "Off"
+msgstr "Desactivado"
+
+# Información de carpetas de fondos
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Para añadir tus propios fondos, copia imágenes (.png, .jpg) en:"
+
+msgid "Shared folders also detected:"
+msgstr "Carpetas compartidas detectadas:"
+
+# Acciones generales y exportación
+msgid "Save"
+msgstr "Guardar"
+
+msgid "System Error exporting notes."
+msgstr "Error del sistema al exportar las notas."
+
+# Acciones en el visor (Scrubber UI)
+msgid "Edit note"
+msgstr "Editar nota"
+
+msgid "Updating highlight…"
+msgstr "Actualizando subrayado…"
+
+
 
 
