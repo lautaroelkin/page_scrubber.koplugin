@@ -223,7 +223,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     local sort_sz = active_sort and active_sort:getSize() or { w = S(16), h = S(16) }
     local sort_w = sort_sz.w + S(14)
     paintRoundRect(bb, cur_tab_x, tab_draw_y, sort_w, tab_h, r_tab, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, cur_tab_x + S(1), tab_draw_y + S(1), sort_w - S(2), tab_h - S(2), math.max(1, r_tab - S(1)), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, cur_tab_x + b_thick, tab_draw_y + b_thick, sort_w - b_thick*2, tab_h - b_thick*2, math.max(1, r_tab - b_thick), Blitbuffer.COLOR_WHITE)
     if active_sort then
         active_sort:paintTo(bb, cur_tab_x + math.floor((sort_w - sort_sz.w)/2), tab_draw_y + math.floor((tab_h - sort_sz.h)/2))
     end
@@ -279,8 +279,8 @@ function SplitLandscapeView.paint(scrubber, bb)
     -- =========================================================
     scrubber._split_preview_dimen = Geom:new{ x = card_x, y = card_y, w = card_w, h = card_h }
 
-    paintTopSquareBottomRounded(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    paintTopSquareBottomRounded(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local tile = scrubber._grid_tiles[2] or {}
     if tile.tile_bb then
@@ -302,6 +302,17 @@ function SplitLandscapeView.paint(scrubber, bb)
         local ox = card_x + b_thick + math.floor((max_pr_w - draw_w) / 2)
         local oy = card_y + b_thick + math.floor((max_pr_h - draw_h) / 2)
         bb:blitFrom(render_bb, ox, oy, 0, 0, draw_w, draw_h)
+
+        -- Protege la curva superior: restablece el contorno negro en los vértices
+        local r_in = math.max(1, box_radius - b_thick)
+        for k = 0, r_in - 1 do
+            local arc_in = math.ceil(math.sqrt(r_in*r_in - (r_in-k-0.5)*(r_in-k-0.5)))
+            local diff = r_in - arc_in
+            if diff > 0 then
+                bb:paintRect(card_x + b_thick, card_y + b_thick + k, diff, 1, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(card_x + card_w - b_thick - diff, card_y + b_thick + k, diff, 1, Blitbuffer.COLOR_BLACK)
+            end
+        end
 
         if must_free then
             pcall(function() render_bb:free() end)
@@ -613,10 +624,11 @@ function SplitLandscapeView.paint(scrubber, bb)
     local fx_y = list_card_y + list_card_h + fx_gap
 
     paintRoundRect(bb, menu_x, list_card_y, col_right_w, list_card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, menu_x + S(2), list_card_y + S(2), col_right_w - S(4), list_card_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, menu_x + b_thick, list_card_y + b_thick, col_right_w - b_thick*2, list_card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local header_h = S(28)
-    bb:paintRect(menu_x + S(2), list_card_y + header_h, col_right_w - S(4), 1, Blitbuffer.COLOR_BLACK)
+    local header_sep_y = list_card_y + header_h
+    bb:paintRect(menu_x + b_thick, header_sep_y, col_right_w - b_thick*2, S(1), Blitbuffer.COLOR_BLACK)
     if not scrubber._tw_header_page then
         scrubber._tw_header_page = TextWidget:new{ text = _("Page"), face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
     end
@@ -724,7 +736,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     scrubber._split_prev_dimen = nil
     scrubber._split_next_dimen = nil
 
-    local r_y = list_card_y + header_h + 1
+    local r_y = header_sep_y + S(1)
     if #other_items == 0 then
         if not scrubber._tw_empty_list then
             scrubber._tw_empty_list = TextWidget:new{ text = "—", face = Font:getFace("cfont", scrubber.S_BOTTOM_GRAY or S(13)), fgcolor = Blitbuffer.COLOR_DARK_GRAY }
@@ -750,10 +762,20 @@ function SplitLandscapeView.paint(scrubber, bb)
                 end
             end
 
+            local row_fill_y = (i == start_i and is_sel) and header_sep_y or r_y
+            local row_fill_h = (i == start_i and is_sel) and (row_h + S(1)) or row_h
+
             if is_sel then
-                bb:paintRect(menu_x + S(2), r_y, col_right_w - S(4), row_h, Blitbuffer.COLOR_BLACK)
-            elseif i < end_i then
-                bb:paintRect(menu_x + S(2), r_y + row_h - 1, col_right_w - S(4), 1, Blitbuffer.COLOR_LIGHT_GRAY)
+                local is_touching_bottom = (not needs_pag) and (i == end_i)
+                if is_touching_bottom then
+                    paintTopSquareBottomRounded(bb, menu_x + b_thick, row_fill_y, col_right_w - b_thick*2, row_fill_h - b_thick, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_BLACK)
+                else
+                    bb:paintRect(menu_x + b_thick, row_fill_y, col_right_w - b_thick*2, row_fill_h, Blitbuffer.COLOR_BLACK)
+                end
+            else
+                if i > start_i then
+                    bb:paintRect(menu_x + b_thick, r_y, col_right_w - b_thick*2, 1, Blitbuffer.COLOR_LIGHT_GRAY)
+                end
             end
 
             local tw_p = is_sel and scrubber._tw_row_bold or scrubber._tw_row_normal
@@ -806,7 +828,7 @@ function SplitLandscapeView.paint(scrubber, bb)
 
     if needs_pag then
         local pag_y = list_card_y + list_card_h - row_h
-        bb:paintRect(menu_x + S(2), pag_y, col_right_w - S(4), 1, Blitbuffer.COLOR_BLACK)
+        bb:paintRect(menu_x + b_thick, pag_y, col_right_w - b_thick*2, 1, Blitbuffer.COLOR_BLACK)
         if not scrubber._tw_pagination then
             scrubber._tw_pagination = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
         end
@@ -832,7 +854,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     local is_f_sel = (scrubber._cur_page == fixed_p)
     paintRoundRect(bb, menu_x, fx_y, col_right_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
     if not is_f_sel then
-        paintRoundRect(bb, menu_x + S(2), fx_y + S(2), col_right_w - S(4), fx_h - S(4), math.max(1, box_radius - S(2)), Blitbuffer.COLOR_WHITE)
+        paintRoundRect(bb, menu_x + b_thick, fx_y + b_thick, col_right_w - b_thick*2, fx_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
     end
     local tw_f = is_f_sel and scrubber._tw_row_bold or scrubber._tw_row_normal
     tw_f.fgcolor = is_f_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
@@ -920,21 +942,34 @@ function SplitLandscapeView.paint(scrubber, bb)
     scrubber._ctrl_mark_dimen = Geom:new{ x = ctrl_x + side_sz + ctrl_sp, y = l2_y, w = mark_sz, h = mark_sz }
     scrubber._ctrl_next_dimen = Geom:new{ x = ctrl_x + side_sz + mark_sz + ctrl_sp * 2, y = l2_y, w = side_sz, h = side_sz }
 
-    local has_prev_bm = scrubber:_findPrevBookmark() ~= nil
-    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_prev_bm)
+    local has_left_bm, has_right_bm
+    if scrubber.is_rtl then
+        has_left_bm  = (scrubber:_findNextBookmark() ~= nil)
+        has_right_bm = (scrubber:_findPrevBookmark() ~= nil)
+    else
+        has_left_bm  = (scrubber:_findPrevBookmark() ~= nil)
+        has_right_bm = (scrubber:_findNextBookmark() ~= nil)
+    end
+
+    drawBtnWithPress("ctrl_prev", scrubber._ctrl_prev_dimen, scrubber.tw_ctrl_prev, 0, not has_left_bm)
 
     local is_bmed_page = scrubber:_isCurrentPageBookmarked(scrubber._cur_page)
     scrubber.tw_ctrl_mark = is_bmed_page and scrubber.icon_mark_filled or scrubber.icon_mark_empty
     drawBtnWithPress("ctrl_mark", scrubber._ctrl_mark_dimen, scrubber.tw_ctrl_mark, -S(1), false)
 
-    local has_next_bm = scrubber:_findNextBookmark() ~= nil
-    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_next_bm)
+    drawBtnWithPress("ctrl_next", scrubber._ctrl_next_dimen, scrubber.tw_ctrl_next, 0, not has_right_bm)
 
     -- Botón volver anclado siempre a la derecha con flecha direccional
     local has_back = math.abs(scrubber._cur_page - scrubber._origin_page) >= 10
     scrubber._grid_back_dimen = nil
 
-    local origin_on_left = scrubber.is_rtl and (scrubber._cur_page < scrubber._origin_page) or (scrubber._cur_page > scrubber._origin_page)
+    local origin_on_left
+    if scrubber.is_rtl then
+        origin_on_left = (scrubber._cur_page < scrubber._origin_page)
+    else
+        origin_on_left = (scrubber._cur_page > scrubber._origin_page)
+    end
+
     local isz_info = scrubber.tw_info and scrubber.tw_info:getSize() or { w = 0, h = 0 }
     local info_x = sw - pad_x - isz_info.w
 

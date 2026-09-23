@@ -257,6 +257,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size" },
                 { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", action = function() self:openScaleDialog() end },
+                { text = _("Wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "wallpaper" },
                 {
                     text = "RTL",
                     icon = "arrow-left.svg",
@@ -365,6 +366,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                     kind = "toggle",
                     setting = "page_scrubber_floating_dict_enabled",
                     default = true,
+                    bold = true,
                 },
                 {
                     text = _("Buttons in dictionary"),
@@ -387,6 +389,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                     kind = "toggle",
                     setting = "page_scrubber_selection_menu_enabled",
                     default = true,
+                    bold = true,
                 },
                 {
                     text = _("Position of selection menu"),
@@ -456,6 +459,48 @@ function ScrubberSettings:getPageDefinition(page_id)
                 { text = _("Large"), icon = nil, kind = "radio", setting = "page_scrubber_text_size", val = "large", checked = (cur == "large") },
             }
         }
+
+    elseif page_id == "wallpaper" then
+        local ScrubberWallpaper = require("scrubber_wallpaper")
+        local cur = self:readSetting("page_scrubber_wallpaper", "none")
+        local items = {
+            {
+                text = _("Book title background"),
+                icon = "contrast.svg",
+                kind = "toggle",
+                setting = "page_scrubber_title_bg",
+                default = true,
+            },
+            {
+                text = "…",
+                icon = "folder.svg",
+                kind = "action",
+                action = function() self:showWallpaperFolderInfo() end,
+            },
+            {
+                text = _("None"),
+                icon = nil,
+                kind = "radio",
+                setting = "page_scrubber_wallpaper",
+                val = "none",
+                checked = (cur == "none" or cur == nil or cur == "")
+            }
+        }
+        local list = ScrubberWallpaper.list()
+        for _, wp in ipairs(list) do
+            table.insert(items, {
+                text = wp.label,
+                icon = nil,
+                kind = "radio",
+                setting = "page_scrubber_wallpaper",
+                val = wp.id,
+                checked = (cur == wp.id)
+            })
+        end
+        return {
+            title = _("Wallpaper"),
+            items = items,
+        }
     end
 
     return { title = "", items = {} }
@@ -463,7 +508,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "popups", "dict_buttons", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "wallpaper", "popups", "dict_buttons", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _, pid in ipairs(pages) do
@@ -1287,6 +1332,22 @@ function ScrubberSettings:executeAction(action_id)
     end)
 end
 
+function ScrubberSettings:showWallpaperFolderInfo()
+    local ScrubberWallpaper = require("scrubber_wallpaper")
+    local own_dir = ScrubberWallpaper.getOwnDir() or "koreader/settings/page_scrubber/wallpapers"
+    local info_text = _("To add your own wallpapers, copy images (.png, .jpg) to:")
+        .. "\n\n" .. own_dir .. "/\n\n"
+        .. _("Shared folders also detected:") .. "\n"
+        .. "• koreader/settings/bookshelf/wallpapers/\n"
+        .. "• koreader/settings/simpleui/sui_wallpapers/\n"
+        .. "• /mnt/us/Wallpapers/"
+
+    UIManager:show(ConfirmBox:new{
+        text = info_text,
+        ok_text = _("OK"),
+    })
+end
+
 function ScrubberSettings:openScaleDialog()
     local cur = math.floor((self:readSetting("page_scrubber_ui_scale", 1.0) * 100) + 0.5)
     local spin = SpinWidget:new{
@@ -1515,6 +1576,7 @@ function ScrubberSettings:paintTo(bb, x, y)
         local tw_item = TextWidget:new{
             text = tostring(item.text or ""),
             face = Font:getFace("cfont", scaleText(11)),
+            bold = item.bold == true,
             fgcolor = text_color,
             max_width = max_tw,
             truncate_with_ellipsis = true
@@ -1628,6 +1690,21 @@ function ScrubberSettings:onTap(arg1, arg2)
                         return true
                     end
 
+                    if it.setting == "page_scrubber_title_bg" then
+                        local scrubber = self.scrubber_ui
+                        UIManager:close(self)
+                        if scrubber then
+                            if scrubber._closeStay then
+                                pcall(function() scrubber:_closeStay() end)
+                            else
+                                pcall(function() UIManager:close(scrubber) end)
+                            end
+                        else
+                            UIManager:setDirty(nil, "full")
+                        end
+                        return true
+                    end
+
                     self:refreshView()
                     return true
                 elseif it.kind == "radio" then
@@ -1635,6 +1712,27 @@ function ScrubberSettings:onTap(arg1, arg2)
 
                     if it.setting == "page_scrubber_text_size" then
                         self:reopenEntireScrubber()
+                        return true
+                    end
+
+                    if it.setting == "page_scrubber_wallpaper" then
+                        local ok_wp, ScrubberWallpaper = pcall(require, "scrubber_wallpaper")
+                        if ok_wp and ScrubberWallpaper and ScrubberWallpaper.free then
+                            ScrubberWallpaper.free()
+                        end
+
+                        -- Cierra inmediatamente ajustes y el scrubber completo para limpiar toda la RAM
+                        local scrubber = self.scrubber_ui
+                        UIManager:close(self)
+                        if scrubber then
+                            if scrubber._closeStay then
+                                pcall(function() scrubber:_closeStay() end)
+                            else
+                                pcall(function() UIManager:close(scrubber) end)
+                            end
+                        else
+                            UIManager:setDirty(nil, "full")
+                        end
                         return true
                     end
 

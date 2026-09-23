@@ -293,6 +293,20 @@ function ScrubberMenu:isNightMode()
     return false
 end
 
+function ScrubberMenu:closeEntireWidget()
+    local scrubber = self.scrubber_ui
+    UIManager:close(self)
+    if scrubber then
+        if scrubber._closeStay then
+            pcall(function() scrubber:_closeStay() end)
+        else
+            pcall(function() UIManager:close(scrubber) end)
+        end
+    else
+        UIManager:setDirty(nil, "full")
+    end
+end
+
 function ScrubberMenu:setNightMode(enable)
     local current = self:isNightMode()
     if current ~= enable then
@@ -509,18 +523,19 @@ function ScrubberMenu:onTap(arg1, arg2)
 
     if self.swatch_day_dimen and ges.pos:intersectWith(self.swatch_day_dimen) then
         self:setNightMode(false)
-        UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+        self:closeEntireWidget()
         return true
     end
 
     if self.swatch_night_dimen and ges.pos:intersectWith(self.swatch_night_dimen) then
         self:setNightMode(true)
-        UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+        self:closeEntireWidget()
         return true
     end
 
     if self.row_light_dimen and ges.pos:intersectWith(self.row_light_dimen) then
         self:toggleFrontlight()
+        self:closeEntireWidget()
         return true
     end
 
