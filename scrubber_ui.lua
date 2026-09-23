@@ -92,6 +92,52 @@ local function paintRoundRect(bb, x, y, w, h, r, color)
     paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
 end
 
+-- Algoritmo de división en franjas horizontales exactas estilo Bookshelf
+local function _roundedSpans(x, y, w, h, r)
+    r = math.min(r or 0, math.floor(w / 2), math.floor(h / 2))
+    if r <= 0 then
+        return { { x = x, y = y, w = w, h = h } }
+    end
+
+    local spans = {}
+    for i = 0, r - 1 do
+        local dy = r - i - 0.5
+        local inset = math.floor(r - math.sqrt(r * r - dy * dy) + 0.5)
+        local sw = w - inset * 2
+        if sw > 0 then
+            spans[#spans + 1] = { x = x + inset, y = y + i,         w = sw, h = 1 }
+            spans[#spans + 1] = { x = x + inset, y = y + h - 1 - i, w = sw, h = 1 }
+        end
+    end
+    local mid_h = h - r * 2
+    if mid_h > 0 then
+        spans[#spans + 1] = { x = x, y = y + r, w = w, h = mid_h }
+    end
+    return spans
+end
+
+-- Tintado nativo por C (blendRectRGB32) con cero alocación de memoria
+local function paintTranslucentPill(bb, x, y, w, h, r, strength)
+    if not bb or w <= 0 or h <= 0 then return end
+    strength = strength or 0.80 -- 80% de blanco para asegurar contraste
+    local alpha = math.floor(255 * strength + 0.5)
+
+    local no_cbb = type(bb.canUseCbb) == "function" and not bb:canUseCbb()
+    local opaque = alpha >= 255 or not bb.blendRectRGB32 or no_cbb
+
+    if opaque then
+        paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_WHITE)
+        return
+    end
+
+    local tint = Blitbuffer.ColorRGB32(255, 255, 255, alpha)
+    local spans = _roundedSpans(x, y, w, h, r)
+    for i = 1, #spans do
+        local s = spans[i]
+        bb:blendRectRGB32(s.x, s.y, s.w, s.h, tint)
+    end
+end
+
 local function paintTopSquareBottomRounded(bb, x, y, w, h, r, color)
     if w <= 0 or h <= 0 then return end
     paintRoundRect(bb, x, y, w, h, r, color)
@@ -3613,15 +3659,21 @@ function PageScrubber:_paintToImpl(bb, x, y)
             if self._view_mode ~= "grid_six" then
                 local title_x = pad
                 if has_wallpaper then
-                    local show_pill = true
+                    local pill_mode = "border"
                     if G_reader_settings then
                         local s_val = G_reader_settings:readSetting("page_scrubber_title_bg")
-                        if s_val ~= nil then
-                            show_pill = (s_val == true or s_val == "true" or s_val == 1)
+                        if s_val == false or s_val == "false" or s_val == 0 or s_val == "off" or s_val == "none" then
+                            pill_mode = "off"
+                        elseif s_val == "no_border" or s_val == "borderless" then
+                            pill_mode = "no_border"
+                        elseif s_val == "translucent" or s_val == "opacity" or s_val == "semi_transparent" then
+                            pill_mode = "translucent"
+                        elseif s_val == true or s_val == "true" or s_val == 1 or s_val == "border" then
+                            pill_mode = "border"
                         end
                     end
 
-                    if show_pill then
+                    if pill_mode == "border" or pill_mode == "no_border" or pill_mode == "translucent" then
                         local tsz = self.tw_booktitle:getSize()
                         local pad_h = S(12)
                         local pad_v = S(4)
@@ -3632,8 +3684,14 @@ function PageScrubber:_paintToImpl(bb, x, y)
                         local r = math.floor(pill_h / 2)
                         local b = S(2)
 
-                        paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_BLACK)
-                        paintRoundRect(bb, pill_x + b, pill_y + b, pill_w - b*2, pill_h - b*2, math.max(1, r - b), Blitbuffer.COLOR_WHITE)
+                        if pill_mode == "border" then
+                            paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_BLACK)
+                            paintRoundRect(bb, pill_x + b, pill_y + b, pill_w - b*2, pill_h - b*2, math.max(1, r - b), Blitbuffer.COLOR_WHITE)
+                        elseif pill_mode == "translucent" then
+                            paintTranslucentPill(bb, pill_x, pill_y, pill_w, pill_h, r, 0.82)
+                        else
+                            paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_WHITE)
+                        end
                         self.tw_booktitle.fgcolor = Blitbuffer.COLOR_BLACK
                         self.tw_booktitle:paintTo(bb, pill_x + pad_h, self._booktitle_y)
                     else

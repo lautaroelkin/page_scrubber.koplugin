@@ -2302,7 +2302,7 @@ function FloatingDict:isEnabled()
         local val = G_reader_settings:readSetting(SETTING_DICT_ENABLED)
         if val ~= nil then return val == true end
     end
-    return true
+    return false
 end
 
 function FloatingDict:setEnabled(state)
@@ -2317,7 +2317,7 @@ function FloatingDict:isSelectionMenuEnabled()
         local val = G_reader_settings:readSetting(SETTING_SELECTION_ENABLED)
         if val ~= nil then return val == true end
     end
-    return true
+    return false
 end
 
 function FloatingDict:setSelectionMenuEnabled(state)

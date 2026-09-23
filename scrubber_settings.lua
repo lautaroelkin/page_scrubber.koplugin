@@ -354,8 +354,8 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "popups" then
-        local dict_enabled = self:readSetting("page_scrubber_floating_dict_enabled", true)
-        local sel_enabled = self:readSetting("page_scrubber_selection_menu_enabled", true)
+        local dict_enabled = self:readSetting("page_scrubber_floating_dict_enabled", false)
+        local sel_enabled = self:readSetting("page_scrubber_selection_menu_enabled", false)
 
         return {
             title = _("Reading Pop-Ups"),
@@ -365,7 +365,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                     icon = "globe.svg",
                     kind = "toggle",
                     setting = "page_scrubber_floating_dict_enabled",
-                    default = true,
+                    default = false,
                     bold = true,
                 },
                 {
@@ -388,7 +388,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                     icon = "crop.svg",
                     kind = "toggle",
                     setting = "page_scrubber_selection_menu_enabled",
-                    default = true,
+                    default = false,
                     bold = true,
                 },
                 {
@@ -461,31 +461,44 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "wallpaper" then
+        local cur = self:readSetting("page_scrubber_wallpaper", "none")
+        local is_none = (cur == "none" or cur == nil or cur == "")
+
+        return {
+            title = _("Wallpaper"),
+            items = {
+                {
+                    text = _("Choose wallpaper"),
+                    icon = "sparkles.svg",
+                    kind = "submenu",
+                    target = "choose_wallpaper",
+                },
+                {
+                    text = _("Book title background"),
+                    icon = "contrast.svg",
+                    kind = "submenu",
+                    target = "title_bg",
+                    disabled = is_none,
+                },
+            }
+        }
+
+    elseif page_id == "choose_wallpaper" then
         local ScrubberWallpaper = require("scrubber_wallpaper")
         local cur = self:readSetting("page_scrubber_wallpaper", "none")
+        local is_none = (cur == "none" or cur == nil or cur == "")
+
         local items = {
-            {
-                text = _("Book title background"),
-                icon = "contrast.svg",
-                kind = "toggle",
-                setting = "page_scrubber_title_bg",
-                default = true,
-            },
-            {
-                text = "…",
-                icon = "folder.svg",
-                kind = "action",
-                action = function() self:showWallpaperFolderInfo() end,
-            },
             {
                 text = _("None"),
                 icon = nil,
                 kind = "radio",
                 setting = "page_scrubber_wallpaper",
                 val = "none",
-                checked = (cur == "none" or cur == nil or cur == "")
-            }
+                checked = is_none,
+            },
         }
+
         local list = ScrubberWallpaper.list()
         for _, wp in ipairs(list) do
             table.insert(items, {
@@ -494,12 +507,71 @@ function ScrubberSettings:getPageDefinition(page_id)
                 kind = "radio",
                 setting = "page_scrubber_wallpaper",
                 val = wp.id,
-                checked = (cur == wp.id)
+                checked = (cur == wp.id),
             })
         end
+
+        table.insert(items, {
+            text = _("Add wallpaper"),
+            icon = "folder.svg",
+            kind = "action",
+            action = function() self:showWallpaperFolderInfo() end,
+        })
+
         return {
-            title = _("Wallpaper"),
+            title = _("Choose wallpaper"),
             items = items,
+        }
+
+    elseif page_id == "title_bg" then
+        local raw = self:readSetting("page_scrubber_title_bg", "border")
+        local cur = "border"
+        if raw == "no_border" or raw == "borderless" then
+            cur = "no_border"
+        elseif raw == "translucent" or raw == "opacity" or raw == "semi_transparent" then
+            cur = "translucent"
+        elseif raw == "off" or raw == "none" or raw == false or raw == "false" or raw == 0 then
+            cur = "off"
+        elseif raw == "border" or raw == true or raw == "true" or raw == 1 then
+            cur = "border"
+        end
+
+        return {
+            title = _("Book title background"),
+            items = {
+                {
+                    text = _("With border"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "border",
+                    checked = (cur == "border"),
+                },
+                {
+                    text = _("No border"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "no_border",
+                    checked = (cur == "no_border"),
+                },
+                {
+                    text = _("Translucent"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "translucent",
+                    checked = (cur == "translucent"),
+                },
+                {
+                    text = _("Off"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "off",
+                    checked = (cur == "off"),
+                },
+            }
         }
     end
 
@@ -508,7 +580,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "wallpaper", "popups", "dict_buttons", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "wallpaper", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _, pid in ipairs(pages) do
@@ -1690,6 +1762,11 @@ function ScrubberSettings:onTap(arg1, arg2)
                         return true
                     end
 
+                    self:refreshView()
+                    return true
+                elseif it.kind == "radio" then
+                    self:saveSetting(it.setting, it.val)
+
                     if it.setting == "page_scrubber_title_bg" then
                         local scrubber = self.scrubber_ui
                         UIManager:close(self)
@@ -1704,11 +1781,6 @@ function ScrubberSettings:onTap(arg1, arg2)
                         end
                         return true
                     end
-
-                    self:refreshView()
-                    return true
-                elseif it.kind == "radio" then
-                    self:saveSetting(it.setting, it.val)
 
                     if it.setting == "page_scrubber_text_size" then
                         self:reopenEntireScrubber()
