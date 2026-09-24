@@ -5097,7 +5097,7 @@ function PageScrubber:onHoldRelease(_, ges)
     self:_cancelHold()
     if was_holding then
         if not self._grid_disabled then self:_updateGridPages() end
-        UIManager:setDirty(self, "partial")
+        UIManager:setDirty(self, "ui")
     end
     return true
 end

@@ -408,8 +408,7 @@ p, div, li { line-height: %s !important; margin: 0 0 0.28em 0; }
 ol, ul { padding-left: 1.35em; margin-top: 0.18em; margin-bottom: 0.28em; }
 
 .floatingdictionary-word { font-size: 1.20em !important; font-weight: bold !important; line-height: 1.20em !important; color: #000000 !important; }
-.floatingdictionary-meta { margin-top: 0.20em; font-size: %dpx !important; color: #111111 !important; font-style: italic; text-transform: uppercase; line-height: 1.25em !important; }
-.floatingdictionary-separator { border-top: 1px solid #666; margin: 0.35em 0 0.45em 0; }
+.floatingdictionary-meta { margin-top: 0.20em; margin-bottom: 0.35em; font-size: %dpx !important; color: #111111 !important; font-style: italic; text-transform: uppercase; line-height: 1.25em !important; }
 .search-content, .search-content * { font-size: 1.0em !important; line-height: %s !important; color: #000000 !important; }
 .search-content { font-weight: normal !important; }
 .search-content b, .search-content strong { font-weight: bold !important; }
@@ -829,7 +828,6 @@ function FloatingDictionaryPopup:init()
 
     local html_body = string.format([[
         <div class="floatingdictionary-meta">%s%s</div>
-        <div class="floatingdictionary-separator"></div>
         <div class="search-content">%s</div>
     ]], dict_indicator, htmlEscape(dict_name), def_body)
 
@@ -1333,7 +1331,6 @@ function FloatingDictionaryPopup:switchDict(new_idx)
 
     local html_body = string.format([[
         <div class="floatingdictionary-meta">%s%s</div>
-        <div class="floatingdictionary-separator"></div>
         <div class="search-content">%s</div>
     ]], dict_indicator, htmlEscape(dict_name), def_body)
 
