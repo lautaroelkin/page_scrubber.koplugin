@@ -1,0 +1,318 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: tr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Library"
+msgstr "Kütüphane"
+
+msgid "Page"
+msgstr "Sayfa"
+
+msgid "Pages"
+msgstr "Sayfa"
+
+msgid "Added on"
+msgstr "Eklendi:"
+
+msgid "Bookmarked"
+msgstr "Yer işareti eklendi"
+
+msgid "Delete"
+msgstr "Sil"
+
+msgid "Jan"
+msgstr "Oca"
+
+msgid "Feb"
+msgstr "Şub"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Nis"
+
+msgid "May"
+msgstr "May"
+
+msgid "Jun"
+msgstr "Haz"
+
+msgid "Jul"
+msgstr "Tem"
+
+msgid "Aug"
+msgstr "Ağu"
+
+msgid "Sep"
+msgstr "Eyl"
+
+msgid "Oct"
+msgstr "Eki"
+
+msgid "Nov"
+msgstr "Kas"
+
+msgid "Dec"
+msgstr "Ara"
+
+msgid "No chapters found"
+msgstr "Bölüm bulunamadı"
+
+msgid "Updating highlight…"
+msgstr "Vurgu güncelleniyor…"
+
+msgid "Edit note"
+msgstr "Notu düzenle"
+
+msgid "Cancel"
+msgstr "İptal"
+
+msgid "Save"
+msgstr "Kaydet"
+
+msgid "Configuration"
+msgstr "Yapılandırma"
+
+msgid "UI Scale:"
+msgstr "Arayüz Ölçeği:"
+
+msgid "UI Scale (%)"
+msgstr "Arayüz Ölçeği (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3 Sayfalı Izgara: Tam sayfaları göster"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Izgara"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Basit Izgara"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Çoklu Izgara"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Menü (Yer İşaretleri)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Menü (Vurgular)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Dizin"
+
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Dizin (İçindekiler)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: RTL Değiştir"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (AÇIK)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (KAPALI)"
+
+msgid "Export notes of this document"
+msgstr "Bu belgenin notlarını dışa aktar"
+
+msgid "Notes"
+msgstr "Notlar"
+
+msgid "Export as..."
+msgstr "Farklı dışa aktar..."
+
+msgid "Exporting..."
+msgstr "Dışa aktarılıyor..."
+
+msgid "Saved successfully in:"
+msgstr "Başarıyla kaydedildi:"
+
+msgid "Failed to export notes"
+msgstr "Notlar dışa aktarılamadı"
+
+msgid "Untitled"
+msgstr "Başlıksız"
+
+msgid "Chapter"
+msgstr "Bölüm"
+
+msgid "Reading Pop-Ups"
+msgstr "Okuma Açılır Pencereleri"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber Sözlüğü"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Sözlükteki standart düğmeler"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Sözlükte harici eklenti düğmelerini göster"
+
+msgid "Buttons in dictionary"
+msgstr "Sözlükteki düğmeler"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Sözlükteki eklenti düğmeleri"
+
+msgid "Dictionary text size"
+msgstr "Sözlük metin boyutu"
+
+msgid "Very small"
+msgstr "Çok küçük"
+
+msgid "Small"
+msgstr "Küçük"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Medium"
+msgstr "Orta"
+
+msgid "Large"
+msgstr "Büyük"
+
+msgid "Very large"
+msgstr "Çok büyük"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber Seçim Menüsü"
+
+msgid "Position of selection menu"
+msgstr "Seçim menüsünün konumu"
+
+msgid "Right (Vertical)"
+msgstr "Sağ (Dikey)"
+
+msgid "Left (Vertical)"
+msgstr "Sol (Dikey)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Alt (Yatay)"
+
+msgid "Center (Horizontal)"
+msgstr "Orta (Yatay)"
+
+msgid "Buttons in selection menu"
+msgstr "Seçim menüsündeki düğmeler"
+
+msgid "Reverse selection buttons"
+msgstr "Seçim düğmelerini ters çevir"
+
+msgid "Wikipedia"
+msgstr "Vikipedi"
+
+msgid "Translate"
+msgstr "Çevir"
+
+msgid "Highlight"
+msgstr "Vurgula"
+
+msgid "Search"
+msgstr "Ara"
+
+msgid "Note"
+msgstr "Not"
+
+msgid "Strikethrough"
+msgstr "Üstü çizili"
+
+msgid "Underline"
+msgstr "Altı çizili"
+
+msgid "Invert"
+msgstr "Ters çevir"
+
+msgid "AI Assistant"
+msgstr "Yapay Zeka Asistanı"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Metin boyutu"
+
+msgid "Adjust Selection"
+msgstr "Seçimi Ayarla"
+
+msgid "Adj"
+msgstr "Ayar"
+
+msgid "Show chapter marks in slider"
+msgstr "Kaydırıcıda bölüm işaretlerini göster"
+
+msgid "Scrubber Actions"
+msgstr "Scrubber Eylemleri"
+
+msgid "+ Add action"
+msgstr "+ Eylem ekle"
+
+msgid "Add Scrubber Action"
+msgstr "Scrubber Eylemi Ekle"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "«%s» Scrubber Eylemlerinden kaldırılsın mı?"
+
+msgid "Remove"
+msgstr "Kaldır"
+
+msgid "OK"
+msgstr "Tamam"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "En fazla 8 eylem sınırına ulaşıldı. Önce birini kaldırın."
+
+msgid "No system actions available."
+msgstr "Kullanılabilir sistem eylemi yok."
+
+msgid "Action unavailable in this document or view."
+msgstr "Eylem bu belgede veya görünümde kullanılamıyor."
+
+# Düzen & Duvar Kağıdı
+msgid "Layout"
+msgstr "Düzen"
+
+msgid "Wallpaper"
+msgstr "Duvar Kağıdı"
+
+msgid "Choose wallpaper"
+msgstr "Duvar kağıdı seç"
+
+msgid "Add wallpaper"
+msgstr "Duvar kağıdı ekle"
+
+msgid "None"
+msgstr "Yok"
+
+# Kitap başlığı stili
+msgid "Book title background"
+msgstr "Kitap başlığı arka planı"
+
+msgid "With border"
+msgstr "Kenarlıklı"
+
+msgid "No border"
+msgstr "Kenarlıksız"
+
+msgid "Translucent"
+msgstr "Yarı saydam"
+
+msgid "Off"
+msgstr "Kapalı"
+
+# Klasör bilgileri
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Kendi duvar kağıtlarınızı eklemek için görselleri (.png, .jpg) şuraya kopyalayın:"
+
+msgid "Shared folders also detected:"
+msgstr "Tespit edilen paylaşılan klasörler:"
+
+# Sistem
+msgid "System Error exporting notes."
+msgstr "Notlar dışa aktarılırken sistem hatası oluştu."

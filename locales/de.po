@@ -305,5 +305,30 @@ msgstr "Geteilte Ordner ebenfalls erkannt:"
 msgid "System Error exporting notes."
 msgstr "Systemfehler beim Exportieren der Notizen."
 
+# Gesten & Scrubber-Aktionen / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Index (Inhaltsverzeichnis)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: RTL umschalten"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (EIN)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (AUS)"
+
+# Wörterbuch-Textgrößen
+msgid "Dictionary text size"
+msgstr "Wörterbuch-Textgröße"
+
+msgid "Very small"
+msgstr "Sehr klein"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Very large"
+msgstr "Sehr groß"
 
 

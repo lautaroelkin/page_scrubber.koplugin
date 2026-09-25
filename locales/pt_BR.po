@@ -4,14 +4,14 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: pt\n"
+"Language: pt_BR\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 msgid "Library"
 msgstr "Biblioteca"
 
 msgid "Page"
-msgstr "Pág"
+msgstr "Pág."
 
 msgid "Pages"
 msgstr "Páginas"
@@ -77,7 +77,7 @@ msgid "Save"
 msgstr "Salvar"
 
 msgid "Configuration"
-msgstr "Configuração"
+msgstr "Configurações"
 
 msgid "UI Scale:"
 msgstr "Escala da interface:"
@@ -95,7 +95,7 @@ msgid "Page Scrubber: Simple Grid"
 msgstr "Page Scrubber: Grade simples"
 
 msgid "Page Scrubber: Multi-Grid"
-msgstr "Page Scrubber: Multigrade"
+msgstr "Page Scrubber: Multi-grade"
 
 msgid "Page Scrubber: Menu (Bookmarks)"
 msgstr "Page Scrubber: Menu (Marcadores)"
@@ -105,6 +105,18 @@ msgstr "Page Scrubber: Menu (Destaques)"
 
 msgid "Page Scrubber: Index"
 msgstr "Page Scrubber: Índice"
+
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Índice (Sumário)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Alternar RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (LIGADO)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (DESLIGADO)"
 
 msgid "Export notes of this document"
 msgstr "Exportar notas deste documento"
@@ -142,14 +154,59 @@ msgstr "Botões padrão no dicionário"
 msgid "Show external plugin buttons in dictionary"
 msgstr "Mostrar botões de plugins externos no dicionário"
 
+msgid "Buttons in dictionary"
+msgstr "Botões no dicionário"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Botões de plugins no dicionário"
+
+msgid "Dictionary text size"
+msgstr "Tamanho do texto do dicionário"
+
+msgid "Very small"
+msgstr "Muito pequeno"
+
+msgid "Small"
+msgstr "Pequeno"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Medium"
+msgstr "Médio"
+
+msgid "Large"
+msgstr "Grande"
+
+msgid "Very large"
+msgstr "Muito grande"
+
 msgid "Scrubber Selection Menu"
 msgstr "Menu de seleção do Scrubber"
+
+msgid "Position of selection menu"
+msgstr "Posição do menu de seleção"
+
+msgid "Right (Vertical)"
+msgstr "Direita (Vertical)"
+
+msgid "Left (Vertical)"
+msgstr "Esquerda (Vertical)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Inferior (Horizontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Centro (Horizontal)"
 
 msgid "Buttons in selection menu"
 msgstr "Botões no menu de seleção"
 
+msgid "Reverse selection buttons"
+msgstr "Inverter botões de seleção"
+
 msgid "Wikipedia"
-msgstr "Wikipedia"
+msgstr "Wikipédia"
 
 msgid "Translate"
 msgstr "Traduzir"
@@ -181,56 +238,14 @@ msgstr "X-Ray"
 msgid "Text size"
 msgstr "Tamanho do texto"
 
-msgid "Small"
-msgstr "Pequeno"
-
-msgid "Medium"
-msgstr "Médio"
-
-msgid "Large"
-msgstr "Grande"
-
 msgid "Adjust Selection"
 msgstr "Ajustar Seleção"
 
 msgid "Adj"
-msgstr "Ajst"
+msgstr "Ajust"
 
 msgid "Show chapter marks in slider"
-msgstr "Mostrar marcas de capítulos na barra"
-
-msgid "Buttons in dictionary"
-msgstr "Botões no dicionário"
-
-msgid "Plugin buttons in dictionary"
-msgstr "Botões de plugins no dicionário"
-
-msgid "Position of selection menu"
-msgstr "Posição do menu de seleção"
-
-msgid "Right (Vertical)"
-msgstr "Direita (Vertical)"
-
-msgid "Left (Vertical)"
-msgstr "Esquerda (Vertical)"
-
-msgid "Bottom (Horizontal)"
-msgstr "Inferior (Horizontal)"
-
-msgid "Center (Horizontal)"
-msgstr "Centro (Horizontal)"
-
-msgid "Buttons in selection menu"
-msgstr "Botões no menu de seleção"
-
-msgid "Scrubber Selection Menu"
-msgstr "Menu de seleção do Scrubber"
-
-msgid "Scrubber Dictionary"
-msgstr "Dicionário do Scrubber"
-
-msgid "Reverse selection buttons"
-msgstr "Inverter botões de seleção"
+msgstr "Mostrar marcas de capítulo na barra"
 
 msgid "Scrubber Actions"
 msgstr "Ações do Scrubber"
@@ -246,9 +261,6 @@ msgstr "Remover \"%s\" das Ações do Scrubber?"
 
 msgid "Remove"
 msgstr "Remover"
-
-msgid "Cancel"
-msgstr "Cancelar"
 
 msgid "OK"
 msgstr "OK"
@@ -304,58 +316,3 @@ msgstr "Pastas compartilhadas também detectadas:"
 # Sistema
 msgid "System Error exporting notes."
 msgstr "Erro do sistema ao exportar notas."
-
-# Gestos e Ações do Scrubber / RTL
-msgid "Page Scrubber: Index (Table of Content)"
-msgstr "Page Scrubber: Índice (Sumário)"
-
-msgid "Page Scrubber: Toggle RTL"
-msgstr "Page Scrubber: Alternar RTL"
-
-msgid "Page Scrubber: RTL (ON)"
-msgstr "Page Scrubber: RTL (LIGADO)"
-
-msgid "Page Scrubber: RTL (OFF)"
-msgstr "Page Scrubber: RTL (DESLIGADO)"
-
-# Tamanhos de texto do dicionário
-msgid "Dictionary text size"
-msgstr "Tamanho do texto do dicionário"
-
-msgid "Very small"
-msgstr "Muito pequeno"
-
-msgid "Normal"
-msgstr "Normal"
-
-msgid "Very large"
-msgstr "Muito grande"
-
-# Gestos e Ações do Scrubber / RTL
-msgid "Page Scrubber: Index (Table of Content)"
-msgstr "Page Scrubber: Índice (Sumário)"
-
-msgid "Page Scrubber: Toggle RTL"
-msgstr "Page Scrubber: Alternar RTL"
-
-msgid "Page Scrubber: RTL (ON)"
-msgstr "Page Scrubber: RTL (LIGADO)"
-
-msgid "Page Scrubber: RTL (OFF)"
-msgstr "Page Scrubber: RTL (DESLIGADO)"
-
-# Tamanhos de texto do dicionário
-msgid "Dictionary text size"
-msgstr "Tamanho do texto do dicionário"
-
-msgid "Very small"
-msgstr "Muito pequeno"
-
-msgid "Normal"
-msgstr "Normal"
-
-msgid "Very large"
-msgstr "Muito grande"
-
-
-

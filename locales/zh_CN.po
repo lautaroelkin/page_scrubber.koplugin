@@ -304,3 +304,31 @@ msgstr "同时检测到的共享文件夹："
 # 系统
 msgid "System Error exporting notes."
 msgstr "导出笔记时发生系统错误。"
+
+# 手势与动作 / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: 索引 (目录)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: 切换 RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (开启)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (关闭)"
+
+# 词典字体大小
+msgid "Dictionary text size"
+msgstr "词典文本大小"
+
+msgid "Very small"
+msgstr "极小"
+
+msgid "Normal"
+msgstr "正常"
+
+msgid "Very large"
+msgstr "极大"
+
+

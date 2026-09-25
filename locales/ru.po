@@ -305,3 +305,56 @@ msgstr "Также обнаружены общие папки:"
 msgid "System Error exporting notes."
 msgstr "Системная ошибка при экспорте заметок."
 
+# Жесты и действия Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Индекс (Оглавление)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Переключить RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (ВКЛ)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (ВЫКЛ)"
+
+# Размеры текста словаря
+msgid "Dictionary text size"
+msgstr "Размер текста словаря"
+
+msgid "Very small"
+msgstr "Очень маленький"
+
+msgid "Normal"
+msgstr "Обычный"
+
+msgid "Very large"
+msgstr "Очень большой"
+
+# Жесты и действия Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Индекс (Оглавление)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Переключить RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (ВКЛ)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (ВЫКЛ)"
+
+# Размеры текста словаря
+msgid "Dictionary text size"
+msgstr "Размер текста словаря"
+
+msgid "Very small"
+msgstr "Очень маленький"
+
+msgid "Normal"
+msgstr "Обычный"
+
+msgid "Very large"
+msgstr "Очень большой"
+
+

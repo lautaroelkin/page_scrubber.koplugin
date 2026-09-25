@@ -305,3 +305,28 @@ msgstr "Cartelle condivise rilevate:"
 msgid "System Error exporting notes."
 msgstr "Errore di sistema durante l'esportazione delle note."
 
+# Gesti e azioni dello Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Indice (Sommario)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Alterna RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (ATTIVATO)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (DISATTIVATO)"
+
+# Dimensioni del dizionario
+msgid "Dictionary text size"
+msgstr "Dimensione testo del dizionario"
+
+msgid "Very small"
+msgstr "Molto piccolo"
+
+msgid "Normal"
+msgstr "Normale"
+
+msgid "Very large"
+msgstr "Molto grande"

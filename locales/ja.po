@@ -308,4 +308,29 @@ msgstr "検出された共有フォルダ:"
 msgid "System Error exporting notes."
 msgstr "メモのエクスポート中にシステムエラーが発生しました。"
 
+# ジェスチャーと Scrubber アクション / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: 目次 (目次一覧)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: RTL切替"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (オン)"
+
+msgid "Page Scrubber: RTL (オフ)"
+msgstr "Page Scrubber: RTL (オフ)"
+
+# 辞書の文字サイズ
+msgid "Dictionary text size"
+msgstr "辞書のテキストサイズ"
+
+msgid "Very small"
+msgstr "極小"
+
+msgid "Normal"
+msgstr "標準"
+
+msgid "Very large"
+msgstr "特大"
 

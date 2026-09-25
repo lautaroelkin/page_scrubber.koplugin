@@ -303,6 +303,31 @@ msgstr "Editar nota"
 msgid "Updating highlight…"
 msgstr "Actualizando subrayado…"
 
+# Gestos y acciones del Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Índice (Tabla de contenido)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Alternar RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (ACTIVADO)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (DESACTIVADO)"
+
+# Tamaños del diccionario
+msgid "Dictionary text size"
+msgstr "Tamaño de texto del diccionario"
+
+msgid "Very small"
+msgstr "Muy chico"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Very large"
+msgstr "Muy grande"
 
 
 

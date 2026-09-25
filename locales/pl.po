@@ -305,3 +305,30 @@ msgstr "Wykryto również foldery współdzielone:"
 msgid "System Error exporting notes."
 msgstr "Błąd systemowy podczas eksportowania notatek."
 
+# Gesty i akcje Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Index (Spis treści)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Przełącz RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (WŁ.)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (WYŁ.)"
+
+# Rozmiary tekstu słownika
+msgid "Dictionary text size"
+msgstr "Rozmiar tekstu słownika"
+
+msgid "Very small"
+msgstr "Bardzo mały"
+
+msgid "Normal"
+msgstr "Normalny"
+
+msgid "Very large"
+msgstr "Bardzo duży"
+
+

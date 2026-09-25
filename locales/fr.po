@@ -305,4 +305,30 @@ msgstr "Dossiers partagés également détectés :"
 msgid "System Error exporting notes."
 msgstr "Erreur système lors de l'exportation des notes."
 
+# Gestes et actions du Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber : Index (Table des matières)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber : Basculer RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber : RTL (ACTIVÉ)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber : RTL (DÉSACTIVÉ)"
+
+# Tailles du dictionnaire
+msgid "Dictionary text size"
+msgstr "Taille du texte du dictionnaire"
+
+msgid "Very small"
+msgstr "Très petit"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Very large"
+msgstr "Très grand"
+
 

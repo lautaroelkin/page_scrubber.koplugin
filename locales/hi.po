@@ -206,4 +206,120 @@ msgstr "साझा फ़ोल्डर भी मिले:"
 msgid "System Error exporting notes."
 msgstr "नोट्स निर्यात करने में सिस्टम त्रुटि।"
 
+# पॉप-अप और बटन
+msgid "Reading Pop-Ups"
+msgstr "रीडिंग पॉप-अप"
 
+msgid "Standard Buttons in dictionary"
+msgstr "शब्दकोश में मानक बटन"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "शब्दकोश में बाहरी प्लगइन बटन दिखाएं"
+
+msgid "Wikipedia"
+msgstr "विकिपीडिया"
+
+msgid "Translate"
+msgstr "अनुवाद"
+
+msgid "Highlight"
+msgstr "हाईलाइट"
+
+msgid "Search"
+msgstr "खोजें"
+
+msgid "Note"
+msgstr "नोट"
+
+msgid "Strikethrough"
+msgstr "काटें"
+
+msgid "Underline"
+msgstr "रेखांकित करें"
+
+msgid "Invert"
+msgstr "उलटें"
+
+msgid "AI Assistant"
+msgstr "AI सहायक"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "टेक्स्ट आकार"
+
+msgid "Small"
+msgstr "छोटा"
+
+msgid "Medium"
+msgstr "मध्यम"
+
+msgid "Large"
+msgstr "बड़ा"
+
+msgid "Adjust Selection"
+msgstr "चयन समायोजित करें"
+
+msgid "Adj"
+msgstr "समा"
+
+msgid "Show chapter marks in slider"
+msgstr "स्लाइडर में अध्याय चिह्न दिखाएं"
+
+msgid "Reverse selection buttons"
+msgstr "चयन बटन उलटें"
+
+# स्क्रबर क्रियाएं
+msgid "Scrubber Actions"
+msgstr "स्क्रबर क्रियाएं"
+
+msgid "+ Add action"
+msgstr "+ क्रिया जोड़ें"
+
+msgid "Add Scrubber Action"
+msgstr "स्क्रबर क्रिया जोड़ें"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "क्या स्क्रबर क्रियाओं से \"%s\" हटाएं?"
+
+msgid "Remove"
+msgstr "हटाएं"
+
+msgid "OK"
+msgstr "ठीक है"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "अधिकतम 8 क्रियाओं की सीमा समाप्त। पहले एक हटाएं।"
+
+msgid "No system actions available."
+msgstr "कोई सिस्टम क्रिया उपलब्ध नहीं है।"
+
+msgid "Action unavailable in this document or view."
+msgstr "इस दस्तावेज़ या दृश्य में क्रिया अनुपलब्ध है।"
+
+# Gestos y acciones del Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: इंडेक्स (विषय सूची)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: RTL टॉगल करें"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (चालू)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (बंद)"
+
+# शब्दकोश टेक्स्ट आकार
+msgid "Dictionary text size"
+msgstr "शब्दकोश टेक्स्ट आकार"
+
+msgid "Very small"
+msgstr "बहुत छोटा"
+
+msgid "Normal"
+msgstr "सामान्य"
+
+msgid "Very large"
+msgstr "बहुत बड़ा"
