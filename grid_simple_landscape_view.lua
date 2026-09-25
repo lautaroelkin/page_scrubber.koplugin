@@ -25,7 +25,6 @@ local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, rou
     r = math.min(r, math.floor(w / 2), math.floor(h / 2))
     if r <= 0 then bb:paintRect(x, y, w, h, color); return end
     bb:paintRect(x + r, y, w - 2*r, h, color)
-    bb:paintRect(x + r, y, w - 2*r, h, color)
     bb:paintRect(x, y + r, r, math.max(1, h - 2*r), color)
     bb:paintRect(x + w - r, y + r, r, math.max(1, h - 2*r), color)
     if not round_tl then bb:paintRect(x, y, r, r, color) end
@@ -226,6 +225,8 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
 
             local ox = page_x + math.floor((page_w - blit_w) / 2)
             local oy = page_y + math.floor((page_h - blit_h) / 2)
+
+            bb:paintRect(page_x, page_y, page_w, page_h, Blitbuffer.COLOR_WHITE)
 
             if blit_w > 0 and blit_h > 0 then
                 bb:blitFrom(render_bb, ox, oy, src_x, src_y, blit_w, blit_h)

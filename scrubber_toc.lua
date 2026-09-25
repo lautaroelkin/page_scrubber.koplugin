@@ -581,7 +581,7 @@ function ScrubberToc:init()
         Hold        = { GestureRange:new{ ges = "hold",         range = self.dimen } },
         HoldRelease = { GestureRange:new{ ges = "hold_release", range = self.dimen } },
         Pan         = { GestureRange:new{ ges = "pan",          range = self.dimen } },
-        PanRelease  = { GestureRange:new{ pan_release = "pan_release", range = self.dimen } },
+        PanRelease  = { GestureRange:new{ ges = "pan_release",  range = self.dimen } },
         Swipe       = { GestureRange:new{ ges = "swipe",        range = self.dimen } },
         Release     = { GestureRange:new{ ges = "release",      range = self.dimen } },
     }
@@ -707,7 +707,7 @@ function ScrubberToc:_getChapterIndexForPage(page)
 end
 
 function ScrubberToc:_getActiveChapterIndex()
-    if self._slider and self._slider._dragging then 
+    if (self._slider and self._slider._dragging) or self._repeat_running then 
         return nil 
     end
     return self:_getChapterIndexForPage(self._cur_page)
@@ -769,8 +769,15 @@ function ScrubberToc:_updatePreviewTile()
             self._preview_tile = processed
             if self._sw > self._sh then
                 UIManager:setDirty(self, "ui", self.dimen)
-            else
-                UIManager:setDirty(self, "ui", self._preview_dimen)
+            elseif self._preview_dimen then
+                local pad = self.S(4)
+                local safe_pr = Geom:new{
+                    x = math.max(0, self._preview_dimen.x - pad),
+                    y = math.max(0, self._preview_dimen.y - pad),
+                    w = self._preview_dimen.w + (pad * 2),
+                    h = self._preview_dimen.h + (pad * 2) + self.S(4),
+                }
+                UIManager:setDirty(self, "ui", safe_pr)
             end
         end
     end)
@@ -779,33 +786,32 @@ end
 function ScrubberToc:_previewPage(page, is_dragging)
     if self._closing then return end
     
-    local state_changed = (self._last_drag_state ~= is_dragging)
-    self._last_drag_state = is_dragging
-    
-    if self._cur_page == page and not state_changed then 
-        if not is_dragging then
-            UIManager:setDirty(self, "ui", self.dimen)
-        end
-        return 
-    end
-    
     self._cur_page = math.max(1, math.min(self._total_pages, page))
     if self._slider then self._slider.value = self._cur_page end
     
-    self:_syncTocPageWithCurrentPage()
-    
     if is_dragging then
-        UIManager:setDirty(self, "ui", self.dimen)
-        
-        self._preview_drag_seq = (self._preview_drag_seq or 0) + 1
-        local current_seq = self._preview_drag_seq
-        UIManager:scheduleIn(0.08, function()
-            if self._closing or self._preview_drag_seq ~= current_seq or self._is_expanded then return end
-            self:_updatePreviewTile()
-        end)
+        -- Liberar miniatura previa para que no parpadee la anterior
+        if self._preview_tile then
+            if self._preview_tile.is_scaled and self._preview_tile.bb then
+                pcall(function() self._preview_tile.bb:free() end)
+            end
+            self._preview_tile = nil
+        end
+
+        -- Modo fast limitado estrictamente a la barra inferior sólida
+        if self._bar_dimen then
+            UIManager:setDirty(self, "fast", self._bar_dimen)
+        else
+            UIManager:setDirty(self, "fast", self.dimen)
+        end
+        return
     else
+        -- Al soltar: sincronizamos la lista de capítulos, seleccionamos el actual y pedimos la miniatura
+        self:_syncTocPageWithCurrentPage()
+
+        self._drag_token = (self._drag_token or 0) + 1
         if not self._is_expanded or self._sw > self._sh then
-            if self._sw > self._sh and self._preview_tile then
+            if self._preview_tile then
                 if self._preview_tile.is_scaled and self._preview_tile.bb then
                     pcall(function() self._preview_tile.bb:free() end)
                 end
@@ -909,15 +915,19 @@ function ScrubberToc:_closeReturn()
     self._closing = true
     self:_stopRepeatAction()
 
+    local parent = self.parent_scrubber
+    local target_page = self.initial_page or self._origin_page
     local UIManager = require("ui/uimanager")
     UIManager:close(self)
-    
-    if self.parent_scrubber then
-        self.parent_scrubber:_previewPage(self.initial_page or self._origin_page, false)
-        UIManager:setDirty(nil, "full")
-    else
-        UIManager:setDirty(nil, "full")
-    end
+
+    UIManager:nextTick(function()
+        if parent and not parent._closing then
+            parent:_previewPage(target_page, false)
+            UIManager:setDirty(parent, "full", parent.dimen)
+        else
+            UIManager:setDirty(nil, "full")
+        end
+    end)
 end
 
 function ScrubberToc:_closeStay()
@@ -990,18 +1000,25 @@ function ScrubberToc:_paintToImpl(bb, x, y)
 
     local pd = self._top_panel_dimen
     local bd = self._bar_dimen
+    local is_scrubbing = (self._slider and self._slider._dragging) or self._repeat_running
     
     local tab_radius = S(24)
     local b_thick = S(3)
     local shadow_offset = S(2)
 
     if not self._is_expanded then
-        -- Malla de puntos / Dithering sobre el libro limpio
-        local mesh_start_y = pd.h
-        local mesh_end_y = bd.y
-        for dy = mesh_start_y, mesh_end_y, 2 do
-            bb:paintRect(0, dy, sw, 1, Blitbuffer.COLOR_WHITE)
+        -- Solo se mezcla la transparencia en reposo; se omite durante el arrastre
+        if not is_scrubbing then
+            local gap_y = pd.h
+            local gap_h = bd.y - gap_y
+            if gap_h > 0 and bb.blendRectRGB32 then
+                local tint = Blitbuffer.ColorRGB32(255, 255, 255, 215)
+                bb:blendRectRGB32(0, gap_y, sw, gap_h, tint)
+            elseif gap_h > 0 then
+                bb:paintRect(0, gap_y, sw, gap_h, Blitbuffer.COLOR_WHITE)
+            end
         end
+
         -- Sombra gris
         paintBottomRoundedTab(bb, 0, shadow_offset, sw, pd.h, tab_radius, Blitbuffer.COLOR_GRAY)
         -- Solapa redondeada normal
@@ -1483,13 +1500,14 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         local pr_radius = S(10)
         local inner_r = math.max(1, pr_radius - pr_b_thick)
 
-        local inner_w = self._thumb_req_w
-        local inner_h = self._thumb_req_h
-
+        -- Recordar las dimensiones exactas de la página para que la tarjeta en blanco mantenga el tamaño
         if self._preview_tile and self._preview_tile.bb then
-            inner_w = self._preview_tile.bb:getWidth()
-            inner_h = self._preview_tile.bb:getHeight()
+            self._cached_thumb_w = self._preview_tile.bb:getWidth()
+            self._cached_thumb_h = self._preview_tile.bb:getHeight()
         end
+
+        local inner_w = self._cached_thumb_w or self._thumb_req_w
+        local inner_h = self._cached_thumb_h or self._thumb_req_h
 
         local pr_w = inner_w + (pr_b_thick * 2)
         local pr_h = inner_h + (pr_b_thick * 2)
@@ -1503,7 +1521,10 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         local ox = pr_x + pr_b_thick
         local oy = pr_y + pr_b_thick
 
-        if self._preview_tile and self._preview_tile.bb then
+        if is_scrubbing then
+            -- Durante el arrastre: marco blanco liso sin números
+            paintRoundRect(bb, ox, oy, inner_w, inner_h, inner_r, Blitbuffer.COLOR_WHITE)
+        elseif self._preview_tile and self._preview_tile.bb then
             bb:paintRect(ox, oy, inner_w, inner_h, Blitbuffer.COLOR_WHITE)
             bb:blitFrom(self._preview_tile.bb, ox, oy, 0, 0, inner_w, inner_h)
 
@@ -1539,12 +1560,20 @@ function ScrubberToc:onHold(arg1, arg2)
     local ges = arg2 or arg1
     if self._closing then return true end
 
-    if not self._is_expanded and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
-        local target_page = self._cur_page
-        self:_flashAndDo("hold_preview", self._preview_dimen, function()
-            self:_gotoPageDirectly(target_page)
-        end)
-        return true
+    if not self._is_expanded then
+        if self._sw <= self._sh and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
+            local target_page = self._cur_page
+            self:_flashAndDo("hold_preview", self._preview_dimen, function()
+                self:_gotoPageDirectly(target_page)
+            end)
+            return true
+        elseif self._sw > self._sh and self._lnd_left_dimen and ges.pos:intersectWith(self._lnd_left_dimen) then
+            local target_page = self._cur_page
+            self:_flashAndDo("hold_preview_lnd", self._lnd_left_dimen, function()
+                self:_gotoPageDirectly(target_page)
+            end)
+            return true
+        end
     end
 
     if self._toc_rows then
@@ -1567,6 +1596,9 @@ end
 function ScrubberToc:onTap(arg1, arg2)
     local ges = arg2 or arg1
     if self._closing then return true end
+
+    self:_stopRepeatAction()
+    if self._slider then self._slider._dragging = false end
 
     -- Botón Cerrar (✕)
     if self._close_dimen and ges.pos:intersectWith(self._close_dimen) then
@@ -1600,12 +1632,16 @@ function ScrubberToc:onTap(arg1, arg2)
         return true
     end
 
-    if not self._is_expanded and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
-        self:_returnToGrid(self._cur_page)
-        return true
+    -- Solo procesar toque en miniatura si la persiana NO está expandida a pantalla completa
+    if not self._is_expanded then
+        if self._sw <= self._sh and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then
+            self:_returnToGrid(self._cur_page)
+            return true
+        elseif self._sw > self._sh and self._lnd_left_dimen and ges.pos:intersectWith(self._lnd_left_dimen) then
+            self:_returnToGrid(self._cur_page)
+            return true
+        end
     end
-
-    -- Botones de capítulo eliminados en ToC
 
     if not self._is_expanded and self._first_toc_dimen and ges.pos:intersectWith(self._first_toc_dimen) then
         if self._toc_page > 1 then
@@ -1684,16 +1720,71 @@ function ScrubberToc:onTap(arg1, arg2)
         end
     end
 
-    if not self._is_expanded and ges.pos.y > self._top_panel_dimen.h and ges.pos.y < self._bar_dimen.y then
-        if not (self._preview_dimen and ges.pos:intersectWith(self._preview_dimen)) and
-           not (self._prev_ch_dimen and ges.pos:intersectWith(self._prev_ch_dimen)) and
-           not (self._next_ch_dimen and ges.pos:intersectWith(self._next_ch_dimen)) then
+    -- Delegar toques a la barra inferior (incluyendo slider y botones apaisados)
+    if not self._is_expanded and self._bar_dimen and ges.pos:intersectWith(self._bar_dimen) then
+        if self._slider and self._slider:handleTap(ges) then return true end
+        
+        if self._sw > self._sh then
+            if self._first_toc_dimen and ges.pos:intersectWith(self._first_toc_dimen) then
+                if self._toc_page > 1 then
+                    self:_flashAndDo("first_toc", self._first_toc_dimen, function()
+                        self._toc_page = 1
+                        UIManager:setDirty(self, "ui", self.dimen)
+                    end)
+                end
+                return true
+            end
+            if self._prev_toc_dimen and ges.pos:intersectWith(self._prev_toc_dimen) then
+                if self._toc_page > 1 then
+                    self:_flashAndDo("prev_toc", self._prev_toc_dimen, function()
+                        self._toc_page = self._toc_page - 1
+                        UIManager:setDirty(self, "ui", self.dimen)
+                    end)
+                end
+                return true
+            end
+            local total_pages = math.max(1, math.ceil(#self._filtered_toc / (self._items_per_page or 6)))
+            if self._next_toc_dimen and ges.pos:intersectWith(self._next_toc_dimen) then
+                if self._toc_page < total_pages then
+                    self:_flashAndDo("next_toc", self._next_toc_dimen, function()
+                        self._toc_page = self._toc_page + 1
+                        UIManager:setDirty(self, "ui", self.dimen)
+                    end)
+                end
+                return true
+            end
+            if self._last_toc_dimen and ges.pos:intersectWith(self._last_toc_dimen) then
+                if self._toc_page < total_pages then
+                    self:_flashAndDo("last_toc", self._last_toc_dimen, function()
+                        self._toc_page = total_pages
+                        UIManager:setDirty(self, "ui", self.dimen)
+                    end)
+                end
+                return true
+            end
+        end
+        return true
+    end
+
+    -- Cierre automático si se toca el área central de la pantalla (fuera de controles)
+    if not self._is_expanded and self._top_panel_dimen and self._bar_dimen then
+        local in_dead_zone = false
+        if self._sw > self._sh then
+            -- Landscape: entre panel top y list/preview
+            in_dead_zone = (ges.pos.y > self._top_panel_dimen.h and ges.pos.y < self._bar_dimen.y)
+            if in_dead_zone and self._lnd_left_dimen and ges.pos:intersectWith(self._lnd_left_dimen) then in_dead_zone = false end
+            if in_dead_zone and self._lnd_right_dimen and ges.pos:intersectWith(self._lnd_right_dimen) then in_dead_zone = false end
+        else
+            -- Portrait: entre panel top y barra inferior
+            in_dead_zone = (ges.pos.y > self._top_panel_dimen.h and ges.pos.y < self._bar_dimen.y)
+            if in_dead_zone and self._preview_dimen and ges.pos:intersectWith(self._preview_dimen) then in_dead_zone = false end
+        end
+
+        if in_dead_zone then
             self:_closeReturn()
             return true
         end
     end
-
-    if not self._is_expanded and self._slider:handleTap(ges) then return true end
 
     return true
 end
@@ -1702,19 +1793,12 @@ function ScrubberToc:onPan(arg1, arg2)
     local ges = arg2 or arg1
     if self._closing or self._is_expanded then return true end
     
-    if self._slider:handlePan(ges) then
+    local on_bar = (self._slider and self._slider._dragging)
+        or (self._bar_dimen and ges.pos and (ges.pos.y >= self._bar_dimen.y - self.S(15)))
+
+    if on_bar and self._slider and self._slider:handlePan(ges) then
         if self._slider._dragging then
             self:_previewPage(self._slider.value, true)
-            
-            self._pan_watchdog_gen = (self._pan_watchdog_gen or 0) + 1
-            local my_gen = self._pan_watchdog_gen
-            UIManager:scheduleIn(0.6, function()
-                if self._closing or self._is_expanded then return end
-                if self._pan_watchdog_gen == my_gen and self._slider._dragging then
-                    self._slider._dragging = false
-                    self:_previewPage(self._slider.value, false)
-                end
-            end)
         end
         return true
     end
@@ -1726,8 +1810,9 @@ function ScrubberToc:onPanRelease(arg1, arg2)
     if self._closing or self._is_expanded then return true end
     
     local was_dragging = self._slider and self._slider._dragging
-    if self._slider:handlePanRelease(ges) or was_dragging then
-        if self._slider then self._slider._dragging = false end
+    if was_dragging then
+        pcall(function() self._slider:handlePanRelease(ges) end)
+        self._slider._dragging = false
         self:_previewPage(self._slider.value, false)
         return true
     end
@@ -1739,10 +1824,18 @@ function ScrubberToc:onSwipe(arg1, arg2)
     if self._closing then return true end
     
     if self._slider and self._slider._dragging then
-        self._slider._dragging = false
         pcall(function() self._slider:handlePanRelease(ges) end)
+        self._slider._dragging = false
         self:_previewPage(self._slider.value, false)
         return true 
+    end
+
+    local on_bar = self._bar_dimen and ges.pos and (ges.pos.y >= self._bar_dimen.y - self.S(15))
+    if on_bar then
+        if self._slider and self._slider.handleSwipe and self._slider:handleSwipe(ges) then
+            self:_previewPage(self._slider.value, false)
+        end
+        return true
     end
 
     local total_pages = math.max(1, math.ceil(#self._filtered_toc / (self._items_per_page or 6)))
@@ -1783,9 +1876,10 @@ function ScrubberToc:onRelease(arg1, arg2)
     end
 
     if self._slider and self._slider._dragging then
-        self._slider._dragging = false
         pcall(function() self._slider:handlePanRelease(ges) end)
+        self._slider._dragging = false
         self:_previewPage(self._slider.value, false)
+        return true
     end
     return true
 end

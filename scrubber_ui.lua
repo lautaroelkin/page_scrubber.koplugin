@@ -1505,6 +1505,9 @@ function PageScrubber:_updateGridPages()
     elseif self._view_mode == "grid_six" then
         self._grid_dimen.y = self._top_bar_dimen.y + self._top_bar_dimen.h + S(26)
         self._grid_dimen.h = self._bar_dimen.y - self._grid_dimen.y - S(26)
+    elseif self._view_mode == "grid_simple" then
+        self._grid_dimen.y = 0
+        self._grid_dimen.h = self._bar_dimen.y
     else
         self._grid_dimen.y = self._booktitle_y + self.tw_booktitle:getSize().h + S(8)
         self._grid_dimen.h = self._bar_dimen.y - self._grid_dimen.y
@@ -1672,6 +1675,20 @@ function PageScrubber:_updateGridPages()
     -- En cualquier caso, plasmamos el estado actual (nueva selección de lista y página cargada/cargando)
     if self._view_mode == "split" then
         UIManager:setDirty(self, "ui", self.dimen)
+    elseif self._view_mode == "grid_simple" then
+        local r = self._gs_panel_dimen or self._grid_dimen
+        if r then
+            local pad = S(6)
+            local safe_r = Geom:new{
+                x = math.max(0, r.x - pad),
+                y = math.max(0, r.y - pad),
+                w = math.min(sw - math.max(0, r.x - pad), r.w + pad * 2),
+                h = math.min(sh - math.max(0, r.y - pad), r.h + pad * 2 + S(6)),
+            }
+            UIManager:setDirty(self, "ui", safe_r)
+        else
+            UIManager:setDirty(self, "ui", self.dimen)
+        end
     else
         UIManager:setDirty(self, "ui", self._grid_dimen)
     end
@@ -1722,7 +1739,16 @@ function PageScrubber:_updateGridPages()
                 end
             end
         elseif self._view_mode == "grid_simple" then
-            r = self._gs_panel_dimen or self._grid_dimen
+            local p_dim = self._gs_panel_dimen or self._grid_dimen
+            if p_dim then
+                local pad = self.S(6)
+                r = Geom:new{
+                    x = math.max(0, p_dim.x - pad),
+                    y = math.max(0, p_dim.y - pad),
+                    w = math.min(sw - math.max(0, p_dim.x - pad), p_dim.w + pad * 2),
+                    h = math.min(sh - math.max(0, p_dim.y - pad), p_dim.h + pad * 2 + self.S(6)),
+                }
+            end
         elseif self._view_mode == "split" then
             r = self._grid_dimen
         end
@@ -4700,17 +4726,7 @@ function PageScrubber:onTap(_, ges)
         end
     end
 
-    if self._grid_back_dimen and ges.pos:intersectWith(self._grid_back_dimen) then
-        self:_flashAndDo("grid_back", self._grid_back_dimen, function()
-            self._force_menu_sync = true
-            self:_previewPage(self._origin_page, false)
-        end)
-        return true
-    end
-
-    if self._bar_dimen and ges.pos:intersectWith(self._bar_dimen) then return true end
-    if self._top_bar_dimen and ges.pos:intersectWith(self._top_bar_dimen) then return true end
-
+    -- Evaluación prioritaria de las tarjetas de la grilla antes de descartar por barra inferior
     if self._view_mode == "grid" and not self._grid_disabled and self._grid_dimen and ges.pos:intersectWith(self._grid_dimen) then
         local nb_items = self._grid_cols * self._grid_rows
         for idx = 1, nb_items do
@@ -4736,6 +4752,17 @@ function PageScrubber:onTap(_, ges)
         end
         return true
     end
+
+    if self._grid_back_dimen and ges.pos:intersectWith(self._grid_back_dimen) then
+        self:_flashAndDo("grid_back", self._grid_back_dimen, function()
+            self._force_menu_sync = true
+            self:_previewPage(self._origin_page, false)
+        end)
+        return true
+    end
+
+    if self._bar_dimen and ges.pos:intersectWith(self._bar_dimen) then return true end
+    if self._top_bar_dimen and ges.pos:intersectWith(self._top_bar_dimen) then return true end
 
     if self._grid_disabled and self._grid_dimen and ges.pos:intersectWith(self._grid_dimen) then
         if ges.pos.intersectWith and ges.pos:intersectWith(self._fallback_prev_dimen) then

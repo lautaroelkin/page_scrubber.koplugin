@@ -384,6 +384,13 @@ function ScrubberSettings:getPageDefinition(page_id)
                     disabled = not dict_enabled,
                 },
                 {
+                    text = _("Dictionary text size"),
+                    icon = "pencil-ruler.svg",
+                    kind = "submenu",
+                    target = "dict_text_size",
+                    disabled = not dict_enabled,
+                },
+                {
                     text = _("Scrubber Selection Menu"),
                     icon = "crop.svg",
                     kind = "toggle",
@@ -425,6 +432,19 @@ function ScrubberSettings:getPageDefinition(page_id)
             { text = _("AI Assistant"), icon = "sparkles.svg", kind = "toggle", setting = "page_scrubber_fdict_show_ai", default = true },
         }
         return { title = _("Buttons in dictionary"), items = items }
+
+    elseif page_id == "dict_text_size" then
+        local cur = self:readSetting("page_scrubber_dict_font_size", "normal")
+        return {
+            title = _("Dictionary text size"),
+            items = {
+                { text = _("Very small"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "very_small", checked = (cur == "very_small") },
+                { text = _("Small"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "small", checked = (cur == "small") },
+                { text = _("Normal"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "normal", checked = (cur == "normal") },
+                { text = _("Large"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "large", checked = (cur == "large") },
+                { text = _("Very large"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "very_large", checked = (cur == "very_large") },
+            }
+        }
 
     elseif page_id == "sel_buttons" then
         local items = {
@@ -580,7 +600,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "wallpaper", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "wallpaper", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _, pid in ipairs(pages) do

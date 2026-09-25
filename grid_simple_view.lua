@@ -121,6 +121,8 @@ function GridSimpleView.paint(scrubber, bb)
             local ox = page_x + math.floor((target_w - blit_w) / 2)
             local oy = page_y + math.floor((target_h - blit_h) / 2)
 
+            bb:paintRect(page_x, page_y, target_w, target_h, Blitbuffer.COLOR_WHITE)
+
             if blit_w > 0 and blit_h > 0 then
                 bb:blitFrom(render_bb, ox, oy, src_x, src_y, blit_w, blit_h)
             end

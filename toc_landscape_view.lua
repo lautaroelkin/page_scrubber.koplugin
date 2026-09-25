@@ -28,7 +28,6 @@ local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, rou
     r = math.min(r, math.floor(w / 2), math.floor(h / 2))
     if r <= 0 then bb:paintRect(x, y, w, h, color); return end
     bb:paintRect(x + r, y, w - 2*r, h, color)
-    bb:paintRect(x + r, y, w - 2*r, h, color)
     bb:paintRect(x, y + r, r, math.max(1, h - 2*r), color)
     bb:paintRect(x + w - r, y + r, r, math.max(1, h - 2*r), color)
     if not round_tl then bb:paintRect(x, y, r, r, color) end
@@ -340,34 +339,37 @@ function TocLandscapeView.paint(toc, bb)
     toc.tw_author:paintTo(bb, ax, cur_y + 1)
     cur_y = cur_y + toc.tw_author:getSize().h + S(2)
 
-    local ch_idx = toc:_getChapterIndexForPage(toc._cur_page)
-    local ch = toc._filtered_toc and toc._filtered_toc[ch_idx]
-    if ch then
-        local flat_idx = 1
-        for i, fch in ipairs(toc._flat_toc) do
-            if fch.page == ch.page and fch.title == ch.title then flat_idx = i; break end
-        end
-        local cur_depth = ch.depth or 0
-        local next_p = toc._total_pages
-        for j = flat_idx + 1, #toc._flat_toc do
-            if (toc._flat_toc[j].depth or 0) <= cur_depth then
-                next_p = toc._flat_toc[j].page
-                break
+    local is_scrubbing = (toc._slider and toc._slider._dragging) or toc._repeat_running
+    if not is_scrubbing then
+        local ch_idx = toc:_getChapterIndexForPage(toc._cur_page)
+        local ch = toc._filtered_toc and toc._filtered_toc[ch_idx]
+        if ch then
+            local flat_idx = 1
+            for i, fch in ipairs(toc._flat_toc) do
+                if fch.page == ch.page and fch.title == ch.title then flat_idx = i; break end
             end
-        end
-        local pages_len = math.max(0, next_p - ch.page)
-        local stats = toc.ui and toc.ui.statistics
-        local time_str = (pages_len > 0 and stats and type(stats.getTimeForPages) == "function") and stats:getTimeForPages(pages_len) or nil
+            local cur_depth = ch.depth or 0
+            local next_p = toc._total_pages
+            for j = flat_idx + 1, #toc._flat_toc do
+                if (toc._flat_toc[j].depth or 0) <= cur_depth then
+                    next_p = toc._flat_toc[j].page
+                    break
+                end
+            end
+            local pages_len = math.max(0, next_p - ch.page)
+            local stats = toc.ui and toc.ui.statistics
+            local time_str = (pages_len > 0 and stats and type(stats.getTimeForPages) == "function") and stats:getTimeForPages(pages_len) or nil
 
-        if time_str and time_str ~= "" then
-            if not toc._tw_lnd_time then
-                toc._tw_lnd_time = TextWidget:new{ text = "", face = toc.font_author, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+            if time_str and time_str ~= "" then
+                if not toc._tw_lnd_time then
+                    toc._tw_lnd_time = TextWidget:new{ text = "", face = toc.font_author, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+                end
+                toc._tw_lnd_time:setText(time_str)
+                local tx = ld.x + inner_pad
+                toc._tw_lnd_time:paintTo(bb, tx, cur_y)
+                toc._tw_lnd_time:paintTo(bb, tx + 1, cur_y)
+                toc._tw_lnd_time:paintTo(bb, tx, cur_y + 1)
             end
-            toc._tw_lnd_time:setText(time_str)
-            local tx = ld.x + inner_pad
-            toc._tw_lnd_time:paintTo(bb, tx, cur_y)
-            toc._tw_lnd_time:paintTo(bb, tx + 1, cur_y)
-            toc._tw_lnd_time:paintTo(bb, tx, cur_y + 1)
         end
     end
 
@@ -392,7 +394,8 @@ function TocLandscapeView.paint(toc, bb)
 
     local start_idx = (toc._toc_page - 1) * toc._items_per_page + 1
     local end_idx   = math.min(toc._toc_page * toc._items_per_page, total_items)
-    local active_ch_idx = toc:_getActiveChapterIndex()
+    local is_scrubbing = (toc._slider and toc._slider._dragging) or toc._repeat_running
+    local active_ch_idx = is_scrubbing and -1 or toc:_getActiveChapterIndex()
     local origin_ch_idx = toc:_getChapterIndexForPage(toc._origin_page)
 
     toc._toc_rows = {}
