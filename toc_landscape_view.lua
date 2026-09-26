@@ -341,7 +341,7 @@ function TocLandscapeView.paint(toc, bb)
 
     local is_scrubbing = (toc._slider and toc._slider._dragging) or toc._repeat_running
     if not is_scrubbing then
-        local ch_idx = toc:_getChapterIndexForPage(toc._cur_page)
+        local ch_idx = toc:_getActiveChapterIndex()
         local ch = toc._filtered_toc and toc._filtered_toc[ch_idx]
         if ch then
             local flat_idx = 1
@@ -565,9 +565,10 @@ function TocLandscapeView.paint(toc, bb)
         local has_prev_toc = (toc._toc_page > 1)
         local has_next_toc = (toc._toc_page < total_pages)
 
-        -- 1. Métricas del capítulo activo (Marcadores y Destacados)
-        local ch_idx = toc:_getChapterIndexForPage(toc._cur_page)
+        -- 1. Métricas del capítulo activo (Páginas, Marcadores y Destacados)
+        local ch_idx = toc:_getActiveChapterIndex()
         local bm_cnt, hl_cnt = 0, 0
+        local start_page, end_page
         if ch_idx and toc._filtered_toc and toc._filtered_toc[ch_idx] then
             local ch = toc._filtered_toc[ch_idx]
             local flat_idx = 1
@@ -575,7 +576,7 @@ function TocLandscapeView.paint(toc, bb)
                 if fch.page == ch.page and fch.title == ch.title then flat_idx = i; break end
             end
             local cur_depth = ch.depth or 0
-            local end_page = toc._total_pages
+            end_page = toc._total_pages
             for j = flat_idx + 1, #toc._flat_toc do
                 local next_ch = toc._flat_toc[j]
                 if (next_ch.depth or 0) <= cur_depth then
@@ -583,7 +584,7 @@ function TocLandscapeView.paint(toc, bb)
                     break
                 end
             end
-            local start_page = ch.page
+            start_page = ch.page
             if end_page < start_page then end_page = start_page end
 
             if toc.parent_scrubber and toc.parent_scrubber._cached_hl then
@@ -638,12 +639,43 @@ function TocLandscapeView.paint(toc, bb)
             end
         end
 
+        -- Cálculo de páginas con soporte para subcapítulos y stable pages (pagemap)
+        local ch_pages = 0
+        if start_page and end_page then
+            local ui = toc.ui
+            if ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() and ui.toc and type(ui.toc.getPagePagemapIndex) == "function" then
+                local p_start = ui.toc:getPagePagemapIndex(start_page)
+                local p_end = ui.toc:getPagePagemapIndex(end_page + 1) or ui.toc:getPagePagemapIndex(end_page)
+                if p_start and p_end and p_end >= p_start then
+                    ch_pages = (p_end - p_start)
+                    if ch_pages == 0 then ch_pages = 1 end
+                end
+            end
+            if ch_pages == 0 then
+                ch_pages = math.max(1, end_page - start_page + 1)
+            end
+        else
+            ch_pages = toc._total_pages or 1
+        end
+
         local l1_cy = l1_y + math.floor(l1_h / 2)
         local icon_gap = S(6)
-        local group_gap = S(24)
+        local group_gap = S(18)
         local cur_left_x = pad_x + S(8)
 
-        -- 2. LATERAL IZQUIERDO: [gravity-ui--bookmark.svg] N  y  [pin.svg] N
+        -- 2. LATERAL IZQUIERDO: [book-open-text.svg] N, [gravity-ui--bookmark.svg] N y [pin.svg] N
+        if toc.icon_stat_pages and toc._tw_stat_pages_cnt then
+            toc._tw_stat_pages_cnt:setText(tostring(ch_pages))
+            toc._tw_stat_pages_cnt.fgcolor = (ch_pages > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+
+            local isz = toc.icon_stat_pages:getSize()
+            local tsz = toc._tw_stat_pages_cnt:getSize()
+
+            toc.icon_stat_pages:paintTo(bb, cur_left_x, l1_cy - math.floor(isz.h / 2))
+            toc._tw_stat_pages_cnt:paintTo(bb, cur_left_x + isz.w + icon_gap, l1_cy - math.floor(tsz.h / 2))
+            cur_left_x = cur_left_x + isz.w + icon_gap + tsz.w + group_gap
+        end
+
         if toc.icon_stat_bm and toc._tw_stat_bm_cnt then
             toc._tw_stat_bm_cnt:setText(tostring(bm_cnt))
             local col = (bm_cnt > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY

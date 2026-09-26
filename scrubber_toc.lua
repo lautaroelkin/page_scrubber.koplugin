@@ -333,11 +333,13 @@ function ScrubberToc:init()
 
     local font_stat = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(13))
     local stat_icon_sz = S(22)
-    self.icon_stat_bm = createSafeIcon("\u{F02E}", "gravity-ui--bookmark.svg", stat_icon_sz)
-    self.icon_stat_hl = createSafeIcon("\u{F08D}", "pin.svg", stat_icon_sz)
+    self.icon_stat_bm    = createSafeIcon("\u{F02E}", "gravity-ui--bookmark.svg", stat_icon_sz)
+    self.icon_stat_hl    = createSafeIcon("\u{F08D}", "pin.svg", stat_icon_sz)
+    self.icon_stat_pages = createSafeIcon("\u{F02D}", "book-open-text.svg", stat_icon_sz)
 
-    self._tw_stat_bm_cnt = TextWidget:new{ text = "", face = font_stat, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-    self._tw_stat_hl_cnt = TextWidget:new{ text = "", face = font_stat, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+    self._tw_stat_bm_cnt    = TextWidget:new{ text = "", face = font_stat, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+    self._tw_stat_hl_cnt    = TextWidget:new{ text = "", face = font_stat, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+    self._tw_stat_pages_cnt = TextWidget:new{ text = "", face = font_stat, bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
 
     local function getBookProps()
         local title, author
@@ -364,7 +366,6 @@ function ScrubberToc:init()
 
     self._flat_toc = {}
     local raw_toc = (ui.toc and ui.toc.toc) or {}
-    local page_to_idx = {}
     
     local min_depth = 999
     local max_depth = 0
@@ -380,26 +381,11 @@ function ScrubberToc:init()
                 local depth = e.depth or 1
                 if depth <= 3 then
                     local title = get_entry_title(self.ui, e, page_num)
-                    local idx = page_to_idx[page_num]
-                    
-                    if idx then
-                        local existing = self._flat_toc[idx].title
-                        if title ~= "" and is_placeholder_title(existing) then
-                            self._flat_toc[idx].title = title
-                        elseif title ~= "" and title ~= existing then
-                            self._flat_toc[idx].title = existing .. " · " .. title
-                        end
-                        if depth < self._flat_toc[idx].depth then
-                            self._flat_toc[idx].depth = depth
-                        end
-                    else
-                        page_to_idx[page_num] = #self._flat_toc + 1
-                        table.insert(self._flat_toc, {
-                            title = title,
-                            page = page_num,
-                            depth = depth,
-                        })
-                    end
+                    table.insert(self._flat_toc, {
+                        title = title,
+                        page = page_num,
+                        depth = depth,
+                    })
                 end
             end
         end
@@ -710,11 +696,16 @@ function ScrubberToc:_getActiveChapterIndex()
     if (self._slider and self._slider._dragging) or self._repeat_running then 
         return nil 
     end
+    if self._active_toc_idx and self._filtered_toc and self._filtered_toc[self._active_toc_idx] then
+        if self._filtered_toc[self._active_toc_idx].page == self._cur_page then
+            return self._active_toc_idx
+        end
+    end
     return self:_getChapterIndexForPage(self._cur_page)
 end
 
 function ScrubberToc:_syncTocPageWithCurrentPage()
-    local idx = self:_getChapterIndexForPage(self._cur_page)
+    local idx = self:_getActiveChapterIndex() or self:_getChapterIndexForPage(self._cur_page)
     if idx and self._items_per_page and self._items_per_page > 0 then
         self._toc_page = math.ceil(idx / self._items_per_page)
     end
@@ -783,11 +774,17 @@ function ScrubberToc:_updatePreviewTile()
     end)
 end
 
-function ScrubberToc:_previewPage(page, is_dragging)
+function ScrubberToc:_previewPage(page, is_dragging, explicit_toc_idx)
     if self._closing then return end
     
     self._cur_page = math.max(1, math.min(self._total_pages, page))
     if self._slider then self._slider.value = self._cur_page end
+
+    if explicit_toc_idx then
+        self._active_toc_idx = explicit_toc_idx
+    elseif not self._active_toc_idx or (self._filtered_toc[self._active_toc_idx] and self._filtered_toc[self._active_toc_idx].page ~= self._cur_page) then
+        self._active_toc_idx = self:_getChapterIndexForPage(self._cur_page)
+    end
     
     if is_dragging then
         -- Liberar miniatura previa para que no parpadee la anterior
@@ -1043,7 +1040,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     
     local is_moving_fast = (self._slider and self._slider._dragging) or self._repeat_running
     if not is_moving_fast then
-        local ch_idx = self:_getChapterIndexForPage(self._cur_page)
+        local ch_idx = self:_getActiveChapterIndex()
         if ch_idx and self._filtered_toc and self._filtered_toc[ch_idx] then
             local ch = self._filtered_toc[ch_idx]
             local flat_idx = 1
@@ -1326,9 +1323,10 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
         bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK)
 
-        -- Conteo de marcadores y destacados en el capítulo activo
-        local ch_idx = self:_getChapterIndexForPage(self._cur_page)
+        -- Conteo de marcadores, destacados y páginas del capítulo activo
+        local ch_idx = self:_getActiveChapterIndex()
         local bm_cnt, hl_cnt = 0, 0
+        local start_page, end_page
         if ch_idx and self._filtered_toc and self._filtered_toc[ch_idx] then
             local ch = self._filtered_toc[ch_idx]
             local flat_idx = 1
@@ -1336,7 +1334,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 if fch.page == ch.page and fch.title == ch.title then flat_idx = i; break end
             end
             local cur_depth = ch.depth or 0
-            local end_page = self._total_pages
+            end_page = self._total_pages
             for j = flat_idx + 1, #self._flat_toc do
                 local next_ch = self._flat_toc[j]
                 if (next_ch.depth or 0) <= cur_depth then
@@ -1344,7 +1342,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                     break
                 end
             end
-            local start_page = ch.page
+            start_page = ch.page
             if end_page < start_page then end_page = start_page end
 
             local raw_anns = (self.ui and self.ui.annotation and self.ui.annotation.annotations) or {}
@@ -1406,39 +1404,78 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             end
         end
 
+        -- Cálculo jerárquico de páginas del capítulo (incluye subcapítulos y respeta pagemap)
+        local ch_pages = 0
+        if start_page and end_page then
+            local ui = self.ui
+            if ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() and ui.toc and type(ui.toc.getPagePagemapIndex) == "function" then
+                local p_start = ui.toc:getPagePagemapIndex(start_page)
+                local p_end = ui.toc:getPagePagemapIndex(end_page + 1) or ui.toc:getPagePagemapIndex(end_page)
+                if p_start and p_end and p_end >= p_start then
+                    ch_pages = (p_end - p_start)
+                    if ch_pages == 0 then ch_pages = 1 end
+                end
+            end
+            if ch_pages == 0 then
+                ch_pages = math.max(1, end_page - start_page + 1)
+            end
+        else
+            ch_pages = self._total_pages or 1
+        end
+
         local lvl1_cy = (self._lvl1_y or (bd.y + S(8))) + math.floor((self._lvl1_h or S(40)) / 2)
         local icon_gap = S(6)
+        local pair_gap = S(16)
         local c1 = math.floor(sw * 0.20)
         local c2 = math.floor(sw * 0.80)
 
-        -- Nivel 1 Izquierda: [gravity-ui--bookmark.svg]  N (Centrado en c1)
-        if self.icon_stat_bm and self._tw_stat_bm_cnt then
-            self._tw_stat_bm_cnt:setText(tostring(bm_cnt))
-            local col = (bm_cnt > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
-            self._tw_stat_bm_cnt.fgcolor = col
+        -- Nivel 1 Izquierda: [book-open-text.svg]  N (Total de páginas del capítulo activo, centrado en c1)
+        if self.icon_stat_pages and self._tw_stat_pages_cnt then
+            self._tw_stat_pages_cnt:setText(tostring(ch_pages))
+            self._tw_stat_pages_cnt.fgcolor = (ch_pages > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
 
-            local isz = self.icon_stat_bm:getSize()
-            local tsz = self._tw_stat_bm_cnt:getSize()
-            local total_w = isz.w + icon_gap + tsz.w
-            local bx = c1 - math.floor(total_w / 2)
+            local isz = self.icon_stat_pages:getSize()
+            local tsz = self._tw_stat_pages_cnt:getSize()
+            local total_left_w = isz.w + icon_gap + tsz.w
+            local lx = c1 - math.floor(total_left_w / 2)
 
-            self.icon_stat_bm:paintTo(bb, bx, lvl1_cy - math.floor(isz.h / 2))
-            self._tw_stat_bm_cnt:paintTo(bb, bx + isz.w + icon_gap, lvl1_cy - math.floor(tsz.h / 2))
+            self.icon_stat_pages:paintTo(bb, lx, lvl1_cy - math.floor(isz.h / 2))
+            self._tw_stat_pages_cnt:paintTo(bb, lx + isz.w + icon_gap, lvl1_cy - math.floor(tsz.h / 2))
         end
 
-        -- Nivel 1 Derecha: [pin.svg]  N (Centrado en c2)
+        -- Nivel 1 Derecha: [Marcadores] y [Destacados] agrupados juntos
+        local bm_w, hl_w = 0, 0
+        local bm_isz, bm_tsz
+        local hl_isz, hl_tsz
+
+        if self.icon_stat_bm and self._tw_stat_bm_cnt then
+            self._tw_stat_bm_cnt:setText(tostring(bm_cnt))
+            self._tw_stat_bm_cnt.fgcolor = (bm_cnt > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+            bm_isz = self.icon_stat_bm:getSize()
+            bm_tsz = self._tw_stat_bm_cnt:getSize()
+            bm_w = bm_isz.w + icon_gap + bm_tsz.w
+        end
+
         if self.icon_stat_hl and self._tw_stat_hl_cnt then
             self._tw_stat_hl_cnt:setText(tostring(hl_cnt))
-            local col = (hl_cnt > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
-            self._tw_stat_hl_cnt.fgcolor = col
+            self._tw_stat_hl_cnt.fgcolor = (hl_cnt > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+            hl_isz = self.icon_stat_hl:getSize()
+            hl_tsz = self._tw_stat_hl_cnt:getSize()
+            hl_w = hl_isz.w + icon_gap + hl_tsz.w
+        end
 
-            local isz = self.icon_stat_hl:getSize()
-            local tsz = self._tw_stat_hl_cnt:getSize()
-            local total_w = isz.w + icon_gap + tsz.w
-            local rx = c2 - math.floor(total_w / 2)
+        local total_right_w = bm_w + ((bm_w > 0 and hl_w > 0) and pair_gap or 0) + hl_w
+        local cur_rx = c2 - math.floor(total_right_w / 2)
 
-            self.icon_stat_hl:paintTo(bb, rx, lvl1_cy - math.floor(isz.h / 2))
-            self._tw_stat_hl_cnt:paintTo(bb, rx + isz.w + icon_gap, lvl1_cy - math.floor(tsz.h / 2))
+        if bm_isz and bm_tsz then
+            self.icon_stat_bm:paintTo(bb, cur_rx, lvl1_cy - math.floor(bm_isz.h / 2))
+            self._tw_stat_bm_cnt:paintTo(bb, cur_rx + bm_isz.w + icon_gap, lvl1_cy - math.floor(bm_tsz.h / 2))
+            cur_rx = cur_rx + bm_w + pair_gap
+        end
+
+        if hl_isz and hl_tsz then
+            self.icon_stat_hl:paintTo(bb, cur_rx, lvl1_cy - math.floor(hl_isz.h / 2))
+            self._tw_stat_hl_cnt:paintTo(bb, cur_rx + hl_isz.w + icon_gap, lvl1_cy - math.floor(hl_tsz.h / 2))
         end
 
         local bloom_toc = S(4)
@@ -1710,10 +1747,14 @@ function ScrubberToc:onTap(arg1, arg2)
     if self._toc_rows then
         for _, row in ipairs(self._toc_rows) do
             if ges.pos:intersectWith(row.dimen) then
-                if self._cur_page == row.page then
+                local active_idx = self:_getActiveChapterIndex()
+                if active_idx == row.index then
+                    -- Si toca la fila que YA está activa/seleccionada, abre la página
                     self:_returnToGrid(row.page)
                 else
-                    self:_previewPage(row.page, false)
+                    -- Cambia de selección activa (incluso si comparten la misma página)
+                    self._active_toc_idx = row.index
+                    self:_previewPage(row.page, false, row.index)
                 end
                 return true
             end
@@ -1909,8 +1950,8 @@ function ScrubberToc:onCloseWidget()
         self._tw_toc_empty, self._tw_pnum_normal, self._tw_pnum_bold,
         self._tw_ch_normal, self._tw_ch_bold,
         self.tw_author, self._tw_time, self._tw_origin_dot,
-        self.icon_stat_bm, self.icon_stat_hl,
-        self._tw_stat_bm_cnt, self._tw_stat_hl_cnt,
+        self.icon_stat_bm, self.icon_stat_hl, self.icon_stat_pages,
+        self._tw_stat_bm_cnt, self._tw_stat_hl_cnt, self._tw_stat_pages_cnt,
         self._slider,
         self.icon_wifi_0, self.icon_wifi_1, self.icon_wifi_2,
         self.icon_ch_prev, self.icon_ch_prev_inv,
