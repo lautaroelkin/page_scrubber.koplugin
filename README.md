@@ -7,7 +7,7 @@ This plugin allows you to quickly flip back and forth through the book, with the
 *   **Advanced Navigation:** Interactive progress slider, chapter-skip buttons, a quick-access top toolbar, and physical D-Pad support.
 *   **Split-View Annotations:** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
 *   **Redesigned Reading Pop-Ups :** Features a modern, pill-shaped floating dictionary and multi-word selection menu. It intelligently anchors away from your finger so it never blocks your text. Fully compatible with the AI Assistant, X-Ray, and other external plugins.
-*   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large) that prevents crashes or overlapping at any resolution.
+*   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large) and even choose your own optional custom wallpaper.
 * **Mini Menu:** Quick-access overlay for device controls (toggle front light, day/night mode), custom shortcut execution (scrubber actions), and settings navigation.
 *   **Markdown Export:** Export your highlights and notes directly to a `.md` file on your device.
 *   **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu, or bind them to your own custom gestures.
@@ -87,8 +87,8 @@ Basically, it takes the native features, removes the friction, and puts them int
 ---
 
 ## Tutorial if needed: **How to Open Page Scrubber**
-* **Option 1 (Menu):** Open a book in KOReader, go to the document menu tab (where native Table of Contents, Bookmarks, etc. live — often on the second page), and tap **Page Scrubber** to access all grids, widgets, and settings.
-* **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
+*  **Option 1 (Menu):** Open a book in KOReader, go to the document menu tab (where native Table of Contents, Bookmarks, etc. live — often on the second page), and tap **Page Scrubber** to access all grids, widgets, and settings.
+*  **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
 
 ---
 
@@ -113,3 +113,9 @@ Page Scrubber fully supports Right-to-Left reading order for manga, comics, and 
 * **Manual Override:** Easily force RTL mode for any specific book by going to Settings > Layout > RTL.
 * **Gestures & Quick Actions:** Toggle RTL on the fly via KOReader native Gesture Manager under Reader > Page Scrubber: Toggle RTL or by adding it directly to your Scrubber Actions launcher.
 * **Per-Document Isolation:** Manual overrides are saved exclusively to the active book local settings in doc_settings, leaving the rest of your library untouched.
+
+## _Stable Pages (Pagemap) Support_
+Works automatically out of the box with zero setup:
+
+* **1:1 Print Parity:** Matches physical book numbering with zero drift.
+* **Accurate Totals & Breaks:** Instantly detects mid-screen page breaks and displays genuine physical book totals across sliders and chapters.
