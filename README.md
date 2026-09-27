@@ -103,6 +103,7 @@ Basically, it takes the native features, removes the friction, and puts them int
 >* **Long press Settings button:** Opens Scrubber Actions (configurable in settings).
 >* **Long press any page thumbnail:** Opens the split menu focused on that specific page.
 >* **Tap top-right corner:** Toggle bookmark.
+>* **Swipe down:** To Exit (X).
 
 ---
 
