@@ -168,97 +168,99 @@ function GridLandscapeView.paint(scrubber, bb)
 
         scrubber._slot_dimens[idx] = Geom:new{ x = box_x, y = box_y, w = box_w, h = box_h }
 
-        if slot and slot.page and slot.tile_bb then
-            local tw, th = slot.tile_bb:getWidth(), slot.tile_bb:getHeight()
+        if slot and slot.page then
+            if slot.tile_bb then
+                local tw, th = slot.tile_bb:getWidth(), slot.tile_bb:getHeight()
 
-            local render_bb = slot.tile_bb
-            local must_free = false
-            if math.abs(tw - box_w) > 4 or math.abs(th - box_h) > 4 then
-                local ok, sc = pcall(function() return slot.tile_bb:scale(box_w, box_h) end)
-                if ok and sc then render_bb = sc; must_free = true end
-            end
+                local render_bb = slot.tile_bb
+                local must_free = false
+                if math.abs(tw - box_w) > 4 or math.abs(th - box_h) > 4 then
+                    local ok, sc = pcall(function() return slot.tile_bb:scale(box_w, box_h) end)
+                    if ok and sc then render_bb = sc; must_free = true end
+                end
 
-            local ox = box_x
-            local oy = box_y
-            local src_x = 0
-            local src_y = 0
-            local blit_w = box_w
-            local blit_h = box_h
+                local ox = box_x
+                local oy = box_y
+                local src_x = 0
+                local src_y = 0
+                local blit_w = box_w
+                local blit_h = box_h
 
-            if ox < 0 then
-                src_x = -ox
-                blit_w = blit_w + ox
-                ox = 0
-            end
-            if ox + blit_w > sw then
-                blit_w = sw - ox
-            end
+                if ox < 0 then
+                    src_x = -ox
+                    blit_w = blit_w + ox
+                    ox = 0
+                end
+                if ox + blit_w > sw then
+                    blit_w = sw - ox
+                end
 
-            if blit_w > 0 and blit_h > 0 then
-                bb:paintRect(ox, oy, blit_w, blit_h, Blitbuffer.COLOR_WHITE)
-                bb:blitFrom(render_bb, ox, oy, src_x, src_y, blit_w, blit_h)
-            end
+                if blit_w > 0 and blit_h > 0 then
+                    bb:paintRect(ox, oy, blit_w, blit_h, Blitbuffer.COLOR_WHITE)
+                    bb:blitFrom(render_bb, ox, oy, src_x, src_y, blit_w, blit_h)
+                end
 
-            if must_free then pcall(function() render_bb:free() end) end
+                if must_free then pcall(function() render_bb:free() end) end
 
-            if scrubber._grid_flash_idx == idx and blit_w > 0 then
-                bb:paintRect(ox, oy, blit_w, blit_h, Blitbuffer.COLOR_BLACK)
-            end
+                if scrubber._grid_flash_idx == idx and blit_w > 0 then
+                    bb:paintRect(ox, oy, blit_w, blit_h, Blitbuffer.COLOR_BLACK)
+                end
 
-            local is_bmed = false
-            for _, bmp in ipairs(all_bms) do
-                if tonumber(bmp) == tonumber(slot.page) then is_bmed = true; break end
-            end
+                local is_bmed = false
+                for _, bmp in ipairs(all_bms) do
+                    if tonumber(bmp) == tonumber(slot.page) then is_bmed = true; break end
+                end
 
-            if is_cur then
-                local bw, bh = S(28), S(46)
-                local bx = box_x + box_w - bw - S(14) - border
-                local by = box_y + border
-                scrubber._center_bm_touch_dimen = Geom:new{ x = bx - S(10), y = by, w = bw + S(20), h = bh + S(20) }
-            end
+                if is_cur then
+                    local bw, bh = S(28), S(46)
+                    local bx = box_x + box_w - bw - S(14) - border
+                    local by = box_y + border
+                    scrubber._center_bm_touch_dimen = Geom:new{ x = bx - S(10), y = by, w = bw + S(20), h = bh + S(20) }
+                end
 
-            if is_bmed and (box_x + box_w) <= sw and (box_x + box_w) >= 0 then
-                local bw, bh = S(28), S(46)
-                local bx = box_x + box_w - bw - S(14) - border
-                local by = box_y + border
+                if is_bmed and (box_x + box_w) <= sw and (box_x + box_w) >= 0 then
+                    local bw, bh = S(28), S(46)
+                    local bx = box_x + box_w - bw - S(14) - border
+                    local by = box_y + border
 
-                local mask_x = bx - S(2)
-                local mask_y = by
-                local mask_w = (box_x + box_w - border) - mask_x
-                local mask_h = S(26)
+                    local mask_x = bx - S(2)
+                    local mask_y = by
+                    local mask_w = (box_x + box_w - border) - mask_x
+                    local mask_h = S(26)
 
-                bb:paintRect(mask_x, mask_y, mask_w, mask_h, Blitbuffer.COLOR_WHITE)
-                drawBookmarkRibbon(bb, bx, by, bw, bh, Blitbuffer.COLOR_BLACK)
-            end
+                    bb:paintRect(mask_x, mask_y, mask_w, mask_h, Blitbuffer.COLOR_WHITE)
+                    drawBookmarkRibbon(bb, bx, by, bw, bh, Blitbuffer.COLOR_BLACK)
+                end
 
-            -- Puntito gris en la esquina superior izquierda de la página de origen
-            if tonumber(slot.page) == tonumber(scrubber._origin_page) then
-                local dot_sz = S(8)
-                local dot_off = S(8)
-                local dx = box_x + dot_off + border
-                local dy = box_y + dot_off + border
-                paintRoundRect(bb, dx, dy, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
-            end
+                -- Puntito gris en la esquina superior izquierda de la página de origen
+                if tonumber(slot.page) == tonumber(scrubber._origin_page) then
+                    local dot_sz = S(8)
+                    local dot_off = S(8)
+                    local dx = box_x + dot_off + border
+                    local dy = box_y + dot_off + border
+                    paintRoundRect(bb, dx, dy, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
+                end
 
-            bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
-        else
-            local ox = math.max(0, box_x)
-            local ow = math.min(sw - ox, (box_x + box_w) - ox)
-            if ow > 0 then
-                bb:paintRect(ox, box_y, ow, box_h, Blitbuffer.COLOR_WHITE)
-                if slot and slot.error then
-                    if not scrubber._tw_grid_error then
-                        scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
-                    end
-                    local etsz = scrubber._tw_grid_error:getSize()
-                    scrubber._tw_grid_error:paintTo(bb, box_x + math.floor((box_w - etsz.w) / 2), box_y + math.floor((box_h - etsz.h) / 2))
-                else
-                    if (box_x + math.floor(box_w / 2)) >= 0 and (box_x + math.floor(box_w / 2)) <= sw then
-                        bb:paintRect(box_x + math.floor(box_w / 2) - 1, box_y + math.floor(box_h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
+                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+            else
+                local ox = math.max(0, box_x)
+                local ow = math.min(sw - ox, (box_x + box_w) - ox)
+                if ow > 0 then
+                    bb:paintRect(ox, box_y, ow, box_h, Blitbuffer.COLOR_WHITE)
+                    if slot.error then
+                        if not scrubber._tw_grid_error then
+                            scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
+                        end
+                        local etsz = scrubber._tw_grid_error:getSize()
+                        scrubber._tw_grid_error:paintTo(bb, box_x + math.floor((box_w - etsz.w) / 2), box_y + math.floor((box_h - etsz.h) / 2))
+                    elseif slot.loading then
+                        if (box_x + math.floor(box_w / 2)) >= 0 and (box_x + math.floor(box_w / 2)) <= sw then
+                            bb:paintRect(box_x + math.floor(box_w / 2) - 1, box_y + math.floor(box_h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
+                        end
                     end
                 end
+                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
             end
-            bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
         end
     end
 
@@ -270,18 +272,14 @@ function GridLandscapeView.paint(scrubber, bb)
     local pad_x = S(16)
     local l1_y = bar_y + bar_pad_y
     local ch_btn_sz = S(34)
-    scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
-    scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
 
     local function drawBtnWithPress(btn_id, dim, widget, y_off, is_disabled)
-        if not dim or not widget then return end
-        -- Excluimos "ctrl_mark" para que no dibuje el recuadro negro (el cambio de icono ya es feedback visual)
-        local is_p = (scrubber._pressed_btn == btn_id and not is_disabled and btn_id ~= "ctrl_mark")
+        if not dim or not widget or is_disabled then return end
+        local is_p = (scrubber._pressed_btn == btn_id and btn_id ~= "ctrl_mark")
         local wsz = widget:getSize()
         local wx = dim.x + math.floor((dim.w - wsz.w)/2)
         local wy = dim.y + math.floor((dim.h - wsz.h)/2) + (y_off or 0)
 
-        if is_disabled then return end
         if is_p then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
             local btn_rad = is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8)
@@ -303,11 +301,35 @@ function GridLandscapeView.paint(scrubber, bb)
         end
     end
 
-    drawBtnWithPress("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1))
-    drawBtnWithPress("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1))
+    local current_display = scrubber._cur_page
+    local can_prev_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getPreviousChapter(current_display) ~= nil
+    local can_next_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getNextChapter(current_display) ~= nil
 
-    local slider_x = scrubber._prev_ch_dimen.x + ch_btn_sz + S(12)
-    local slider_w = scrubber._next_ch_dimen.x - S(12) - slider_x
+    local show_ch_l, show_ch_r
+    if scrubber.is_rtl then
+        show_ch_l = can_next_ch
+        show_ch_r = can_prev_ch
+    else
+        show_ch_l = can_prev_ch
+        show_ch_r = can_next_ch
+    end
+
+    if show_ch_l then
+        scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtnWithPress("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1))
+    else
+        scrubber._prev_ch_dimen = nil
+    end
+
+    if show_ch_r then
+        scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtnWithPress("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1))
+    else
+        scrubber._next_ch_dimen = nil
+    end
+
+    local slider_x = pad_x + ch_btn_sz + S(12)
+    local slider_w = (sw - pad_x - ch_btn_sz) - S(12) - slider_x
     scrubber._slider.width = slider_w
     scrubber._slider.value = scrubber._cur_page
     scrubber._slider:paintTo(bb, slider_x, l1_y + math.floor((l1_h - scrubber._slider:getSize().h)/2))

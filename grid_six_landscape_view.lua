@@ -229,20 +229,15 @@ function GridSixLandscapeView.paint(scrubber, bb)
     local pad_x = S(16)
     local l1_y = bar_y + bar_pad_y
     local ch_btn_sz = S(34)
-    scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
-    scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
 
-    local function drawBtn(btn_id, dim, widget, y_off, is_disabled)
+    local function drawBtn(btn_id, dim, widget, y_off)
         if not dim or not widget then return end
-        local is_p = (scrubber._pressed_btn == btn_id and not is_disabled and btn_id ~= "gsix_prev" and btn_id ~= "gsix_next")
+        local is_p = (scrubber._pressed_btn == btn_id and btn_id ~= "gsix_prev" and btn_id ~= "gsix_next")
         local wsz = widget:getSize()
         local wx = dim.x + math.floor((dim.w - wsz.w)/2)
         local wy = dim.y + math.floor((dim.h - wsz.h)/2) + (y_off or 0)
 
-        if is_disabled then
-            widget.fgcolor = Blitbuffer.COLOR_LIGHT_GRAY
-            widget:paintTo(bb, wx, wy)
-        elseif is_p then
+        if is_p then
             local pad_p = S(6)
             paintRoundRect(bb, wx - pad_p, wy - pad_p, wsz.w + pad_p*2, wsz.h + pad_p*2, S(8), Blitbuffer.COLOR_BLACK)
             bb:paintRect(wx, wy, wsz.w, wsz.h, Blitbuffer.COLOR_WHITE)
@@ -255,17 +250,42 @@ function GridSixLandscapeView.paint(scrubber, bb)
         end
     end
 
-    -- Nivel 1: Capítulos y slider
-    drawBtn("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1), false)
-    drawBtn("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1), false)
+    -- Nivel 1: Capítulos con desaparición dinámica según LTR/RTL
+    local current_display = scrubber._cur_page
+    local can_prev_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getPreviousChapter(current_display) ~= nil
+    local can_next_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getNextChapter(current_display) ~= nil
 
-    local slider_x = scrubber._prev_ch_dimen.x + ch_btn_sz + S(12)
-    local slider_w = scrubber._next_ch_dimen.x - S(12) - slider_x
+    local show_ch_l, show_ch_r
+    if scrubber.is_rtl then
+        show_ch_l = can_next_ch
+        show_ch_r = can_prev_ch
+    else
+        show_ch_l = can_prev_ch
+        show_ch_r = can_next_ch
+    end
+
+    if show_ch_l then
+        scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtn("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1))
+    else
+        scrubber._prev_ch_dimen = nil
+    end
+
+    if show_ch_r then
+        scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtn("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1))
+    else
+        scrubber._next_ch_dimen = nil
+    end
+
+    -- Slider centrado y estable (no salta de ancho si los botones de capítulo desaparecen)
+    local slider_x = pad_x + ch_btn_sz + S(12)
+    local slider_w = (sw - pad_x - ch_btn_sz) - S(12) - slider_x
     scrubber._slider.width = slider_w
     scrubber._slider.value = scrubber._cur_page
     scrubber._slider:paintTo(bb, slider_x, l1_y + math.floor((l1_h - scrubber._slider:getSize().h)/2))
 
-    -- Nivel 2: Botones ‹ y › con posición fija precalculada
+    -- Nivel 2: Botones ‹ y › con desaparición dinámica según extremos y dirección
     local l2_y = l1_y + l1_h + bar_gap
     local btn_w = S(34)
     local mark_sz = S(36)
@@ -277,26 +297,34 @@ function GridSixLandscapeView.paint(scrubber, bb)
     local gap_center = S(10)
     local half_slot = math.floor(origin_slot_w / 2) + gap_center
 
-    scrubber._gsix_prev_dimen = Geom:new{ x = cx - half_slot - btn_w, y = l2_y + math.floor((mark_sz - btn_w)/2), w = btn_w, h = btn_w }
-    scrubber._gsix_next_dimen = Geom:new{ x = cx + half_slot, y = l2_y + math.floor((mark_sz - btn_w)/2), w = btn_w, h = btn_w }
+    local can_page_l, can_page_r
+    if scrubber.is_rtl then
+        can_page_l = (scrubber._cur_page < scrubber._total_pages)
+        can_page_r = (scrubber._cur_page > 1)
+    else
+        can_page_l = (scrubber._cur_page > 1)
+        can_page_r = (scrubber._cur_page < scrubber._total_pages)
+    end
 
-    drawBtn("gsix_prev", scrubber._gsix_prev_dimen, scrubber.icon_gs_chevron_left, 0, scrubber._cur_page <= 1)
-    drawBtn("gsix_next", scrubber._gsix_next_dimen, scrubber.icon_gs_chevron_right, 0, scrubber._cur_page >= scrubber._total_pages)
+    if can_page_l then
+        scrubber._gsix_prev_dimen = Geom:new{ x = cx - half_slot - btn_w, y = l2_y + math.floor((mark_sz - btn_w)/2), w = btn_w, h = btn_w }
+        drawBtn("gsix_prev", scrubber._gsix_prev_dimen, scrubber.icon_gs_chevron_left, 0)
+    else
+        scrubber._gsix_prev_dimen = nil
+    end
 
-    -- Botón dinámico en el centro exacto (‹ Page X ›) sin empujar a los chevrons
+    if can_page_r then
+        scrubber._gsix_next_dimen = Geom:new{ x = cx + half_slot, y = l2_y + math.floor((mark_sz - btn_w)/2), w = btn_w, h = btn_w }
+        drawBtn("gsix_next", scrubber._gsix_next_dimen, scrubber.icon_gs_chevron_right, 0)
+    else
+        scrubber._gsix_next_dimen = nil
+    end
+
+    -- Botón de retorno al origen idéntico al modo vertical (solo "Page X", sin flechas)
     local has_back = (scrubber._cur_page ~= scrubber._origin_page)
     if has_back then
         local disp_origin = scrubber:_getDisplayPageInfo(scrubber._origin_page)
-        local origin_on_left
-        if scrubber.is_rtl then
-            origin_on_left = (scrubber._cur_page < scrubber._origin_page)
-        else
-            origin_on_left = (scrubber._cur_page > scrubber._origin_page)
-        end
-
-        local arrow_char = origin_on_left and "‹ " or " ›"
-        local back_str = origin_on_left and (arrow_char .. _("Page") .. " " .. tostring(disp_origin))
-                                         or (_("Page") .. " " .. tostring(disp_origin) .. arrow_char)
+        local back_str = _("Page") .. " " .. tostring(disp_origin)
 
         if not scrubber._tw_gsix_origin then
             scrubber._tw_gsix_origin = TextWidget:new{ text = back_str, face = Font:getFace("cfont", scrubber.S_BOTTOM_GRAY or S(13)), bold = true, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
@@ -304,26 +332,27 @@ function GridSixLandscapeView.paint(scrubber, bb)
             scrubber._tw_gsix_origin:setText(back_str)
         end
         local bsz = scrubber._tw_gsix_origin:getSize()
-        local bw = bsz.w + S(14)
+        local bw = bsz.w + S(20)
         local bx = cx - math.floor(bw / 2)
         scrubber._gsix_origin_dimen = Geom:new{ x = bx, y = l2_y, w = bw, h = mark_sz }
 
         local is_orig_p = (scrubber._pressed_btn == "gsix_origin")
         if is_orig_p then
-            paintRoundRect(bb, bx, l2_y, bw, mark_sz, S(6), Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, bx, l2_y, bw, mark_sz, S(8), Blitbuffer.COLOR_BLACK)
             scrubber._tw_gsix_origin.fgcolor = Blitbuffer.COLOR_WHITE
-            scrubber._tw_gsix_origin:paintTo(bb, bx + S(7), l2_y + math.floor((mark_sz - bsz.h)/2))
+            scrubber._tw_gsix_origin:paintTo(bb, cx - math.floor(bsz.w/2), l2_y + math.floor((mark_sz - bsz.h)/2))
         else
             scrubber._tw_gsix_origin.fgcolor = Blitbuffer.COLOR_DARK_GRAY
-            paintTripleText(scrubber._tw_gsix_origin, bb, bx + S(7), l2_y + math.floor((mark_sz - bsz.h)/2))
+            paintTripleText(scrubber._tw_gsix_origin, bb, cx - math.floor(bsz.w/2), l2_y + math.floor((mark_sz - bsz.h)/2))
         end
     else
         scrubber._gsix_origin_dimen = nil
     end
 
-    -- Título del capítulo anclado a la izquierda con ancho delimitado
+    -- Título del capítulo anclado a la izquierda con límite fijo seguro (evita errores nil)
     if scrubber.tw_chapter then
-        scrubber.tw_chapter.max_width = scrubber._gsix_prev_dimen.x - pad_x - S(12)
+        local left_limit = cx - half_slot - btn_w
+        scrubber.tw_chapter.max_width = left_limit - pad_x - S(12)
         scrubber.tw_chapter:paintTo(bb, pad_x, l2_y + math.floor((mark_sz - scrubber.tw_chapter:getSize().h)/2))
     end
 

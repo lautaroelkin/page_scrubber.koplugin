@@ -1123,30 +1123,13 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             end
 
             local disp_p = nil
-            local ui = self.ui
-            local doc = ui and ui.document
-
-            -- 1. Consulta al método de paginación del Scrubber (padre o helper autónomo)
             local scrubber = self.parent_scrubber or self._scrubber_helper
             if scrubber and type(scrubber._getDisplayPageInfo) == "function" then
-                local ok, dp = pcall(function() return scrubber:_getDisplayPageInfo(ch.page) end)
+                local ok, dp = pcall(scrubber._getDisplayPageInfo, scrubber, ch.page)
                 if ok and dp and tostring(dp) ~= "" then
                     disp_p = tostring(dp)
                 end
             end
-
-            -- 2. Fallback al motor de etiquetas de página nativo
-            if not disp_p and ui and ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() then
-                if doc and type(doc.getPageLabel) == "function" then
-                    local ok, l = pcall(doc.getPageLabel, doc, ch.page)
-                    if ok and l and l ~= "" then disp_p = tostring(l) end
-                end
-                if not disp_p and type(ui.pagemap.getPageLabel) == "function" then
-                    local ok, l = pcall(ui.pagemap.getPageLabel, ui.pagemap, ch.page, true)
-                    if ok and l and l ~= "" then disp_p = tostring(l) end
-                end
-            end
-
             disp_p = disp_p or tostring(ch.page)
 
             local pg_str = _("Page") .. " " .. disp_p
@@ -1420,7 +1403,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 ch_pages = math.max(1, end_page - start_page + 1)
             end
         else
-            ch_pages = self._total_pages or 1
+            ch_pages = 0
         end
 
         local lvl1_cy = (self._lvl1_y or (bd.y + S(8))) + math.floor((self._lvl1_h or S(40)) / 2)
@@ -1429,18 +1412,23 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         local c1 = math.floor(sw * 0.20)
         local c2 = math.floor(sw * 0.80)
 
-        -- Nivel 1 Izquierda: [book-open-text.svg]  N (Total de páginas del capítulo activo, centrado en c1)
+        -- Nivel 1 Izquierda: [book-open-text.svg] (Solo ícono al arrastrar, número al soltar)
         if self.icon_stat_pages and self._tw_stat_pages_cnt then
-            self._tw_stat_pages_cnt:setText(tostring(ch_pages))
-            self._tw_stat_pages_cnt.fgcolor = (ch_pages > 0) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
-
             local isz = self.icon_stat_pages:getSize()
-            local tsz = self._tw_stat_pages_cnt:getSize()
-            local total_left_w = isz.w + icon_gap + tsz.w
-            local lx = c1 - math.floor(total_left_w / 2)
+            if is_scrubbing or ch_pages <= 0 then
+                local lx = c1 - math.floor(isz.w / 2)
+                self.icon_stat_pages:paintTo(bb, lx, lvl1_cy - math.floor(isz.h / 2))
+            else
+                self._tw_stat_pages_cnt:setText(tostring(ch_pages))
+                self._tw_stat_pages_cnt.fgcolor = Blitbuffer.COLOR_BLACK
 
-            self.icon_stat_pages:paintTo(bb, lx, lvl1_cy - math.floor(isz.h / 2))
-            self._tw_stat_pages_cnt:paintTo(bb, lx + isz.w + icon_gap, lvl1_cy - math.floor(tsz.h / 2))
+                local tsz = self._tw_stat_pages_cnt:getSize()
+                local total_left_w = isz.w + icon_gap + tsz.w
+                local lx = c1 - math.floor(total_left_w / 2)
+
+                self.icon_stat_pages:paintTo(bb, lx, lvl1_cy - math.floor(isz.h / 2))
+                self._tw_stat_pages_cnt:paintTo(bb, lx + isz.w + icon_gap, lvl1_cy - math.floor(tsz.h / 2))
+            end
         end
 
         -- Nivel 1 Derecha: [Marcadores] y [Destacados] agrupados juntos

@@ -885,17 +885,14 @@ function SplitLandscapeView.paint(scrubber, bb)
     -- =========================================================
     local l1_y = bar_y + bar_pad_y
     local ch_btn_sz = S(34)
-    scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
-    scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
 
     local function drawBtnWithPress(btn_id, dim, widget, y_off, is_disabled)
-        if not dim or not widget then return end
-        local is_p = (scrubber._pressed_btn == btn_id and not is_disabled and btn_id ~= "ctrl_mark")
+        if not dim or not widget or is_disabled then return end
+        local is_p = (scrubber._pressed_btn == btn_id and btn_id ~= "ctrl_mark")
         local wsz = widget:getSize()
         local wx = dim.x + math.floor((dim.w - wsz.w)/2)
         local wy = dim.y + math.floor((dim.h - wsz.h)/2) + (y_off or 0)
 
-        if is_disabled then return end
         if is_p then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
             local btn_rad = is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8)
@@ -917,11 +914,35 @@ function SplitLandscapeView.paint(scrubber, bb)
         end
     end
 
-    drawBtnWithPress("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1))
-    drawBtnWithPress("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1))
+    local current_display = scrubber._cur_page
+    local can_prev_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getPreviousChapter(current_display) ~= nil
+    local can_next_ch = scrubber.ui and scrubber.ui.toc and scrubber.ui.toc:getNextChapter(current_display) ~= nil
 
-    local slider_x = scrubber._prev_ch_dimen.x + ch_btn_sz + S(12)
-    local slider_w = scrubber._next_ch_dimen.x - S(12) - slider_x
+    local show_ch_l, show_ch_r
+    if scrubber.is_rtl then
+        show_ch_l = can_next_ch
+        show_ch_r = can_prev_ch
+    else
+        show_ch_l = can_prev_ch
+        show_ch_r = can_next_ch
+    end
+
+    if show_ch_l then
+        scrubber._prev_ch_dimen = Geom:new{ x = pad_x, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtnWithPress("ch_l", scrubber._prev_ch_dimen, scrubber.tw_ch_l, -S(1))
+    else
+        scrubber._prev_ch_dimen = nil
+    end
+
+    if show_ch_r then
+        scrubber._next_ch_dimen = Geom:new{ x = sw - pad_x - ch_btn_sz, y = l1_y + math.floor((l1_h - ch_btn_sz)/2), w = ch_btn_sz, h = ch_btn_sz }
+        drawBtnWithPress("ch_r", scrubber._next_ch_dimen, scrubber.tw_ch_r, -S(1))
+    else
+        scrubber._next_ch_dimen = nil
+    end
+
+    local slider_x = pad_x + ch_btn_sz + S(12)
+    local slider_w = (sw - pad_x - ch_btn_sz) - S(12) - slider_x
     scrubber._slider.width = slider_w
     scrubber._slider.value = scrubber._cur_page
     scrubber._slider:paintTo(bb, slider_x, l1_y + math.floor((l1_h - scrubber._slider:getSize().h)/2))

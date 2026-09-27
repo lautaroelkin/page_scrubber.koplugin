@@ -1379,78 +1379,118 @@ function PageScrubber:_findNextBookmark()
 end
 
 function PageScrubber:_getDisplayPageInfo(raw_page)
+    local fallback_p = tostring(raw_page)
     local ui = self.ui
-    if not ui then return raw_page, self._total_pages end
+    if not ui then return fallback_p, self._total_pages end
 
-    if ui.pagemap and type(ui.pagemap.wantsPageLabels) == "function" and ui.pagemap:wantsPageLabels() then
-        -- 1. Total estable
-        if not self._stable_total then
-            if type(ui.pagemap.getLastPageLabel) == "function" then
-                local ok, l = pcall(ui.pagemap.getLastPageLabel, ui.pagemap, true)
-                if ok and l and l ~= "" then self._stable_total = tonumber(l) or l end
-            end
-            if not self._stable_total and type(ui.pagemap.getCurrentPageLabel) == "function" then
-                local ok, _, _, count = pcall(ui.pagemap.getCurrentPageLabel, ui.pagemap)
-                if ok and count and count > 0 then self._stable_total = count end
-            end
+    local pagemap = ui.pagemap
+    local doc = ui.document
+
+    -- Detectar si el documento posee páginas estables (activadas o nativas)
+    local has_labels = false
+    if pagemap then
+        if type(pagemap.wantsPageLabels) == "function" and pagemap:wantsPageLabels() then
+            has_labels = true
+        elseif type(pagemap.hasPageLabels) == "function" and pagemap:hasPageLabels() then
+            has_labels = true
         end
-        local disp_total = self._stable_total or self._total_pages
-
-        -- 2. Si la página consultada es el origen exacto donde se abrió el scrubber, usar siempre la etiqueta activa
-        if raw_page == self._origin_page then
-            if not self._origin_stable_raw and type(ui.pagemap.getCurrentPageLabel) == "function" then
-                local ok, l, idx = pcall(ui.pagemap.getCurrentPageLabel, ui.pagemap, true)
-                if not (ok and l and l ~= "") then
-                    ok, l, idx = pcall(ui.pagemap.getCurrentPageLabel, ui.pagemap, false)
-                end
-                local val = (ok and l and l ~= "" and l) or (ok and idx and idx > 0 and idx)
-                if val then
-                    self._origin_stable_raw = tostring(val)
-                    self._origin_stable_num = tonumber(val)
-                end
-            end
-            if self._origin_stable_raw then
-                return self._origin_stable_raw, disp_total
-            end
-        end
-
-        -- 3. Consulta estricta de etiqueta de página al módulo pagemap
-        if type(ui.pagemap.getPageLabel) == "function" then
-            local ok, l = pcall(ui.pagemap.getPageLabel, ui.pagemap, raw_page, true)
-            if ok and l and l ~= "" then return tostring(l), disp_total end
-        end
-
-        -- 4. Extremos directos
-        local tot_screens = self._total_pages or 1
-        local tot_stable = tonumber(disp_total) or tot_screens
-        local orig_screen = self._origin_page or 1
-        local orig_stable = self._origin_stable_num
-
-        if raw_page <= 1 then
-            return "1", disp_total
-        elseif raw_page >= tot_screens then
-            return tostring(tot_stable), disp_total
-        end
-
-        -- 5. Progresión lineal continua sin saltos artificiales
-        local progress = (tot_screens > 1) and ((raw_page - 1) / (tot_screens - 1)) or 0
-        local base_stable = 1 + progress * (tot_stable - 1)
-
-        if orig_stable and orig_screen > 1 and orig_screen < tot_screens then
-            local orig_progress = (orig_screen - 1) / (tot_screens - 1)
-            local orig_base = 1 + orig_progress * (tot_stable - 1)
-            local delta = orig_stable - orig_base
-            local weight = math.sin(progress * math.pi)
-            base_stable = base_stable + (delta * weight)
-        end
-
-        local result = math.floor(base_stable + 0.5)
-        result = math.max(1, math.min(tot_stable, result))
-
-        return tostring(result), disp_total
     end
 
-    return raw_page, self._total_pages
+    if not has_labels then
+        return fallback_p, self._total_pages
+    end
+
+    -- 1. Total de páginas según la última etiqueta física del libro (ej: 879 en vez de 905)
+    if not self._stable_total then
+        if pagemap and type(pagemap.getLastPageLabel) == "function" then
+            local ok, l = pcall(pagemap.getLastPageLabel, pagemap, true)
+            if ok and l and l ~= "" then self._stable_total = tostring(l) end
+        end
+        if not self._stable_total and pagemap and type(pagemap.getPageLabelProps) == "function" then
+            local ok, last_idx = pcall(pagemap.getPageLabelProps, pagemap)
+            if ok and last_idx and tonumber(last_idx) then
+                self._stable_total = tostring(last_idx)
+            end
+        end
+    end
+    local disp_total = self._stable_total or tostring(self._total_pages)
+
+    -- 2. Caché en memoria para respuesta en 0 ms
+    if not self._page_label_cache then
+        self._page_label_cache = {}
+    end
+    if self._page_label_cache[raw_page] then
+        return self._page_label_cache[raw_page], disp_total
+    end
+
+    local resolved_label = nil
+
+    -- 3. Método nativo para EPUB (resolución real vía XPointer con anticipación en pantalla actual)
+    if doc and type(doc.getPageXPointer) == "function" and pagemap and type(pagemap.getXPointerPageLabel) == "function" then
+        -- Etiqueta al tope de la pantalla
+        local ok_xp, xp = pcall(doc.getPageXPointer, doc, raw_page)
+        if ok_xp and xp then
+            local ok_lbl, lbl = pcall(pagemap.getXPointerPageLabel, pagemap, xp, true)
+            if ok_lbl and lbl and lbl ~= "" then
+                resolved_label = lbl
+            end
+        end
+
+        -- Detección de salto a mitad de pantalla: consultar el límite con la siguiente
+        local cand_lbl = nil
+        local ok_next_xp, next_xp = pcall(doc.getPageXPointer, doc, raw_page + 1)
+        if ok_next_xp and next_xp then
+            local ok_cand, clbl = pcall(pagemap.getXPointerPageLabel, pagemap, next_xp, true)
+            if ok_cand and clbl and clbl ~= "" then
+                cand_lbl = clbl
+            end
+        elseif pagemap and type(pagemap.getLastPageLabel) == "function" then
+            local ok_last, llbl = pcall(pagemap.getLastPageLabel, pagemap, true)
+            if ok_last and llbl and llbl ~= "" then
+                cand_lbl = llbl
+            end
+        end
+
+        -- Si la etiqueta cambió antes de la página siguiente, verificar si nació en esta misma pantalla
+        if cand_lbl and cand_lbl ~= resolved_label and type(pagemap.getPageLabelProps) == "function" then
+            local ok_props, idx, label_pn = pcall(pagemap.getPageLabelProps, pagemap, cand_lbl)
+            if ok_props and label_pn and label_pn == raw_page then
+                resolved_label = cand_lbl
+            end
+        end
+    end
+
+    -- 4. Método nativo para PDF / formatos fijos (doc:getPageLabel)
+    if not resolved_label and doc and type(doc.getPageLabel) == "function" then
+        local ok, lbl = pcall(doc.getPageLabel, doc, raw_page)
+        if ok and lbl and lbl ~= "" then
+            resolved_label = lbl
+        end
+    end
+
+    -- 5. Fallback directo al pagemap
+    if not resolved_label and pagemap and type(pagemap.getPageLabel) == "function" then
+        local ok, lbl = pcall(pagemap.getPageLabel, pagemap, raw_page, true)
+        if ok and lbl and lbl ~= "" then
+            resolved_label = lbl
+        end
+    end
+
+    -- 6. Limpieza de caracteres invisibles y guardado en memoria
+    if resolved_label then
+        if pagemap and type(pagemap.cleanPageLabel) == "function" then
+            local ok_clean, cleaned = pcall(pagemap.cleanPageLabel, pagemap, resolved_label)
+            if ok_clean and cleaned and cleaned ~= "" then
+                resolved_label = cleaned
+            end
+        end
+        local res = tostring(resolved_label)
+        self._page_label_cache[raw_page] = res
+        return res, disp_total
+    end
+
+    self._page_label_cache[raw_page] = fallback_p
+    return fallback_p, disp_total
 end
 
 function PageScrubber:_updateTexts()
@@ -3822,7 +3862,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
     local can_next_ch = self.ui.toc and self.ui.toc:getNextChapter(current_display) ~= nil
 
     local function drawFloatingBtnBottom(btn_id, dimen, tw, is_disabled)
-        if is_disabled then return end
+        if is_disabled or not dimen or not tw then return end
         
         local cx = dimen.x + math.floor(dimen.w / 2)
         local cy = dimen.y + math.floor(dimen.h / 2)
@@ -3838,12 +3878,10 @@ function PageScrubber:_paintToImpl(bb, x, y)
         if btn_id == "ctrl_mark" then 
             y_offset = -S(1) - 1 
             if self._view_mode == "grid_simple" then
-                y_offset = y_offset - 1 -- Sube exactamente 1 píxel el ícono en el Simple Grid
+                y_offset = y_offset - 1
             end
         end
 
-        -- EFECTO TÁCTIL EN LOS BOTONES DE ABAJO
-        -- Excluimos "ctrl_mark", "gsix_prev" y "gsix_next"
         local is_pressed = (self._pressed_btn == btn_id and btn_id ~= "ctrl_mark" and btn_id ~= "gsix_prev" and btn_id ~= "gsix_next")
         local draw_x = cx - math.floor(tsz.w / 2)
         local draw_y = cy - math.floor(tsz.h / 2) + y_offset
@@ -3874,19 +3912,59 @@ function PageScrubber:_paintToImpl(bb, x, y)
         end
     end
 
-    drawFloatingBtnBottom("ch_l", self._prev_ch_dimen, self.tw_ch_l, not can_prev_ch)
-    drawFloatingBtnBottom("ch_r", self._next_ch_dimen, self.tw_ch_r, not can_next_ch)
+    local side_margin_btn = pad + S(6)
+    local ch_btn_sz = self._cbtn_sz or S(46)
+    local ch_btn_y = self.ch_y_pos + S(2)
+
+    local show_ch_l, show_ch_r
+    if self.is_rtl then
+        show_ch_l = can_next_ch
+        show_ch_r = can_prev_ch
+    else
+        show_ch_l = can_prev_ch
+        show_ch_r = can_next_ch
+    end
+
+    if show_ch_l then
+        self._prev_ch_dimen = Geom:new{ x = side_margin_btn, y = ch_btn_y, w = ch_btn_sz, h = ch_btn_sz }
+        drawFloatingBtnBottom("ch_l", self._prev_ch_dimen, self.tw_ch_l, false)
+    else
+        self._prev_ch_dimen = nil
+    end
+
+    if show_ch_r then
+        self._next_ch_dimen = Geom:new{ x = sw - side_margin_btn - ch_btn_sz, y = ch_btn_y, w = ch_btn_sz, h = ch_btn_sz }
+        drawFloatingBtnBottom("ch_r", self._next_ch_dimen, self.tw_ch_r, false)
+    else
+        self._next_ch_dimen = nil
+    end
 
     if self._view_mode == "grid_six" then
         local btn_w = S(50)
         local mark_sz = S(36)
-        if not self._gsix_prev_dimen then
+
+        local can_page_l, can_page_r
+        if self.is_rtl then
+            can_page_l = (self._cur_page < self._total_pages)
+            can_page_r = (self._cur_page > 1)
+        else
+            can_page_l = (self._cur_page > 1)
+            can_page_r = (self._cur_page < self._total_pages)
+        end
+
+        if can_page_l then
             self._gsix_prev_dimen = Geom:new{ x = pad * 2, y = self.ctrl_y_pos, w = btn_w, h = mark_sz }
-            self._gsix_next_dimen = Geom:new{ x = sw - pad * 2 - btn_w, y = self.ctrl_y_pos, w = btn_w, h = mark_sz }
+            drawFloatingBtnBottom("gsix_prev", self._gsix_prev_dimen, self.icon_gs_chevron_left, false)
+        else
+            self._gsix_prev_dimen = nil
         end
         
-        drawFloatingBtnBottom("gsix_prev", self._gsix_prev_dimen, self.icon_gs_chevron_left, self._cur_page <= 1)
-        drawFloatingBtnBottom("gsix_next", self._gsix_next_dimen, self.icon_gs_chevron_right, self._cur_page >= self._total_pages)
+        if can_page_r then
+            self._gsix_next_dimen = Geom:new{ x = sw - pad * 2 - btn_w, y = self.ctrl_y_pos, w = btn_w, h = mark_sz }
+            drawFloatingBtnBottom("gsix_next", self._gsix_next_dimen, self.icon_gs_chevron_right, false)
+        else
+            self._gsix_next_dimen = nil
+        end
 
         if self._cur_page ~= self._origin_page then
             local bg_face = Font:getFace("cfont", self.S_BOTTOM_GRAY or S(14))
@@ -3931,7 +4009,6 @@ function PageScrubber:_paintToImpl(bb, x, y)
 
         drawFloatingBtnBottom("ctrl_prev", self._ctrl_prev_dimen, self.tw_ctrl_prev, not has_left_bm)
         
-        -- CAMBIO PARA EL GRID SIMPLE: Cambiamos el ícono del marcador por el ícono del grid
         if self._view_mode == "grid_simple" then
             drawFloatingBtnBottom("ctrl_mark", self._ctrl_mark_dimen, self.tw_gallery, false)
         else
@@ -3952,7 +4029,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
     local infox = math.floor((sw - isz.w) / 2)
 
     if self._view_mode == "grid_simple" then
-        local btn_center_y = self._prev_ch_dimen.y + math.floor(self._prev_ch_dimen.h / 2)
+        local btn_center_y = ch_btn_y + math.floor(ch_btn_sz / 2)
         local new_ch_y = btn_center_y - math.floor(csz_tw.h / 2)
 
         self.tw_chapter:paintTo(bb, ctx, new_ch_y)
@@ -3976,7 +4053,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
     
     if self._view_mode == "grid_simple" then
         local slider_h = self._slider:getSize().h
-        local espacio_arriba = self._prev_ch_dimen.y + self._prev_ch_dimen.h
+        local espacio_arriba = ch_btn_y + ch_btn_sz
         local espacio_abajo = self.ctrl_y_pos
         local nuevo_slider_y = espacio_arriba + math.floor((espacio_abajo - espacio_arriba - slider_h) / 2)
         
@@ -4191,14 +4268,16 @@ function PageScrubber:onTap(_, ges)
         if self._gsix_prev_dimen and ges.pos:intersectWith(self._gsix_prev_dimen) then
             self:_flashAndDo("gsix_prev", self._gsix_prev_dimen, function()
                 self._force_menu_sync = true
-                self:_previewPage(self._cur_page - 6, false)
+                local delta = self.is_rtl and 6 or -6
+                self:_previewPage(self._cur_page + delta, false)
             end)
             return true
         end
         if self._gsix_next_dimen and ges.pos:intersectWith(self._gsix_next_dimen) then
             self:_flashAndDo("gsix_next", self._gsix_next_dimen, function()
                 self._force_menu_sync = true
-                self:_previewPage(self._cur_page + 6, false)
+                local delta = self.is_rtl and -6 or 6
+                self:_previewPage(self._cur_page + delta, false)
             end)
             return true
         end
