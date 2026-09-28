@@ -26,12 +26,95 @@ pcall(function() ReaderHighlight = require("apps/reader/modules/readerhighlight"
 
 local modern_plugin_buttons_shared = {}
 
+-- ==========================================
+-- FASTDICT: MOTOR STARDIC EN MEMORIA
+-- ==========================================
+local fastdict_shared = {
+    engine = nil,
+    orig_rawSdcv = nil,
+    session_disabled = false,
+}
+
+local SETTING_FASTDICT_ENABLED = "page_scrubber_fastdict_enabled"
+
 local FloatingDict = {
     ui = nil,
     enabled = true,
     patched_dictionary = nil,
     opening_original_popup = false,
 }
+
+function FloatingDict:isFastDictEnabled()
+    if G_reader_settings then
+        local val = G_reader_settings:readSetting(SETTING_FASTDICT_ENABLED)
+        if val ~= nil then return val == true end
+    end
+    return true -- Activado por defecto para máxima velocidad
+end
+
+function FloatingDict:getFastDictEngine(rd)
+    if not fastdict_shared.engine then
+        -- Garantiza que require("stardict") y require("dictzip") se encuentren sin fallar
+        if plugin_path and not package.path:find(plugin_path, 1, true) then
+            package.path = plugin_path .. "?.lua;" .. package.path
+        end
+
+        local ok_engine, engine_mod = pcall(require, "engine")
+        if not ok_engine or not engine_mod then
+            return nil
+        end
+
+        local lfs = require("libs/libkoreader-lfs")
+        local DataStorage = require("datastorage")
+        local util = require("util")
+
+        local dict_dirs = { rd.data_dir }
+        local dict_ext = rd.data_dir .. "_ext"
+        if lfs.attributes(dict_ext, "mode") == "directory" then
+            table.insert(dict_dirs, dict_ext)
+        end
+        local cache_dir = DataStorage:getDataDir() .. "/cache"
+        util.makePath(cache_dir)
+
+        fastdict_shared.engine = engine_mod.new({
+            dict_dirs = dict_dirs,
+            cache_dir = cache_dir,
+        })
+    end
+    return fastdict_shared.engine
+end
+
+function FloatingDict:patchFastDict()
+    if fastdict_shared.orig_rawSdcv then return end
+
+    local ReaderDictionary = self.ui and self.ui.dictionary and self.ui.dictionary.class
+    if not ReaderDictionary then
+        local ok, mod = pcall(require, "apps/reader/modules/readerdictionary")
+        if not ok or not mod then return end
+        ReaderDictionary = mod
+    end
+
+    fastdict_shared.orig_rawSdcv = ReaderDictionary.rawSdcv
+    local plugin = self
+
+    ReaderDictionary.rawSdcv = function(rd, words, dict_names, fuzzy_search, lookup_progress_msg)
+        if plugin:isFastDictEnabled() and not fastdict_shared.session_disabled and not fuzzy_search then
+            local engine = plugin:getFastDictEngine(rd)
+            if engine then
+                local ok, results_or_err = pcall(function()
+                    return engine:lookup_words(words, dict_names)
+                end)
+                -- Solo intercepta si devolvió coincidencias reales; si no, deriva al sdcv estándar
+                if ok and results_or_err and #results_or_err > 0 and results_or_err[1] and #results_or_err[1] > 0 then
+                    return false, results_or_err
+                elseif not ok then
+                    fastdict_shared.session_disabled = true
+                end
+            end
+        end
+        return fastdict_shared.orig_rawSdcv(rd, words, dict_names, fuzzy_search, lookup_progress_msg)
+    end
+end
 
 local SETTING_DICT_ENABLED = "page_scrubber_floating_dict_enabled"
 local SETTING_SELECTION_ENABLED = "page_scrubber_selection_menu_enabled"
@@ -54,10 +137,23 @@ local function scaleText(px)
     return scale(px + getTextOffset())
 end
 
-local function is_btn_enabled(key)
-    if not G_reader_settings then return true end
+local function is_btn_enabled(key, default_val)
+    if not G_reader_settings then
+        return (default_val ~= nil) and default_val or true
+    end
     local val = G_reader_settings:readSetting(key)
-    if val == nil then return true end
+    if val == nil then
+        if default_val ~= nil then return default_val end
+        -- X-Ray y AI Assistant solo están activos si el plugin está presente
+        if key:find("xray") then
+            local ok, lfs = pcall(require, "libs/libkoreader-lfs")
+            return ok and lfs and (lfs.attributes("plugins/xray.koplugin", "mode") == "directory") or false
+        elseif key:find("_ai") then
+            local ok, lfs = pcall(require, "libs/libkoreader-lfs")
+            return ok and lfs and (lfs.attributes("plugins/assistant.koplugin", "mode") == "directory") or false
+        end
+        return true
+    end
     return val == true
 end
 
@@ -809,6 +905,73 @@ function FloatingDict:discoverExternalButtons(dict_self, word, result, result_in
 end
 
 -- ==========================================
+-- MEDICIÓN DE ALTURA HTML (SHRINK-TO-FIT)
+-- ==========================================
+local function getHtmlContentHeight(widget)
+    if not widget then return nil end
+    if type(widget.getSinglePageHeight) == "function" then
+        local ok, h = pcall(widget.getSinglePageHeight, widget)
+        if ok and type(h) == "number" and h > 0 then return h end
+    end
+    if widget.htmlbox_widget and type(widget.htmlbox_widget.getSinglePageHeight) == "function" then
+        local ok, h = pcall(widget.htmlbox_widget.getSinglePageHeight, widget.htmlbox_widget)
+        if ok and type(h) == "number" and h > 0 then return h end
+    end
+    return nil
+end
+
+local function estimateHtmlContentHeight(content_width, html_body, font_size)
+    if not html_body or html_body == "" or not content_width or content_width <= 0 then
+        return nil
+    end
+
+    local text = tostring(html_body)
+    text = text:gsub("<%s*br%s*/?%s*>", "\n")
+    text = text:gsub("<%s*/?%s*p[^>]*>", "\n")
+    text = text:gsub("<%s*/?%s*div[^>]*>", "\n")
+    text = text:gsub("<%s*/?%s*li[^>]*>", "\n")
+    text = text:gsub("<%s*/?%s*h[1-6][^>]*>", "\n")
+    text = text:gsub("<[^>]+>", "")
+    text = text:gsub("&nbsp;", " ")
+    text = text:gsub("&amp;", "&")
+    text = text:gsub("&lt;", "<")
+    text = text:gsub("&gt;", ">")
+    text = text:gsub("&quot;", '"')
+    text = text:gsub("&#39;", "'")
+    text = text:gsub("^%s*\n+", "")
+    text = text:gsub("\n+%s*$", "")
+
+    font_size = font_size or scale(18)
+    local avg_char_width = font_size * 0.60
+    local chars_per_line = math.max(1, math.floor(content_width / avg_char_width))
+    local line_height = font_size * 1.30
+
+    local total_lines = 0
+    local saw_content = false
+    local prev_blank = false
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        local trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+        if trimmed == "" then
+            if saw_content and not prev_blank then
+                total_lines = total_lines + 1
+                prev_blank = true
+            end
+        else
+            local wrapped = math.max(1, math.ceil(#trimmed / chars_per_line))
+            total_lines = total_lines + wrapped
+            saw_content = true
+            prev_blank = false
+        end
+    end
+
+    if not saw_content or total_lines <= 0 then
+        return nil
+    end
+
+    return math.ceil(total_lines * line_height) + scale(8)
+end
+
+-- ==========================================
 -- TARJETA: PALABRA ÚNICA (DICCIONARIO ORIGINAL)
 -- ==========================================
 local FloatingDictionaryPopup = InputContainer:extend({
@@ -847,81 +1010,94 @@ function FloatingDictionaryPopup:init()
 
     local external_rows = {}
     
-    local base_buttons = {}
-    if is_btn_enabled("page_scrubber_fdict_show_wiki") then
-        table.insert(base_buttons, { svg = "globe.svg", text = "Wiki", action = "wiki" })
-    end
-    if is_btn_enabled("page_scrubber_fdict_show_translate") then
-        table.insert(base_buttons, { svg = "languages.svg", text = "Translate", action = "translate" })
-    end
-    if is_btn_enabled("page_scrubber_fdict_show_ai") then
-        table.insert(base_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
-    end
-    if is_btn_enabled("page_scrubber_fdict_show_highlight") then
-        table.insert(base_buttons, { svg = "highlighter.svg", text = "Highlight", action = "highlight" })
-    end
-    if is_btn_enabled("page_scrubber_fdict_show_search") then
-        table.insert(base_buttons, { svg = "search.svg", text = "Search", action = "search" })
-    end
-    
-    for _, btn in ipairs(base_buttons) do
-        local path = getValidSvgPath(btn.svg)
-        if not path and btn.action == "ai" then
-            path = getValidSvgPath("ai.svg") or getValidSvgPath("bot.svg")
-        end
-
-        if path then
-            table.insert(icon_btn_specs, { icon_svg = path, text = nil, action = btn.action })
-        else
-            table.insert(icon_btn_specs, { icon_svg = nil, text = btn.text, font_size = scaleText(12), action = btn.action })
-        end
-    end
-    
     self.word = self.text
     self.clean_text = cleanWordForLookup(self.text) or self.text
     self.clean_word = self.clean_text
     self.highlight = self.highlight_obj
     self.selected_text = (self.highlight_obj and self.highlight_obj.selected_text) or { text = self.text }
 
-    if is_btn_enabled("page_scrubber_fdict_show_plugins") then
-        if self.plugin and type(self.plugin.discoverExternalButtons) == "function" then
-            local plugin_rows = self.plugin:discoverExternalButtons(self.plugin.patched_dictionary, self.text, entry, self.current_result_idx, self.results, self.boxes, nil, self)
-            for _, row in ipairs(plugin_rows) do
-                local current_text_row = {}
-                for _, ext in ipairs(row) do
-                    local assigned_svg = nil
-                    local id_lower = (ext.id or ""):lower()
-                    local txt_lower = (ext.text or ""):lower()
-                    
-                    if id_lower:find("xray") or id_lower:find("x%-ray") or txt_lower:find("xray") or txt_lower:find("x%-ray") then
-                        assigned_svg = getValidSvgPath("xray.svg")
-                    end
+    -- 1. Descubrir X-Ray si el plugin externo está presente
+    local dict_xray_spec = nil
+    local other_external_rows = {}
 
-                    if assigned_svg then
-                        table.insert(icon_btn_specs, {
-                            id = ext.id,
-                            icon_svg = assigned_svg,
-                            text = nil,
-                            external_callback = ext.callback,
-                            fake_popup = ext.fake_popup
-                        })
-                    else
-                        table.insert(current_text_row, {
-                            id = ext.id,
-                            icon_svg = nil,
-                            text = ext.text or "Plug-in",
-                            font_size = scaleText(12),
-                            external_callback = ext.callback,
-                            fake_popup = ext.fake_popup
-                        })
-                    end
+    if self.plugin and type(self.plugin.discoverExternalButtons) == "function" then
+        local plugin_rows = self.plugin:discoverExternalButtons(self.plugin.patched_dictionary, self.text, entry, self.current_result_idx, self.results, self.boxes, nil, self)
+        for _, row in ipairs(plugin_rows) do
+            local current_text_row = {}
+            for _, ext in ipairs(row) do
+                local id_lower = (ext.id or ""):lower()
+                local txt_lower = (ext.text or ""):lower()
+                local is_xray = id_lower:find("xray") or id_lower:find("x%-ray") or txt_lower:find("xray") or txt_lower:find("x%-ray")
+
+                if is_xray then
+                    local assigned_svg = getValidSvgPath("xray.svg")
+                    dict_xray_spec = {
+                        id = ext.id,
+                        icon_svg = assigned_svg,
+                        text = not assigned_svg and "X-Ray" or nil,
+                        external_callback = ext.callback,
+                        fake_popup = ext.fake_popup,
+                    }
+                else
+                    table.insert(current_text_row, {
+                        id = ext.id,
+                        icon_svg = nil,
+                        text = ext.text or "Plug-in",
+                        font_size = scaleText(12),
+                        external_callback = ext.callback,
+                        fake_popup = ext.fake_popup,
+                    })
                 end
-                
-                if #current_text_row > 0 then
-                    table.insert(external_rows, current_text_row)
+            end
+            if #current_text_row > 0 then
+                table.insert(other_external_rows, current_text_row)
+            end
+        end
+    end
+
+    -- 2. Construir los botones superiores del diccionario en el orden configurado
+    local DICT_BUTTON_SPECS = {
+        wiki      = { svg = "globe.svg", text = "Wiki", action = "wiki", setting = "page_scrubber_fdict_show_wiki" },
+        translate = { svg = "languages.svg", text = "Translate", action = "translate", setting = "page_scrubber_fdict_show_translate" },
+        ai        = { svg = "sparkles.svg", text = "AI", action = "ai", setting = "page_scrubber_fdict_show_ai" },
+        highlight = { svg = "highlighter.svg", text = "Highlight", action = "highlight", setting = "page_scrubber_fdict_show_highlight" },
+        search    = { svg = "search.svg", text = "Search", action = "search", setting = "page_scrubber_fdict_show_search" },
+    }
+    local default_btn_order = { "xray", "wiki", "translate", "ai", "highlight", "search" }
+    local saved_btn_order = G_reader_settings and G_reader_settings:readSetting("page_scrubber_fdict_btn_order")
+    if type(saved_btn_order) ~= "table" then
+        saved_btn_order = default_btn_order
+    else
+        local seen = {}
+        for _, k in ipairs(saved_btn_order) do seen[k] = true end
+        for _, k in ipairs(default_btn_order) do
+            if not seen[k] then table.insert(saved_btn_order, k) end
+        end
+    end
+
+    for _, btn_key in ipairs(saved_btn_order) do
+        if btn_key == "xray" then
+            if dict_xray_spec and is_btn_enabled("page_scrubber_fdict_show_xray") then
+                table.insert(icon_btn_specs, dict_xray_spec)
+            end
+        else
+            local b_spec = DICT_BUTTON_SPECS[btn_key]
+            if b_spec and is_btn_enabled(b_spec.setting) then
+                local path = getValidSvgPath(b_spec.svg)
+                if not path and b_spec.action == "ai" then
+                    path = getValidSvgPath("ai.svg") or getValidSvgPath("bot.svg")
+                end
+                if path then
+                    table.insert(icon_btn_specs, { icon_svg = path, text = nil, action = b_spec.action })
+                else
+                    table.insert(icon_btn_specs, { icon_svg = nil, text = b_spec.text, font_size = scaleText(12), action = b_spec.action })
                 end
             end
         end
+    end
+
+    if is_btn_enabled("page_scrubber_fdict_show_plugins") then
+        external_rows = other_external_rows
     end
 
     local raw_fs = getBookRawFontSize(ui_instance) or 26
@@ -1157,12 +1333,31 @@ function FloatingDictionaryPopup:init()
     local avail_h = screen_height - fixed_h - safety_pad
     self.max_html_height = self.is_landscape and math.max(min_reading_h, avail_h) or math.floor(screen_height * 0.35)
 
-    self.htmlwidget = ScrollHtmlWidget:new({
-        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
-        default_font_size = getDictFontSize(ui_instance), width = content_w - scale(48), height = self.max_html_height,
-        scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
-    })
-    applyRoundedScrollbar(self.htmlwidget)
+    local function makeHtml(h)
+        local w = ScrollHtmlWidget:new({
+            html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
+            default_font_size = getDictFontSize(ui_instance), width = content_w - scale(48), height = h,
+            scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
+        })
+        applyRoundedScrollbar(w)
+        return w
+    end
+
+    self.htmlwidget = makeHtml(self.max_html_height)
+
+    -- Auto-ajuste de altura vertical (Shrink-to-fit): elimina espacios vacíos si la definición es corta
+    if not self.is_landscape then
+        local natural_h = getHtmlContentHeight(self.htmlwidget)
+            or estimateHtmlContentHeight(content_w - scale(48), html_body, getDictFontSize(ui_instance))
+        if natural_h and natural_h < self.max_html_height then
+            local min_h = scale(40)
+            local fitted_h = math.max(min_h, math.ceil(natural_h) + scale(4))
+            if fitted_h < self.max_html_height then
+                if self.htmlwidget.free then pcall(function() self.htmlwidget:free() end) end
+                self.htmlwidget = makeHtml(fitted_h)
+            end
+        end
+    end
 
     self.html_row = HorizontalGroup:new({
         HorizontalSpan:new({ width = scale(24) }),
@@ -1284,8 +1479,19 @@ function FloatingDictionaryPopup:onClose() UIManager:close(self) end
 function FloatingDictionaryPopup:close() UIManager:close(self) end
 function FloatingDictionaryPopup:closeWidget() UIManager:close(self) end
 
-function FloatingDictionaryPopup:onHoldStartText() return true end
-function FloatingDictionaryPopup:onHoldPanText() return true end
+function FloatingDictionaryPopup:onHoldStartText(_arg, ges)
+    -- Si mantienes pulsado fuera de la tarjeta, permite seleccionar la nueva palabra del libro
+    if self.popup_rect and ges and ges.pos and ges.pos:notIntersectWith(self.popup_rect) then
+        return false
+    end
+    return true
+end
+function FloatingDictionaryPopup:onHoldPanText(_arg, ges)
+    if self.popup_rect and ges and ges.pos and ges.pos:notIntersectWith(self.popup_rect) then
+        return false
+    end
+    return true
+end
 function FloatingDictionaryPopup:onHoldReleaseText() return true end
 
 function FloatingDictionaryPopup:lookupWordDirect(word)
@@ -1330,40 +1536,42 @@ function FloatingDictionaryPopup:onSwipe(arg1, arg2)
 end
 
 function FloatingDictionaryPopup:switchDict(new_idx)
-    self.current_result_idx = new_idx
-    local total_dicts = #self.results
-    local entry = self.results[new_idx] or {}
-    
-    local dict_name = tostring(entry.dict or "Diccionario")
-    local def_body = tostring(entry.definition or "<p>Sin definición.</p>")
-    if not def_body:find("<") then def_body = "<p>" .. htmlEscape(def_body):gsub("\n", "<br/>") .. "</p>" end
-    
-    local dict_indicator = string.format("<b>[%d/%d]</b> &nbsp;&bull;&nbsp; ", new_idx, total_dicts)
+    local total_dicts = self.results and #self.results or 1
+    if new_idx < 1 or new_idx > total_dicts then return end
 
-    local html_body = string.format([[
-        <div class="floatingdictionary-meta">%s%s</div>
-        <div class="search-content">%s</div>
-    ]], dict_indicator, htmlEscape(dict_name), def_body)
+    local plugin = self.plugin
+    local text = self.text
+    local results = self.results
+    local boxes = self.boxes
+    local anchor_top = self.anchor_top
+    local anchor_left = self.anchor_left
+    local is_landscape = self.is_landscape
+    local highlight_obj = self.highlight_obj
+    local old_rect = self.popup_rect
 
-    if self.word_widget and self.word_widget.setText then
-        local raw_display_word = tostring(entry.word or self.text or ""):gsub("\n", " ")
-        self.word_widget:setText(raw_display_word)
+    UIManager:close(self)
+
+    -- Redibujar la zona anterior para que no queden fantasmas en E-ink
+    if old_rect then
+        if plugin and plugin.ui then
+            UIManager:setDirty(plugin.ui, function() return "ui", old_rect end)
+        else
+            UIManager:setDirty(nil, function() return "ui", old_rect end)
+        end
     end
 
-    if self.htmlwidget.free then pcall(function() self.htmlwidget:free() end) end
-
-    local ui_instance = self.plugin and self.plugin.ui
-    local content_w = self.is_landscape and (self.width - scale(3)) or self.width
-    self.htmlwidget = ScrollHtmlWidget:new({
-        html_body = html_body, is_xhtml = true, css = getBaseCss(ui_instance),
-        default_font_size = getDictFontSize(ui_instance), width = content_w - scale(48), height = self.max_html_height,
-        scroll_bar_width = scale(6), dialog = self.dialog, highlight_text_selection = true,
+    local popup = FloatingDictionaryPopup:new({
+        text = text,
+        results = results,
+        boxes = boxes,
+        anchor_top = anchor_top,
+        anchor_left = anchor_left,
+        is_landscape = is_landscape,
+        highlight_obj = highlight_obj,
+        plugin = plugin,
+        current_result_idx = new_idx
     })
-    
-    applyRoundedScrollbar(self.htmlwidget)
-    self.html_row[2] = self.htmlwidget
-
-    UIManager:setDirty(self.dialog, "ui", self.popup_rect)
+    UIManager:show(popup)
 end
 
 -- ==========================================
@@ -1381,9 +1589,8 @@ function FloatingActionMenu:init()
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
 
-    local raw_buttons = {}
-
-    -- 1. X-Ray (si está presente)
+    -- 1. Detección dinámica de X-Ray si el plugin está presente
+    local xray_spec = nil
     if self.plugin and type(self.plugin.discoverExternalButtons) == "function" then
         local plugin_rows = self.plugin:discoverExternalButtons(self.plugin.patched_dictionary, self.text, nil, 1, nil, self.boxes, nil)
         for _, row in ipairs(plugin_rows) do
@@ -1392,55 +1599,84 @@ function FloatingActionMenu:init()
                 local txt_lower = (ext.text or ""):lower()
                 if id_lower:find("xray") or id_lower:find("x%-ray") or txt_lower:find("xray") or txt_lower:find("x%-ray") then
                     local assigned_svg = getValidSvgPath("xray.svg")
-                    table.insert(raw_buttons, {
+                    xray_spec = {
                         id = ext.id,
                         svg = "xray.svg",
                         text = assigned_svg and nil or "X-Ray",
                         external_callback = ext.callback,
                         fake_popup = ext.fake_popup,
-                    })
+                    }
                     break
                 end
             end
+            if xray_spec then break end
         end
     end
 
-    -- 2. Herramientas principales de lectura (Ajustar selección, Buscar y Traducir están en el '+')
-    if is_btn_enabled("page_scrubber_sel_show_ai") then
-        table.insert(raw_buttons, { svg = "sparkles.svg", text = "AI", action = "ai" })
-    end
-    if is_btn_enabled("page_scrubber_sel_show_note") then
-        table.insert(raw_buttons, { svg = "notepad-text.svg", text = "Note", action = "note" })
-    end
-    if is_btn_enabled("page_scrubber_sel_show_strikethrough") then
-        table.insert(raw_buttons, { svg = "strikethrough.svg", text = "Str", action = "strikethrough" })
-    end
-    if is_btn_enabled("page_scrubber_sel_show_underline") then
-        table.insert(raw_buttons, { svg = "underline.svg", text = "Und", action = "underline" })
-    end
-    if is_btn_enabled("page_scrubber_sel_show_invert") then
-        table.insert(raw_buttons, { svg = "contrast.svg", text = "Inv", action = "invert" })
-    end
-    if is_btn_enabled("page_scrubber_sel_show_highlight") then
-        table.insert(raw_buttons, { svg = "droplet.svg", text = "HL", action = "highlight" })
-    end
+    local SEL_BUTTON_SPECS = {
+        ai            = { svg = "sparkles.svg", text = "AI", action = "ai", setting = "page_scrubber_sel_show_ai" },
+        note          = { svg = "notepad-text.svg", text = "Note", action = "note", setting = "page_scrubber_sel_show_note" },
+        strikethrough = { svg = "strikethrough.svg", text = "Str", action = "strikethrough", setting = "page_scrubber_sel_show_strikethrough" },
+        underline     = { svg = "underline.svg", text = "Und", action = "underline", setting = "page_scrubber_sel_show_underline" },
+        invert        = { svg = "contrast.svg", text = "Inv", action = "invert", setting = "page_scrubber_sel_show_invert" },
+        highlight     = { svg = "droplet.svg", text = "HL", action = "highlight", setting = "page_scrubber_sel_show_highlight" },
+    }
 
-    -- 3. Botón de más herramientas (more.svg)
     local more_svg = getValidSvgPath("more.svg") or getValidSvgPath("square-plus.svg") or getValidSvgPath("plus.svg")
-    table.insert(raw_buttons, {
+    local more_btn_spec = {
         svg = "more.svg",
         text = not more_svg and "+" or nil,
         action = "more",
         is_plus = true,
-    })
+    }
 
-    -- Inversión del orden si está activado
-    if G_reader_settings and G_reader_settings:isTrue("page_scrubber_sel_reverse_order") then
-        local reversed = {}
-        for i = #raw_buttons, 1, -1 do
-            table.insert(reversed, raw_buttons[i])
+    local default_sel_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "more" }
+    local saved_sel_order = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_btn_order")
+    if type(saved_sel_order) ~= "table" then
+        if G_reader_settings and (G_reader_settings:isTrue("page_scrubber_sel_reverse_order") or G_reader_settings:isTrue("page_scrubber_sel_more_first")) then
+            saved_sel_order = { "more", "highlight", "invert", "underline", "strikethrough", "note", "ai", "xray" }
+        else
+            saved_sel_order = default_sel_order
         end
-        raw_buttons = reversed
+    else
+        -- Incorporar xray y more si el usuario ya tenía una configuración previa guardada
+        local seen = {}
+        for _, k in ipairs(saved_sel_order) do seen[k] = true end
+        for _, k in ipairs(default_sel_order) do
+            if not seen[k] then
+                table.insert(saved_sel_order, k)
+            end
+        end
+    end
+
+    -- Construcción de la barra respetando estrictamente el orden configurado
+    local raw_buttons = {}
+    for _, btn_key in ipairs(saved_sel_order) do
+        if btn_key == "more" then
+            if is_btn_enabled("page_scrubber_sel_show_more") then
+                table.insert(raw_buttons, more_btn_spec)
+            end
+        elseif btn_key == "xray" then
+            if xray_spec and is_btn_enabled("page_scrubber_sel_show_xray") then
+                table.insert(raw_buttons, xray_spec)
+            end
+        else
+            local b_spec = SEL_BUTTON_SPECS[btn_key]
+            if b_spec and is_btn_enabled(b_spec.setting) then
+                table.insert(raw_buttons, { svg = b_spec.svg, text = b_spec.text, action = b_spec.action })
+            end
+        end
+    end
+
+    -- Salvaguarda: si More está habilitado pero no quedó en la lista, lo agrega al final
+    if is_btn_enabled("page_scrubber_sel_show_more") then
+        local has_more = false
+        for _, b in ipairs(raw_buttons) do
+            if b.is_plus then has_more = true; break end
+        end
+        if not has_more then
+            table.insert(raw_buttons, more_btn_spec)
+        end
     end
 
     local pos_pref = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_position")) or "right_v"
@@ -2298,7 +2534,14 @@ end
 function FloatingDictionaryPopup:onTapClose(_arg, ges) return checkClose(self, ges) end
 function FloatingActionMenu:onTapClose(_arg, ges) return checkClose(self, ges) end
 function FloatingDictionaryPopup:onShow() UIManager:setDirty(self.dialog, function() return "ui", self.dimen end) end
-function FloatingDictionaryPopup:onCloseWidget() UIManager:setDirty(self.dialog, function() return "ui", self.dimen end) end
+function FloatingDictionaryPopup:onCloseWidget()
+    local dirty_rect = self.popup_rect or self.dimen
+    if self.plugin and self.plugin.ui then
+        UIManager:setDirty(self.plugin.ui, function() return "ui", dirty_rect end)
+    else
+        UIManager:setDirty(nil, function() return "ui", dirty_rect end)
+    end
+end
 function FloatingActionMenu:onShow() UIManager:setDirty(self, function() return "ui", self.dimen end) end
 function FloatingActionMenu:onCloseWidget() UIManager:setDirty(self, function() return "ui", self.dimen end) end
 
@@ -2398,6 +2641,8 @@ function FloatingDict:onReaderReady()
 end
 
 function FloatingDict:patchSystem()
+    self:patchFastDict()
+
     local dictionary = self.ui and self.ui.dictionary
     local highlight = self.ui and self.ui.highlight
     local plugin = self

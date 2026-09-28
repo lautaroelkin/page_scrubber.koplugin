@@ -171,6 +171,8 @@ function ScrubberSettings:init()
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
 
+    -- MODAL ESTRICTO: Bloquea el 100% de los toques para que NO pasen a PageScrubber
+    self.is_modal = true
     self.history = {}
     self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
 
@@ -179,10 +181,16 @@ function ScrubberSettings:init()
 
     if Device:isTouchDevice() then
         self.ges_events = {
-            Tap = { GestureRange:new{ ges = "tap", range = self.dimen } },
+            Tap   = { GestureRange:new{ ges = "tap",   range = self.dimen } },
+            Hold  = { GestureRange:new{ ges = "hold",  range = self.dimen } },
+            Swipe = { GestureRange:new{ ges = "swipe", range = self.dimen } },
         }
     end
 end
+
+-- Absorbe cualquier gesto residual para que no despierte acciones en el scrubber de fondo
+function ScrubberSettings:onHold() return true end
+function ScrubberSettings:onSwipe() return true end
 
 function ScrubberSettings:readSetting(key, default_val)
     if key == "page_scrubber_rtl" and self.ui and self.ui.doc_settings then
@@ -207,6 +215,154 @@ function ScrubberSettings:saveSetting(key, val)
         G_reader_settings:saveSetting(key, val)
         G_reader_settings:flush()
     end
+end
+
+-- =========================================================================
+-- MOTOR MODULAR PARA LISTAS REORDENABLES CON TOGGLE (FÁCILMENTE REPLICABLE)
+-- =========================================================================
+function ScrubberSettings:getOrder(order_setting, default_order)
+    local saved = self:readSetting(order_setting, nil)
+    if type(saved) ~= "table" then
+        if order_setting == "page_scrubber_sel_btn_order" and G_reader_settings and (G_reader_settings:isTrue("page_scrubber_sel_reverse_order") or G_reader_settings:isTrue("page_scrubber_sel_more_first")) then
+            saved = { "more", "highlight", "invert", "underline", "strikethrough", "note", "ai", "xray" }
+        else
+            saved = {}
+        end
+    end
+    local seen = {}
+    local order = {}
+    for _, k in ipairs(saved) do
+        if not seen[k] then
+            for _, def_k in ipairs(default_order) do
+                if def_k == k then
+                    seen[k] = true
+                    table.insert(order, k)
+                    break
+                end
+            end
+        end
+    end
+    for _, def_k in ipairs(default_order) do
+        if not seen[def_k] then
+            seen[def_k] = true
+            table.insert(order, def_k)
+        end
+    end
+
+    -- Si "more" quedó en el medio por alguna configuración antigua, lo envía al final
+    for i, k in ipairs(order) do
+        if k == "more" and i > 1 and i < #order then
+            table.remove(order, i)
+            table.insert(order, "more")
+            break
+        end
+    end
+
+    return order
+end
+
+function ScrubberSettings:moveOrderableItem(order_setting, default_order, item_key, direction)
+    local order = self:getOrder(order_setting, default_order)
+    local idx = nil
+    for i, k in ipairs(order) do
+        if k == item_key then idx = i; break end
+    end
+    if not idx then return end
+
+    -- REGLA ESTRICTA PARA 'MORE': solo salta entre primero (1) y último (#order)
+    if item_key == "more" then
+        if direction == 1 and idx == 1 then
+            table.remove(order, 1)
+            table.insert(order, "more")
+            self:saveSetting(order_setting, order)
+        elseif direction == -1 and idx == #order then
+            table.remove(order, #order)
+            table.insert(order, 1, "more")
+            self:saveSetting(order_setting, order)
+        end
+        return
+    end
+
+    -- Elementos normales: no pueden saltar por encima de 'more' para no dejarlo en el medio
+    local target = idx + direction
+    if target >= 1 and target <= #order then
+        if order[target] == "more" then
+            return
+        end
+        order[idx], order[target] = order[target], order[idx]
+        self:saveSetting(order_setting, order)
+    end
+end
+
+function ScrubberSettings:getOrderableTogglePage(cfg)
+    local order = self:getOrder(cfg.order_setting, cfg.default_order)
+    local items = {}
+    local total_items = #order
+
+    -- Detectar si 'more' está en la lista y en qué extremo se ubica
+    local more_idx = nil
+    for i, key in ipairs(order) do
+        if key == "more" then more_idx = i; break end
+    end
+
+    for i, key in ipairs(order) do
+        local def = cfg.items_def[key]
+        if def then
+            local can_up = false
+            local can_down = false
+
+            if key == "more" then
+                if i == 1 then
+                    can_down = (total_items > 1)
+                    can_up = false
+                elseif i == total_items then
+                    can_up = (total_items > 1)
+                    can_down = false
+                end
+            else
+                if more_idx == 1 then
+                    can_up = (i > 2)
+                    can_down = (i < total_items)
+                elseif more_idx == total_items then
+                    can_up = (i > 1)
+                    can_down = (i < total_items - 1)
+                else
+                    can_up = (i > 1)
+                    can_down = (i < total_items)
+                end
+            end
+
+            table.insert(items, {
+                kind = "orderable_toggle",
+                text = def.text,
+                icon = def.icon,
+                setting = def.setting,
+                default = (def.default ~= nil) and def.default or true,
+                order_setting = cfg.order_setting,
+                default_order = cfg.default_order,
+                item_key = key,
+                order_idx = i,
+                total_items = total_items,
+                can_up = can_up,
+                can_down = can_down,
+            })
+        end
+    end
+
+    table.insert(items, {
+        text = _("Restore default order"),
+        icon = "arrow-down-wide-narrow.svg",
+        kind = "action",
+        action = function()
+            self:saveSetting(cfg.order_setting, cfg.default_order)
+            self:refreshView()
+        end
+    })
+
+    return {
+        title = cfg.title,
+        items = items,
+    }
 end
 
 function ScrubberSettings:getPageDefinition(page_id)
@@ -302,6 +458,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 action = function() self:openAddActionDialog() end,
             },
         }
+        local total_acts = #actions
         for idx, act in ipairs(actions) do
             local curr_idx = idx
             local curr_act = act
@@ -309,8 +466,12 @@ function ScrubberSettings:getPageDefinition(page_id)
             table.insert(items, {
                 text = act_title,
                 icon = self:getActionIcon(curr_act),
-                kind = "action",
+                kind = "orderable_action",
                 right_icon = "trash-2.svg",
+                action_idx = curr_idx,
+                total_actions = total_acts,
+                can_up = (curr_idx > 1),
+                can_down = (curr_idx < total_acts),
                 action = function()
                     self:confirmDeleteAction(curr_idx, curr_act)
                 end,
@@ -412,26 +573,36 @@ function ScrubberSettings:getPageDefinition(page_id)
                     target = "sel_buttons",
                     disabled = not sel_enabled,
                 },
-                {
-                    text = _("Reverse selection buttons"),
-                    icon = "arrow-down-wide-narrow.svg",
-                    kind = "toggle",
-                    setting = "page_scrubber_sel_reverse_order",
-                    default = false,
-                    disabled = not sel_enabled,
-                },
             }
         }
 
     elseif page_id == "dict_buttons" then
-        local items = {
-            { text = _("Wikipedia"), icon = "globe.svg", kind = "toggle", setting = "page_scrubber_fdict_show_wiki", default = true },
-            { text = _("Translate"), icon = "languages.svg", kind = "toggle", setting = "page_scrubber_fdict_show_translate", default = true },
-            { text = _("Highlight"), icon = "highlighter.svg", kind = "toggle", setting = "page_scrubber_fdict_show_highlight", default = true },
-            { text = _("Search"), icon = "search.svg", kind = "toggle", setting = "page_scrubber_fdict_show_search", default = true },
-            { text = _("AI Assistant"), icon = "sparkles.svg", kind = "toggle", setting = "page_scrubber_fdict_show_ai", default = true },
-        }
-        return { title = _("Buttons in dictionary"), items = items }
+        local has_xray = false
+        pcall(function()
+            local lfs = require("libs/libkoreader-lfs")
+            has_xray = (lfs.attributes("plugins/xray.koplugin", "mode") == "directory")
+        end)
+        local has_ai = false
+        pcall(function()
+            local lfs = require("libs/libkoreader-lfs")
+            has_ai = (lfs.attributes("plugins/assistant.koplugin", "mode") == "directory")
+                  or (self.ui and self.ui.assistant ~= nil)
+                  or (package.loaded["apps/reader/modules/readerassistant"] ~= nil)
+        end)
+
+        return self:getOrderableTogglePage({
+            title = _("Buttons in dictionary"),
+            order_setting = "page_scrubber_fdict_btn_order",
+            default_order = { "wiki", "translate", "ai", "highlight", "search", "xray" },
+            items_def = {
+                wiki      = { text = _("Wikipedia"), icon = "globe.svg", setting = "page_scrubber_fdict_show_wiki", default = true },
+                translate = { text = _("Translate"), icon = "languages.svg", setting = "page_scrubber_fdict_show_translate", default = true },
+                ai        = { text = _("AI Assistant"), icon = "sparkles.svg", setting = "page_scrubber_fdict_show_ai", default = has_ai },
+                highlight = { text = _("Highlight"), icon = "highlighter.svg", setting = "page_scrubber_fdict_show_highlight", default = true },
+                search    = { text = _("Search"), icon = "search.svg", setting = "page_scrubber_fdict_show_search", default = true },
+                xray      = { text = "X-Ray", icon = "xray.svg", setting = "page_scrubber_fdict_show_xray", default = has_xray },
+            }
+        })
 
     elseif page_id == "dict_text_size" then
         local cur = self:readSetting("page_scrubber_dict_font_size", "normal")
@@ -447,15 +618,34 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "sel_buttons" then
-        local items = {
-            { text = _("AI Assistant"), icon = "sparkles.svg", kind = "toggle", setting = "page_scrubber_sel_show_ai", default = true },
-            { text = _("Note"), icon = "notepad-text.svg", kind = "toggle", setting = "page_scrubber_sel_show_note", default = true },
-            { text = _("Strikethrough"), icon = "strikethrough.svg", kind = "toggle", setting = "page_scrubber_sel_show_strikethrough", default = true },
-            { text = _("Underline"), icon = "underline.svg", kind = "toggle", setting = "page_scrubber_sel_show_underline", default = true },
-            { text = _("Invert"), icon = "contrast.svg", kind = "toggle", setting = "page_scrubber_sel_show_invert", default = true },
-            { text = _("Highlight"), icon = "highlighter.svg", kind = "toggle", setting = "page_scrubber_sel_show_highlight", default = true },
-        }
-        return { title = _("Buttons in selection menu"), items = items }
+        local has_xray = false
+        pcall(function()
+            local lfs = require("libs/libkoreader-lfs")
+            has_xray = (lfs.attributes("plugins/xray.koplugin", "mode") == "directory")
+        end)
+        local has_ai = false
+        pcall(function()
+            local lfs = require("libs/libkoreader-lfs")
+            has_ai = (lfs.attributes("plugins/assistant.koplugin", "mode") == "directory")
+                  or (self.ui and self.ui.assistant ~= nil)
+                  or (package.loaded["apps/reader/modules/readerassistant"] ~= nil)
+        end)
+
+        return self:getOrderableTogglePage({
+            title = _("Buttons in selection menu"),
+            order_setting = "page_scrubber_sel_btn_order",
+            default_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "more" },
+            items_def = {
+                xray          = { text = "X-Ray", icon = "xray.svg", setting = "page_scrubber_sel_show_xray", default = has_xray },
+                ai            = { text = _("AI Assistant"), icon = "sparkles.svg", setting = "page_scrubber_sel_show_ai", default = has_ai },
+                note          = { text = _("Note"), icon = "notepad-text.svg", setting = "page_scrubber_sel_show_note", default = true },
+                strikethrough = { text = _("Strikethrough"), icon = "strikethrough.svg", setting = "page_scrubber_sel_show_strikethrough", default = true },
+                underline     = { text = _("Underline"), icon = "underline.svg", setting = "page_scrubber_sel_show_underline", default = true },
+                invert        = { text = _("Invert"), icon = "contrast.svg", setting = "page_scrubber_sel_show_invert", default = true },
+                highlight     = { text = _("Highlight"), icon = "highlighter.svg", setting = "page_scrubber_sel_show_highlight", default = true },
+                more          = { text = _("More"), icon = "more.svg", setting = "page_scrubber_sel_show_more", default = true },
+            }
+        })
 
     elseif page_id == "sel_pos" then
         local cur = self:readSetting("page_scrubber_sel_menu_position", "right_v")
@@ -626,8 +816,8 @@ function ScrubberSettings:calculateGlobalCardWidth()
         end
     end
 
-    local needed_w = max_item_w + scale(75)
-    local min_w = scale(260)
+    local needed_w = max_item_w + scale(105)
+    local min_w = scale(280)
     local max_w = sw - scale(16)
     self.card_w = math.max(min_w, math.min(needed_w, max_w))
 end
@@ -682,14 +872,30 @@ function ScrubberSettings:updateLayout()
 end
 
 function ScrubberSettings:refreshView()
+    local prev_rect = self.popup_rect
     self:updateLayout()
+
+    local dirty_geom = self.popup_rect
+    if prev_rect then
+        local pad = scale(6)
+        local min_x = math.min(prev_rect.x, self.popup_rect.x) - pad
+        local min_y = math.min(prev_rect.y, self.popup_rect.y) - pad
+        local max_x = math.max(prev_rect.x + prev_rect.w, self.popup_rect.x + self.popup_rect.w) + pad
+        local max_y = math.max(prev_rect.y + prev_rect.h, self.popup_rect.y + self.popup_rect.h) + pad
+        dirty_geom = Geom:new{ x = min_x, y = min_y, w = max_x - min_x, h = max_y - min_y }
+    end
+
+    local function getDirty()
+        return "ui", dirty_geom
+    end
+
     if self.scrubber_ui then
-        UIManager:setDirty(self.scrubber_ui, "ui")
+        UIManager:setDirty(self.scrubber_ui, getDirty)
     end
     if self.ui then
-        UIManager:setDirty(self.ui, "ui")
+        UIManager:setDirty(self.ui, getDirty)
     else
-        UIManager:setDirty(nil, "ui")
+        UIManager:setDirty(nil, getDirty)
     end
     UIManager:setDirty(self, "ui")
 end
@@ -1677,7 +1883,146 @@ function ScrubberSettings:paintTo(bb, x, y)
         tw_item:paintTo(bb, text_x, ry + math.floor((rh - isz.h) / 2))
         tw_item:free()
 
-        if item.kind == "toggle" then
+        if item.kind == "orderable_toggle" then
+            local check_w = scale(26)
+            local arrow_w = scale(22)
+            local is_chk = (self:readSetting(item.setting, item.default) == true)
+
+            -- 1. Checkbox a la derecha
+            local check_str = is_chk and "☑" or "☐"
+            local tw_chk = TextWidget:new{
+                text = check_str,
+                face = Font:getFace("cfont", scaleText(14)),
+                bold = is_chk,
+                fgcolor = is_chk and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
+            }
+            local cksz = tw_chk:getSize()
+            tw_chk:paintTo(bb, r.x + r.w - pad - cksz.w, ry + math.floor((rh - cksz.h) / 2))
+            tw_chk:free()
+
+            -- Divisor sutil entre flechas y checkbox
+            local div_x = r.x + r.w - pad - check_w - scale(4)
+            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), Blitbuffer.COLOR_LIGHT_GRAY)
+
+            local icon_sz = scale(16)
+
+            -- 2. Flecha ABAJO [ ↓ ]
+            local can_down = (item.can_down ~= nil) and item.can_down or (item.order_idx < item.total_items)
+            if can_down then
+                local down_slot_x = div_x - scale(4) - arrow_w
+                local down_icon = loadSvg("chevron-down.svg", icon_sz, Blitbuffer.COLOR_BLACK)
+
+                if down_icon then
+                    local ix = down_slot_x + math.floor((arrow_w - icon_sz) / 2)
+                    local iy = ry + math.floor((rh - icon_sz) / 2)
+                    pcall(function() down_icon:paintTo(bb, ix, iy) end)
+                else
+                    local tw_down = TextWidget:new{
+                        text = "↓",
+                        face = Font:getFace("cfont", scaleText(12)),
+                        bold = true,
+                        fgcolor = Blitbuffer.COLOR_BLACK,
+                    }
+                    local dsz = tw_down:getSize()
+                    tw_down:paintTo(bb, down_slot_x + math.floor((arrow_w - dsz.w) / 2), ry + math.floor((rh - dsz.h) / 2))
+                    tw_down:free()
+                end
+            end
+
+            -- 3. Flecha ARRIBA [ ↑ ]
+            local can_up = (item.can_up ~= nil) and item.can_up or (item.order_idx > 1)
+            if can_up then
+                local up_slot_x = div_x - scale(4) - (arrow_w * 2)
+                local up_icon = loadSvg("chevron-up.svg", icon_sz, Blitbuffer.COLOR_BLACK)
+
+                if up_icon then
+                    local ix = up_slot_x + math.floor((arrow_w - icon_sz) / 2)
+                    local iy = ry + math.floor((rh - icon_sz) / 2)
+                    pcall(function() up_icon:paintTo(bb, ix, iy) end)
+                else
+                    local tw_up = TextWidget:new{
+                        text = "↑",
+                        face = Font:getFace("cfont", scaleText(12)),
+                        bold = true,
+                        fgcolor = Blitbuffer.COLOR_BLACK,
+                    }
+                    local usz = tw_up:getSize()
+                    tw_up:paintTo(bb, up_slot_x + math.floor((arrow_w - usz.w) / 2), ry + math.floor((rh - usz.h) / 2))
+                    tw_up:free()
+                end
+            end
+
+        elseif item.kind == "orderable_action" then
+            local trash_w = scale(26)
+            local arrow_w = scale(22)
+            local icon_sz = scale(16)
+
+            -- 1. Botón Papelera (trash-2.svg)
+            local trash_slot_x = r.x + r.w - pad - trash_w
+            local trash_icon = loadSvg("trash-2.svg", icon_sz, Blitbuffer.COLOR_BLACK)
+            if trash_icon then
+                local ix = trash_slot_x + math.floor((trash_w - icon_sz) / 2)
+                local iy = ry + math.floor((rh - icon_sz) / 2)
+                pcall(function() trash_icon:paintTo(bb, ix, iy) end)
+            else
+                local tw_del = TextWidget:new{
+                    text = "✕",
+                    face = Font:getFace("cfont", scaleText(11)),
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                }
+                local dsz = tw_del:getSize()
+                tw_del:paintTo(bb, trash_slot_x + math.floor((trash_w - dsz.w) / 2), ry + math.floor((rh - dsz.h) / 2))
+                tw_del:free()
+            end
+
+            -- Divisor sutil entre flechas y papelera
+            local div_x = trash_slot_x - scale(4)
+            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), Blitbuffer.COLOR_LIGHT_GRAY)
+
+            -- 2. Flecha ABAJO [ ↓ ]
+            if item.can_down then
+                local down_slot_x = div_x - scale(4) - arrow_w
+                local down_icon = loadSvg("chevron-down.svg", icon_sz, Blitbuffer.COLOR_BLACK)
+                if down_icon then
+                    local ix = down_slot_x + math.floor((arrow_w - icon_sz) / 2)
+                    local iy = ry + math.floor((rh - icon_sz) / 2)
+                    pcall(function() down_icon:paintTo(bb, ix, iy) end)
+                else
+                    local tw_down = TextWidget:new{
+                        text = "↓",
+                        face = Font:getFace("cfont", scaleText(12)),
+                        bold = true,
+                        fgcolor = Blitbuffer.COLOR_BLACK,
+                    }
+                    local dsz = tw_down:getSize()
+                    tw_down:paintTo(bb, down_slot_x + math.floor((arrow_w - dsz.w) / 2), ry + math.floor((rh - dsz.h) / 2))
+                    tw_down:free()
+                end
+            end
+
+            -- 3. Flecha ARRIBA [ ↑ ]
+            if item.can_up then
+                local up_slot_x = div_x - scale(4) - (arrow_w * 2)
+                local up_icon = loadSvg("chevron-up.svg", icon_sz, Blitbuffer.COLOR_BLACK)
+                if up_icon then
+                    local ix = up_slot_x + math.floor((arrow_w - icon_sz) / 2)
+                    local iy = ry + math.floor((rh - icon_sz) / 2)
+                    pcall(function() up_icon:paintTo(bb, ix, iy) end)
+                else
+                    local tw_up = TextWidget:new{
+                        text = "↑",
+                        face = Font:getFace("cfont", scaleText(12)),
+                        bold = true,
+                        fgcolor = Blitbuffer.COLOR_BLACK,
+                    }
+                    local usz = tw_up:getSize()
+                    tw_up:paintTo(bb, up_slot_x + math.floor((arrow_w - usz.w) / 2), ry + math.floor((rh - usz.h) / 2))
+                    tw_up:free()
+                end
+            end
+
+        elseif item.kind == "toggle" then
             local is_chk = item.read_func and (item.read_func() == true) or (self:readSetting(item.setting, item.default) == true)
             local check_str = is_chk and "☑" or "☐"
             local tw_chk = TextWidget:new{
@@ -1737,36 +2082,114 @@ function ScrubberSettings:paintTo(bb, x, y)
 end
 
 function ScrubberSettings:onTap(arg1, arg2)
-    local touch_pos = getTouchPoint(arg1, arg2)
-    if not touch_pos then return false end
+    local ges = arg2 or arg1
+    if not ges or not ges.pos then return false end
 
-    if not pointInRect(touch_pos, self.popup_rect) then
+    -- Tocar fuera cierra ÚNICAMENTE la ventana de ajustes; retorna true para no pasárselo a PageScrubber
+    if not ges.pos:intersectWith(self.popup_rect) then
         UIManager:close(self)
         return true
     end
 
     local r = self.popup_rect
-    local border = scale(2)
 
-    if self.btn_back_dimen then
-        if touch_pos.y >= r.y and touch_pos.y < (r.y + border + self.header_h) then
-            self:popView()
-            return true
-        end
+    -- Botón Atrás (encabezado)
+    if self.btn_back_dimen and ges.pos:intersectWith(self.btn_back_dimen) then
+        self:popView()
+        return true
     end
 
+    -- Filas
     if self.row_dimens then
         for _, rdef in ipairs(self.row_dimens) do
-            local ry = rdef.dimen.y
-            local rh = rdef.dimen.h
-            if touch_pos.y >= ry and touch_pos.y < (ry + rh) then
+            if ges.pos:intersectWith(rdef.dimen) then
                 local it = rdef.item
 
                 if it.disabled then
                     return true
                 end
 
-                if it.kind == "submenu" then
+                if it.kind == "orderable_toggle" then
+                    local pad = scale(10)
+                    local check_w = scale(26)
+                    local arrow_w = scale(22)
+                    local div_x = r.x + r.w - pad - check_w - scale(4)
+                    local down_left = div_x - scale(4) - arrow_w
+                    local up_left = down_left - arrow_w
+
+                    if ges.pos.x >= div_x then
+                        -- Tocar en la casilla activa/desactiva
+                        local cur = (self:readSetting(it.setting, it.default) == true)
+                        self:saveSetting(it.setting, not cur)
+                        self:refreshView()
+                        return true
+                    elseif ges.pos.x >= down_left then
+                        -- Flecha abajo
+                        local can_down = (it.can_down ~= nil) and it.can_down or (it.order_idx < it.total_items)
+                        if can_down then
+                            self:moveOrderableItem(it.order_setting, it.default_order, it.item_key, 1)
+                            self:refreshView()
+                        end
+                        return true
+                    elseif ges.pos.x >= up_left then
+                        -- Flecha arriba
+                        local can_up = (it.can_up ~= nil) and it.can_up or (it.order_idx > 1)
+                        if can_up then
+                            self:moveOrderableItem(it.order_setting, it.default_order, it.item_key, -1)
+                            self:refreshView()
+                        end
+                        return true
+                    else
+                        -- Tocar el nombre/ícono también cambia el estado del checkbox
+                        local cur = (self:readSetting(it.setting, it.default) == true)
+                        self:saveSetting(it.setting, not cur)
+                        self:refreshView()
+                        return true
+                    end
+
+                elseif it.kind == "orderable_action" then
+                    local pad = scale(10)
+                    local trash_w = scale(26)
+                    local arrow_w = scale(22)
+                    local div_x = r.x + r.w - pad - trash_w - scale(4)
+                    local down_left = div_x - scale(4) - arrow_w
+                    local up_left = down_left - arrow_w
+
+                    if ges.pos.x >= div_x then
+                        -- Tocar en la papelera: borra la acción
+                        if it.action then it.action() end
+                        return true
+                    elseif ges.pos.x >= down_left then
+                        -- Flecha abajo: intercambia hacia adelante
+                        if it.can_down then
+                            local acts = self:readSetting("page_scrubber_quick_actions", {})
+                            local idx = it.action_idx
+                            if acts[idx] and acts[idx + 1] then
+                                acts[idx], acts[idx + 1] = acts[idx + 1], acts[idx]
+                                self:saveSetting("page_scrubber_quick_actions", acts)
+                                self:refreshView()
+                            end
+                        end
+                        return true
+                    elseif ges.pos.x >= up_left then
+                        -- Flecha arriba: intercambia hacia atrás
+                        if it.can_up then
+                            local acts = self:readSetting("page_scrubber_quick_actions", {})
+                            local idx = it.action_idx
+                            if acts[idx] and acts[idx - 1] then
+                                acts[idx], acts[idx - 1] = acts[idx - 1], acts[idx]
+                                self:saveSetting("page_scrubber_quick_actions", acts)
+                                self:refreshView()
+                            end
+                        end
+                        return true
+                    else
+                        -- Tocar en el texto o icono también abre la confirmación de borrado
+                        if it.action then it.action() end
+                        return true
+                    end
+
+                elseif it.kind == "submenu" then
                     self:pushView(it.target)
                     return true
                 elseif it.kind == "toggle" then
@@ -1813,7 +2236,6 @@ function ScrubberSettings:onTap(arg1, arg2)
                             ScrubberWallpaper.free()
                         end
 
-                        -- Cierra inmediatamente ajustes y el scrubber completo para limpiar toda la RAM
                         local scrubber = self.scrubber_ui
                         UIManager:close(self)
                         if scrubber then
