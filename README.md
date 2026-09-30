@@ -88,7 +88,7 @@ Basically, it takes the native features, removes the friction, and puts them int
 
 ## Tutorial if needed: **How to Open Page Scrubber**
 *  **Option 1 (Menu):** Open a book in KOReader, go to the document menu tab (where native Table of Contents, Bookmarks, etc. live — often on the second page), and tap **Page Scrubber** to access all grids, widgets, and settings.
-*  **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select it to any of the available actions: **Page browser: Grid**, **Page browser: Simple grid**, **Page browser: Multi-grid**, **Page browser: Menu (BM)**, **Page browser: Menu (highlights)**, or **Page browser: Index**.
+*  **Option 2 (Recommended - Gestures):** Assign a gesture for instant access. Go to KOReader settings > gear tab > **Taps and gestures** > **Gesture manager** > choose a gesture (e.g., *one finger swipe: right edge up*) > **Reader** > scroll and select it to any of the available actions: **Page Scrubbers: Grid**, **Page Scrubbers: Simple grid**, **Page Scrubbers: Multi-grid**, **Page Scrubbers: Menu (BM)**, **Page Scrubbers: Menu (highlights)**, or **Page Scrubbers: Index**. And now you can also open the quick menu with a gesture: look for **Page Scrubber: Quick Menu**
 
 ---
 
