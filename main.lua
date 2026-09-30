@@ -72,6 +72,7 @@ function PageScrubberPlugin:init()
     Dispatcher:registerAction("page_scrubber_toc_action", { category = "none", event = "PageScrubberToc", title = _("Page Scrubber: Index"), reader = true })
     Dispatcher:registerAction("page_scrubber_toc_expanded_action", { category = "none", event = "PageScrubberTocExpanded", title = _("Page Scrubber: Index (Table of Content)"), reader = true })
     Dispatcher:registerAction("page_scrubber_toggle_rtl_action", { category = "none", event = "PageScrubberToggleRTL", title = _("Page Scrubber: Toggle RTL"), reader = true })
+    Dispatcher:registerAction("page_scrubber_quick_menu_action", { category = "none", event = "PageScrubberQuickMenu", title = _("Page Scrubber: Quick Menu"), reader = true })
 
     if self.ui.menu then self.ui.menu:registerToMainMenu(self) end
 
@@ -81,35 +82,7 @@ function PageScrubberPlugin:init()
         pcall(function() FloatingDict:init(self.ui) end)
     end
 
-    local ok, Bridge = pcall(require, "page_scrubber_bridge")
-    if ok and Bridge then
-        local req = Bridge.consumePendingReopen()
-        if req then
-            local ui = self.ui
-            UIManager:nextTick(function()
-                pcall(function() Bridge.closeLoadingWidget() end)
-                if ui and ui.document then
-                    local ScrubberUI = require("scrubber_ui")
-                    UIManager:show(ScrubberUI:new{
-                        ui                 = ui,
-                        document           = ui.document,
-                        initial_view_mode  = req.mode or "split",
-                        initial_tab        = req.tab or "highlights",
-                        initial_page       = req.page,
-                        initial_origin     = req.origin,
-                        initial_fixed_page = req.fixed_page,
-                        base_mode          = req.base_mode,
-                        initial_sort_order = req.sort_order,
-                        initial_bm_page    = req.bm_page,
-                        initial_hl_filter  = req.hl_filter,
-                        transparent_bg     = (req.mode == "grid_simple"),
-                        ui_scale           = getScale(),
-                    })
-                    if Device:isKindle() then UIManager:setDirty(nil, "full") end
-                end
-            end)
-        end
-    end
+    -- Bridge eliminado: las recargas destructivas de documento ya no son necesarias
 end
 
 function ReaderUI:onPageScrubberLaunch(mode, tab, page)
@@ -203,6 +176,18 @@ function ReaderUI:onPageScrubberToggleRTL()
         timeout = 1.5,
     })
     return true
+end
+
+function ReaderUI:onPageScrubberQuickMenu()
+    local ui = self
+    if not ui.document then return end
+    UIManager:nextTick(function()
+        local ScrubberMenu = require("scrubber_menu")
+        UIManager:show(ScrubberMenu:new{
+            ui = ui,
+        })
+        if Device:isKindle() then UIManager:setDirty(nil, "full") end
+    end)
 end
 
 function PageScrubberPlugin:addToMainMenu(menu_items)

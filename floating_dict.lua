@@ -512,6 +512,7 @@ local function getBaseCss(ui)
 @page { margin: 0; }
 body { margin: 0; padding: 0 0.45em; line-height: %s; }
 p, div, li { line-height: %s !important; margin: 0 0 0.28em 0; }
+p:last-child, div:last-child, li:last-child { margin-bottom: 0 !important; }
 ol, ul { padding-left: 1.35em; margin-top: 0.18em; margin-bottom: 0.28em; }
 
 .floatingdictionary-word { font-size: 1.20em !important; font-weight: bold !important; line-height: 1.20em !important; color: #000000 !important; }
@@ -1351,7 +1352,8 @@ function FloatingDictionaryPopup:init()
             or estimateHtmlContentHeight(content_w - scale(48), html_body, getDictFontSize(ui_instance))
         if natural_h and natural_h < self.max_html_height then
             local min_h = scale(40)
-            local fitted_h = math.max(min_h, math.ceil(natural_h) + scale(4))
+            -- Se otorga holgura (scale(14)) para evitar que fracciones de píxel disparen la scrollbar
+            local fitted_h = math.max(min_h, math.ceil(natural_h) + scale(14))
             if fitted_h < self.max_html_height then
                 if self.htmlwidget.free then pcall(function() self.htmlwidget:free() end) end
                 self.htmlwidget = makeHtml(fitted_h)
@@ -2535,6 +2537,23 @@ function FloatingDictionaryPopup:onTapClose(_arg, ges) return checkClose(self, g
 function FloatingActionMenu:onTapClose(_arg, ges) return checkClose(self, ges) end
 function FloatingDictionaryPopup:onShow() UIManager:setDirty(self.dialog, function() return "ui", self.dimen end) end
 function FloatingDictionaryPopup:onCloseWidget()
+    -- Deseleccionar y limpiar el resaltado temporal para evitar que el siguiente toque reabra el diccionario
+    if self.highlight_obj and self.highlight_obj.clear then
+        pcall(function() self.highlight_obj:clear() end)
+    end
+    if self.plugin and self.plugin.ui then
+        local ui = self.plugin.ui
+        if ui.highlight and ui.highlight.clear then
+            pcall(function() ui.highlight:clear() end)
+        end
+        if ui.view and ui.view.clearSelection then
+            pcall(function() ui.view:clearSelection() end)
+        end
+        if ui.handleEvent then
+            pcall(function() ui:handleEvent(Event:new("ClearSelection")) end)
+        end
+    end
+
     local dirty_rect = self.popup_rect or self.dimen
     if self.plugin and self.plugin.ui then
         UIManager:setDirty(self.plugin.ui, function() return "ui", dirty_rect end)

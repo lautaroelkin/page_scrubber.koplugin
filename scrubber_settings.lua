@@ -52,7 +52,10 @@ local function getTextOffset()
     if not G_reader_settings then return 0 end
     local size = G_reader_settings:readSetting("page_scrubber_text_size")
     if size == "small" then return -2
-    elseif size == "large" then return 2 end
+    elseif size == "large" then
+        local is_eink = (Device.isKindle and Device:isKindle()) or (Device.isKobo and Device:isKobo()) or (Device.isEink and Device:isEink())
+        return is_eink and 4 or 2
+    end
     return 0
 end
 
@@ -371,10 +374,106 @@ function ScrubberSettings:getPageDefinition(page_id)
             title = "",
             items = {
                 { text = _("Layout"), icon = "square-arrow-right-enter.svg", kind = "submenu", target = "layout" },
+                { text = _("Appearance"), icon = "sparkles.svg", kind = "submenu", target = "appearance" },
                 { text = _("Reading Pop-Ups"), icon = "notepad-text.svg", kind = "submenu", target = "popups" },
-                { text = _("Scrubber Actions"), icon = "warehouse.svg", kind = "submenu", target = "scrubber_actions" },
+                { text = _("Quick Menu"), icon = "sun.svg", kind = "submenu", target = "quick_menu" },
                 { text = _("Export notes of this document"), icon = "book-marked.svg", kind = "action", action = function() self:exportNotes() end },
             }
+        }
+
+    elseif page_id == "quick_menu" then
+        local qm_enabled = self:readSetting("page_scrubber_quick_menu", true)
+        return {
+            title = _("Quick Menu"),
+            items = {
+                {
+                    text = _("Enable Quick Menu"),
+                    icon = "settings-2.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_quick_menu",
+                    default = true,
+                    bold = true,
+                },
+                {
+                    text = _("Start quick menu with..."),
+                    icon = "square-arrow-right-enter.svg",
+                    kind = "submenu",
+                    target = "quick_menu_start_tab",
+                    disabled = not qm_enabled,
+                },
+                {
+                    text = _("Favorite Fonts"),
+                    icon = "droplet.svg",
+                    kind = "submenu",
+                    target = "favorite_fonts",
+                    disabled = not qm_enabled,
+                },
+                {
+                    text = _("Quick Actions"),
+                    icon = "warehouse.svg",
+                    kind = "submenu",
+                    target = "scrubber_actions",
+                    disabled = not qm_enabled,
+                },
+            }
+        }
+
+    elseif page_id == "quick_menu_start_tab" then
+        local cur = self:readSetting("page_scrubber_quick_menu_start_tab", "quick")
+        return {
+            title = _("Start quick menu with..."),
+            items = {
+                {
+                    text = _("Quick actions"),
+                    icon = "sun.svg",
+                    kind = "radio",
+                    setting = "page_scrubber_quick_menu_start_tab",
+                    val = "quick",
+                    checked = (cur == "quick"),
+                },
+                {
+                    text = _("Typography (Aa)"),
+                    icon = "droplet.svg",
+                    kind = "radio",
+                    setting = "page_scrubber_quick_menu_start_tab",
+                    val = "typo",
+                    checked = (cur == "typo"),
+                },
+            }
+        }
+
+    elseif page_id == "favorite_fonts" then
+        local fonts = self:readSetting("page_scrubber_favorite_fonts", {})
+        local items = {
+            {
+                text = _("+ Add fonts"),
+                icon = nil,
+                kind = "action",
+                action = function() self:openAddFontDialog() end,
+            },
+        }
+        local total_fonts = #fonts
+        for idx, fname in ipairs(fonts) do
+            local curr_idx = idx
+            local curr_fname = fname
+            table.insert(items, {
+                text = curr_fname,
+                font_name = curr_fname,
+                icon = "Aa",
+                kind = "orderable_action",
+                right_icon = "trash-2.svg",
+                action_idx = curr_idx,
+                total_actions = total_fonts,
+                can_up = (curr_idx > 1),
+                can_down = (curr_idx < total_fonts),
+                action = function()
+                    self:confirmDeleteFont(curr_idx, curr_fname)
+                end,
+            })
+        end
+        return {
+            title = _("Favorite Fonts"),
+            items = items,
         }
 
     elseif page_id == "layout" then
@@ -411,9 +510,6 @@ function ScrubberSettings:getPageDefinition(page_id)
                         end
                     end,
                 },
-                { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size" },
-                { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", action = function() self:openScaleDialog() end },
-                { text = _("Wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "wallpaper" },
                 {
                     text = "RTL",
                     icon = "arrow-left.svg",
@@ -441,6 +537,29 @@ function ScrubberSettings:getPageDefinition(page_id)
                             if self.scrubber_ui._updateTexts then
                                 self.scrubber_ui:_updateTexts()
                             end
+                            UIManager:setDirty(self.scrubber_ui, "ui")
+                        end
+                    end,
+                },
+            }
+        }
+
+    elseif page_id == "appearance" then
+        return {
+            title = _("Appearance"),
+            items = {
+                { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", action = function() self:openScaleDialog() end },
+                { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size" },
+                { text = _("Choose wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "choose_wallpaper" },
+                { text = _("Book title style"), icon = "contrast.svg", kind = "submenu", target = "title_bg" },
+                {
+                    text = _("Top bar separator line"),
+                    icon = "underline.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_top_line",
+                    default = false,
+                    on_change = function()
+                        if self.scrubber_ui then
                             UIManager:setDirty(self.scrubber_ui, "ui")
                         end
                     end,
@@ -538,7 +657,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Plugin buttons in dictionary"),
-                    icon = "xray.svg",
+                    icon = "package.svg",
                     kind = "toggle",
                     setting = "page_scrubber_fdict_show_plugins",
                     default = true,
@@ -670,29 +789,6 @@ function ScrubberSettings:getPageDefinition(page_id)
             }
         }
 
-    elseif page_id == "wallpaper" then
-        local cur = self:readSetting("page_scrubber_wallpaper", "none")
-        local is_none = (cur == "none" or cur == nil or cur == "")
-
-        return {
-            title = _("Wallpaper"),
-            items = {
-                {
-                    text = _("Choose wallpaper"),
-                    icon = "sparkles.svg",
-                    kind = "submenu",
-                    target = "choose_wallpaper",
-                },
-                {
-                    text = _("Book title background"),
-                    icon = "contrast.svg",
-                    kind = "submenu",
-                    target = "title_bg",
-                    disabled = is_none,
-                },
-            }
-        }
-
     elseif page_id == "choose_wallpaper" then
         local ScrubberWallpaper = require("scrubber_wallpaper")
         local cur = self:readSetting("page_scrubber_wallpaper", "none")
@@ -734,21 +830,31 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "title_bg" then
-        local raw = self:readSetting("page_scrubber_title_bg", "border")
-        local cur = "border"
-        if raw == "no_border" or raw == "borderless" then
+        local raw = self:readSetting("page_scrubber_title_bg", "none")
+        local cur = "none"
+        if raw == "border" or raw == true or raw == "true" or raw == 1 then
+            cur = "border"
+        elseif raw == "no_border" or raw == "borderless" then
             cur = "no_border"
         elseif raw == "translucent" or raw == "opacity" or raw == "semi_transparent" then
             cur = "translucent"
-        elseif raw == "off" or raw == "none" or raw == false or raw == "false" or raw == 0 then
-            cur = "off"
-        elseif raw == "border" or raw == true or raw == "true" or raw == 1 then
-            cur = "border"
+        elseif raw == "aura" or raw == "off" then
+            cur = "aura"
+        elseif raw == "none" or raw == false or raw == "false" or raw == 0 then
+            cur = "none"
         end
 
         return {
-            title = _("Book title background"),
+            title = _("Book title style"),
             items = {
+                {
+                    text = _("None"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "none",
+                    checked = (cur == "none"),
+                },
                 {
                     text = _("With border"),
                     icon = nil,
@@ -774,12 +880,12 @@ function ScrubberSettings:getPageDefinition(page_id)
                     checked = (cur == "translucent"),
                 },
                 {
-                    text = _("Off"),
+                    text = _("Aura"),
                     icon = nil,
                     kind = "radio",
                     setting = "page_scrubber_title_bg",
-                    val = "off",
-                    checked = (cur == "off"),
+                    val = "aura",
+                    checked = (cur == "aura"),
                 },
             }
         }
@@ -790,29 +896,34 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "wallpaper", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _, pid in ipairs(pages) do
-        local pdef = self:getPageDefinition(pid)
-        if pdef.title and pdef.title ~= "" then
-            local tw = TextWidget:new{
-                text = "‹  " .. pdef.title,
-                face = Font:getFace("cfont", scaleText(11)),
-                bold = true,
-            }
-            local sz = tw:getSize()
-            if sz.w > max_item_w then max_item_w = sz.w end
-            tw:free()
-        end
-        for _, item in ipairs(pdef.items or {}) do
-            local tw = TextWidget:new{
-                text = item.text,
-                face = Font:getFace("cfont", scaleText(11)),
-            }
-            local sz = tw:getSize()
-            if sz.w > max_item_w then max_item_w = sz.w end
-            tw:free()
+        -- Medimos solo los textos nativos de configuración para que NUNCA se corten,
+        -- evitando que nombres externos (acciones del sistema, fuentes o archivos de imagen) estiren el menú.
+        local is_dynamic_page = (pid == "scrubber_actions" or pid == "favorite_fonts" or pid == "actions_launcher" or pid == "choose_wallpaper")
+        if not is_dynamic_page then
+            local pdef = self:getPageDefinition(pid)
+            if pdef.title and pdef.title ~= "" then
+                local tw = TextWidget:new{
+                    text = "‹  " .. pdef.title,
+                    face = Font:getFace("cfont", scaleText(11)),
+                    bold = true,
+                }
+                local sz = tw:getSize()
+                if sz.w > max_item_w then max_item_w = sz.w end
+                tw:free()
+            end
+            for _, item in ipairs(pdef.items or {}) do
+                local tw = TextWidget:new{
+                    text = item.text,
+                    face = Font:getFace("cfont", scaleText(11)),
+                }
+                local sz = tw:getSize()
+                if sz.w > max_item_w then max_item_w = sz.w end
+                tw:free()
+            end
         end
     end
 
@@ -1521,6 +1632,376 @@ function ActionSelectDialog:onCloseWidget()
     end
 end
 
+-- =========================================================================
+-- DIÁLOGO Y GESTIÓN DE FUENTES FAVORITAS
+-- =========================================================================
+local FontSelectDialog = InputContainer:extend{
+    ui = nil,
+    scrubber_ui = nil,
+    fonts = nil,
+    page = 1,
+    items_per_page = 14,
+    card_rect = nil,
+    row_dimens = nil,
+    footer_rect = nil,
+    btn_header_rect = nil,
+    on_close = nil,
+}
+
+function FontSelectDialog:init()
+    local sw = Screen:getWidth()
+    local sh = Screen:getHeight()
+    self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
+
+    self.header_h = scale(34)
+    self.row_h = scale(32)
+    self.footer_h = scale(34)
+    self.page = 1
+
+    self:updateLayout()
+
+    if Device:isTouchDevice() then
+        self.ges_events = {
+            Tap = { GestureRange:new{ ges = "tap", range = self.dimen } },
+            Swipe = { GestureRange:new{ ges = "swipe", range = self.dimen } },
+        }
+    end
+end
+
+function FontSelectDialog:updateLayout()
+    local sw = Screen:getWidth()
+    local sh = Screen:getHeight()
+
+    local top_bar = self.scrubber_ui and self.scrubber_ui._top_bar_dimen
+    local top_bar_bottom = top_bar and (top_bar.y + top_bar.h) or scale(58)
+    local start_y = top_bar_bottom + scale(6)
+
+    local bottom_limit = (self.scrubber_ui and self.scrubber_ui._chapter_dimen and self.scrubber_ui._chapter_dimen.y) or (sh - scale(115))
+
+    local border = scale(2)
+    local max_avail = bottom_limit - start_y
+    self.items_per_page = math.max(10, math.floor((max_avail - self.header_h - self.footer_h - (border * 2)) / self.row_h))
+
+    local total_items = #(self.fonts or {})
+    self.total_pages = math.max(1, math.ceil(total_items / self.items_per_page))
+    self.page = math.max(1, math.min(self.page, self.total_pages))
+
+    local start_idx = (self.page - 1) * self.items_per_page + 1
+    local end_idx = math.min(start_idx + self.items_per_page - 1, total_items)
+    self.current_items = {}
+    for i = start_idx, end_idx do
+        table.insert(self.current_items, self.fonts[i])
+    end
+
+    self.card_w = math.min(sw - scale(16), scale(640))
+    self.card_h = self.header_h + (self.items_per_page * self.row_h) + self.footer_h + (border * 2)
+
+    local card_x = math.floor((sw - self.card_w) / 2)
+    local card_y = start_y
+    self.card_rect = Geom:new{ x = card_x, y = card_y, w = self.card_w, h = self.card_h }
+    self.btn_header_rect = Geom:new{ x = card_x, y = card_y, w = self.card_w, h = self.header_h + border }
+
+    self.row_dimens = {}
+    local curr_y = card_y + border + self.header_h
+    for _, item in ipairs(self.current_items) do
+        local r_rect = Geom:new{ x = card_x + border, y = curr_y, w = self.card_w - (border * 2), h = self.row_h }
+        table.insert(self.row_dimens, { dimen = r_rect, item = item })
+        curr_y = curr_y + self.row_h
+    end
+
+    local fy = card_y + border + self.header_h + (self.items_per_page * self.row_h)
+    local fw = self.card_w - (border * 2)
+    self.footer_rect = Geom:new{ x = card_x + border, y = fy, w = fw, h = self.footer_h }
+end
+
+function FontSelectDialog:prevPage()
+    if self.page > 1 then
+        self.page = self.page - 1
+        self:updateLayout()
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+function FontSelectDialog:nextPage()
+    if self.page < self.total_pages then
+        self.page = self.page + 1
+        self:updateLayout()
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+function FontSelectDialog:paintTo(bb, x, y)
+    local r = self.card_rect
+    if not r then return end
+    local border = scale(2)
+    local radius = scale(16)
+    local pad = scale(14)
+
+    paintRoundRect(bb, r.x, r.y, r.w, r.h, radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, r.x + border, r.y + border, r.w - (border * 2), r.h - (border * 2), math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
+
+    local hy = r.y + border
+    local hh = self.header_h
+    local tw_title = TextWidget:new{
+        text = "‹  " .. _("+ Add fonts"),
+        face = Font:getFace("cfont", scaleText(11)),
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_BLACK,
+    }
+    local tsz = tw_title:getSize()
+    tw_title:paintTo(bb, r.x + pad, hy + math.floor((hh - tsz.h) / 2))
+    tw_title:free()
+
+    local tw_close = TextWidget:new{
+        text = "✕",
+        face = Font:getFace("cfont", scaleText(11)),
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+    }
+    local csz = tw_close:getSize()
+    tw_close:paintTo(bb, r.x + r.w - pad - csz.w, hy + math.floor((hh - csz.h) / 2))
+    tw_close:free()
+
+    bb:paintRect(r.x + border, hy + hh - 1, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+
+    local saved_fonts = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_favorite_fonts")) or {}
+    local saved_map = {}
+    for _, f in ipairs(saved_fonts) do saved_map[f] = true end
+
+    for idx, rdef in ipairs(self.row_dimens or {}) do
+        local fname = rdef.item
+        local ry = rdef.dimen.y
+        local rh = rdef.dimen.h
+
+        if idx > 1 then
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+        end
+
+        local item_face = Font:getFace("cfont", scaleText(12))
+        pcall(function()
+            local ok_cre, credoc = pcall(require, "document/credocument")
+            if ok_cre and credoc and credoc.engineInit then
+                local ok2, cre = pcall(credoc.engineInit, credoc)
+                if ok2 and cre and cre.getFontFaceFilenameAndFaceIndex then
+                    local f_file, f_idx = cre.getFontFaceFilenameAndFaceIndex(fname)
+                    if not f_file then f_file, f_idx = cre.getFontFaceFilenameAndFaceIndex(fname, nil, true) end
+                    if f_file and f_idx then
+                        local ok_f, custom_face = pcall(Font.getFace, Font, f_file, scaleText(12), f_idx)
+                        if ok_f and custom_face then item_face = custom_face end
+                    end
+                end
+            end
+        end)
+
+        local is_already_added = saved_map[fname] == true
+        local max_tw = r.w - (pad * 2) - scale(32)
+        local tw_item = TextWidget:new{
+            text = tostring(fname),
+            face = item_face,
+            bold = is_already_added,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+            max_width = math.max(scale(60), max_tw),
+            truncate_with_ellipsis = true,
+        }
+        local isz = tw_item:getSize()
+        tw_item:paintTo(bb, r.x + pad, ry + math.floor((rh - isz.h) / 2))
+        tw_item:free()
+
+        local tw_sym = TextWidget:new{
+            text = is_already_added and "✓" or "+",
+            face = Font:getFace("cfont", scaleText(13)),
+            bold = true,
+            fgcolor = is_already_added and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local psz = tw_sym:getSize()
+        tw_sym:paintTo(bb, r.x + r.w - pad - psz.w, ry + math.floor((rh - psz.h) / 2))
+        tw_sym:free()
+    end
+
+    if self.footer_rect then
+        local fy = self.footer_rect.y
+        local fh = self.footer_rect.h
+        bb:paintRect(r.x + border, fy - 1, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+
+        local tw_p = TextWidget:new{
+            text = "‹",
+            face = Font:getFace("cfont", scaleText(14)),
+            bold = true,
+            fgcolor = (self.page > 1) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local psz = tw_p:getSize()
+        tw_p:paintTo(bb, r.x + scale(28) - math.floor(psz.w / 2), fy + math.floor((fh - psz.h) / 2))
+        tw_p:free()
+
+        local tw_cnt = TextWidget:new{
+            text = string.format("%d / %d", self.page, self.total_pages),
+            face = Font:getFace("cfont", scaleText(11)),
+            bold = true,
+            fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local cnsz = tw_cnt:getSize()
+        tw_cnt:paintTo(bb, r.x + math.floor((r.w - cnsz.w) / 2), fy + math.floor((fh - cnsz.h) / 2))
+        tw_cnt:free()
+
+        local tw_n = TextWidget:new{
+            text = "›",
+            face = Font:getFace("cfont", scaleText(14)),
+            bold = true,
+            fgcolor = (self.page < self.total_pages) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local nsz = tw_n:getSize()
+        tw_n:paintTo(bb, r.x + r.w - scale(28) - math.floor(nsz.w / 2), fy + math.floor((fh - nsz.h) / 2))
+        tw_n:free()
+    end
+end
+
+function FontSelectDialog:closeDialog()
+    UIManager:close(self)
+    if self.on_close then self.on_close() end
+end
+
+function FontSelectDialog:onSwipe(arg1, arg2)
+    local ges = arg2 or arg1
+    if not ges then return false end
+    local dir = ges.direction
+    if dir == "left" or dir == "west" or dir == "up" or dir == "north" then
+        self:nextPage()
+        return true
+    elseif dir == "right" or dir == "east" or dir == "down" or dir == "south" then
+        self:prevPage()
+        return true
+    end
+    return false
+end
+
+function FontSelectDialog:onTap(arg1, arg2)
+    local p = getTouchPoint(arg1, arg2)
+    if not p then return false end
+
+    if not pointInRect(p, self.card_rect) or (self.btn_header_rect and pointInRect(p, self.btn_header_rect)) then
+        self:closeDialog()
+        return true
+    end
+
+    for _, rdef in ipairs(self.row_dimens or {}) do
+        if pointInRect(p, rdef.dimen) then
+            local fname = rdef.item
+            local saved = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_favorite_fonts")) or {}
+            local idx_found = nil
+            for i, existing in ipairs(saved) do
+                if existing == fname then
+                    idx_found = i
+                    break
+                end
+            end
+
+            if idx_found then
+                table.remove(saved, idx_found)
+            else
+                table.insert(saved, fname)
+            end
+
+            if G_reader_settings then
+                G_reader_settings:saveSetting("page_scrubber_favorite_fonts", saved)
+                G_reader_settings:flush()
+            end
+
+            UIManager:setDirty(self, "ui")
+            return true
+        end
+    end
+
+    if self.footer_rect and pointInRect(p, self.footer_rect) then
+        local left_zone = self.card_rect.x + math.floor(self.card_w * 0.4)
+        local right_zone = self.card_rect.x + self.card_w - math.floor(self.card_w * 0.4)
+
+        if p.x <= left_zone then
+            self:prevPage()
+            return true
+        elseif p.x >= right_zone then
+            self:nextPage()
+            return true
+        end
+    end
+
+    return true
+end
+
+function FontSelectDialog:onShow()
+    if self.ui then UIManager:setDirty(self.ui, "ui") end
+    UIManager:setDirty(self, "ui")
+end
+
+function FontSelectDialog:onCloseWidget()
+    if self.scrubber_ui then UIManager:setDirty(self.scrubber_ui, "ui") end
+    if self.ui then UIManager:setDirty(self.ui, "ui") else UIManager:setDirty(nil, "ui") end
+end
+
+function ScrubberSettings:getAllSystemFonts()
+    if self._cached_system_fonts then
+        return self._cached_system_fonts
+    end
+    local faces = {}
+    pcall(function()
+        local ok, credoc = pcall(require, "document/credocument")
+        if ok and credoc and credoc.engineInit then
+            local ok2, cre = pcall(credoc.engineInit, credoc)
+            if ok2 and cre and cre.getFontFaces then
+                faces = cre.getFontFaces() or {}
+            end
+        end
+    end)
+    if type(faces) ~= "table" or #faces == 0 then
+        faces = { "Noto Serif", "Noto Sans", "Droid Sans", "FreeSerif", "FreeSans" }
+    end
+    table.sort(faces, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+    self._cached_system_fonts = faces
+    return faces
+end
+
+function ScrubberSettings:openAddFontDialog()
+    local all_fonts = self:getAllSystemFonts()
+    local ui = self.ui
+    local scrubber_ui = self.scrubber_ui
+
+    UIManager:close(self)
+
+    local dlg = FontSelectDialog:new{
+        ui = ui,
+        scrubber_ui = scrubber_ui,
+        fonts = all_fonts,
+        on_close = function()
+            UIManager:nextTick(function()
+                local ScrubberSettingsMod = require("scrubber_settings")
+                local inst = ScrubberSettingsMod:new{
+                    ui = ui,
+                    scrubber_ui = scrubber_ui,
+                }
+                inst.current_view = "favorite_fonts"
+                inst.history = { "main", "quick_menu" }
+                inst.card_w = nil
+                inst:updateLayout()
+                UIManager:show(inst)
+            end)
+        end,
+    }
+    UIManager:show(dlg)
+end
+
+function ScrubberSettings:confirmDeleteFont(idx, fname)
+    UIManager:show(ConfirmBox:new{
+        text = string.format(_("Remove \"%s\" from Favorite Fonts?"), tostring(fname)),
+        ok_text = _("Remove"),
+        cancel_text = _("Cancel"),
+        ok_callback = function()
+            local current = self:readSetting("page_scrubber_favorite_fonts", {})
+            table.remove(current, idx)
+            self:saveSetting("page_scrubber_favorite_fonts", current)
+            self:refreshView()
+        end,
+    })
+end
+
 function ScrubberSettings:openAddActionDialog()
     local current = self:readSetting("page_scrubber_quick_actions", {})
     if #current >= 8 then
@@ -1565,7 +2046,7 @@ function ScrubberSettings:openAddActionDialog()
                     scrubber_ui = scrubber_ui,
                 }
                 inst.current_view = "scrubber_actions"
-                inst.history = { "main" }
+                inst.history = { "main", "quick_menu" }
                 inst.card_w = nil
                 inst:updateLayout()
                 UIManager:show(inst)
@@ -1856,24 +2337,68 @@ function ScrubberSettings:paintTo(bb, x, y)
         local text_color = item.disabled and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
         local icon_color = item.disabled and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
 
-        local text_x = r.x + pad
+        -- Resolver la fuente real de la fila antes de pintar el ícono o el texto
+        local item_face = Font:getFace("cfont", scaleText(11))
+        if item.font_name and item.font_name ~= "" then
+            pcall(function()
+                local ok_cre, credoc = pcall(require, "document/credocument")
+                if ok_cre and credoc and credoc.engineInit then
+                    local ok2, cre = pcall(credoc.engineInit, credoc)
+                    if ok2 and cre and cre.getFontFaceFilenameAndFaceIndex then
+                        local f_file, f_idx = cre.getFontFaceFilenameAndFaceIndex(item.font_name)
+                        if not f_file then f_file, f_idx = cre.getFontFaceFilenameAndFaceIndex(item.font_name, nil, true) end
+                        if f_file and f_idx then
+                            local ok_f, custom_face = pcall(Font.getFace, Font, f_file, scaleText(11), f_idx)
+                            if ok_f and custom_face then item_face = custom_face end
+                        end
+                    end
+                end
+            end)
+        end
+
+        local icon_offset_x = scale(4)
+        local text_x = r.x + pad + icon_offset_x
         local icon_sz = scale(17)
 
         if item.icon and item.icon ~= "" then
-            local icon_widget = loadSvg(item.icon, icon_sz, icon_color)
-            if icon_widget then
-                local iy = ry + math.floor((rh - icon_sz) / 2)
-                pcall(function()
-                    icon_widget:paintTo(bb, r.x + pad, iy)
-                end)
-                text_x = r.x + pad + icon_sz + scale(8)
+            if not item.icon:match("%.svg$") then
+                local tw_ico = TextWidget:new{
+                    text = item.icon,
+                    face = item_face,
+                    bold = true,
+                    fgcolor = icon_color,
+                }
+                local isz = tw_ico:getSize()
+                local ix = r.x + pad + icon_offset_x + math.floor((icon_sz - isz.w) / 2)
+                local iy = ry + math.floor((rh - isz.h) / 2)
+                tw_ico:paintTo(bb, ix, iy)
+                tw_ico:free()
+                text_x = r.x + pad + icon_offset_x + icon_sz + scale(8)
+            else
+                local icon_widget = loadSvg(item.icon, icon_sz, icon_color)
+                if icon_widget then
+                    local iy = ry + math.floor((rh - icon_sz) / 2)
+                    pcall(function()
+                        icon_widget:paintTo(bb, r.x + pad + icon_offset_x, iy)
+                    end)
+                    text_x = r.x + pad + icon_offset_x + icon_sz + scale(8)
+                end
             end
         end
 
-        local max_tw = math.max(scale(40), r.w - (text_x - r.x) - scale(28))
+        local right_reserved = scale(28)
+        if item.kind == "orderable_action" then
+            -- Scrubber Actions y Favorite Fonts: reservan espacio para papelera, divisor y flechas (↑ ↓)
+            right_reserved = scale(94)
+        elseif item.kind == "orderable_toggle" then
+            right_reserved = scale(98)
+        end
+        -- Wallpapers y opciones de radio usan el default de scale(28) para aprovechar todo el ancho hasta el tilde
+        local max_tw = math.max(scale(40), r.w - (text_x - r.x) - right_reserved)
+
         local tw_item = TextWidget:new{
             text = tostring(item.text or ""),
-            face = Font:getFace("cfont", scaleText(11)),
+            face = item_face,
             bold = item.bold == true,
             fgcolor = text_color,
             max_width = max_tw,
@@ -1884,16 +2409,15 @@ function ScrubberSettings:paintTo(bb, x, y)
         tw_item:free()
 
         if item.kind == "orderable_toggle" then
-            local check_w = scale(26)
+            local check_w = scale(32)
             local arrow_w = scale(22)
             local is_chk = (self:readSetting(item.setting, item.default) == true)
 
-            -- 1. Checkbox a la derecha
-            local check_str = is_chk and "☑" or "☐"
+            -- 1. Toggle switch a la derecha (\u{EC20} / \u{EC21})
+            local toggle_str = is_chk and "\u{EC20}" or "\u{EC21}"
             local tw_chk = TextWidget:new{
-                text = check_str,
-                face = Font:getFace("cfont", scaleText(14)),
-                bold = is_chk,
+                text = toggle_str,
+                face = Font:getFace("cfont", scaleText(16)),
                 fgcolor = is_chk and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY
             }
             local cksz = tw_chk:getSize()
@@ -2024,11 +2548,10 @@ function ScrubberSettings:paintTo(bb, x, y)
 
         elseif item.kind == "toggle" then
             local is_chk = item.read_func and (item.read_func() == true) or (self:readSetting(item.setting, item.default) == true)
-            local check_str = is_chk and "☑" or "☐"
+            local toggle_str = is_chk and "\u{EC20}" or "\u{EC21}"
             local tw_chk = TextWidget:new{
-                text = check_str,
-                face = Font:getFace("cfont", scaleText(14)),
-                bold = is_chk and not item.disabled,
+                text = toggle_str,
+                face = Font:getFace("cfont", scaleText(16)),
                 fgcolor = item.disabled and Blitbuffer.COLOR_DARK_GRAY or (is_chk and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY)
             }
             local cksz = tw_chk:getSize()
@@ -2111,7 +2634,7 @@ function ScrubberSettings:onTap(arg1, arg2)
 
                 if it.kind == "orderable_toggle" then
                     local pad = scale(10)
-                    local check_w = scale(26)
+                    local check_w = scale(32)
                     local arrow_w = scale(22)
                     local div_x = r.x + r.w - pad - check_w - scale(4)
                     local down_left = div_x - scale(4) - arrow_w
@@ -2154,19 +2677,21 @@ function ScrubberSettings:onTap(arg1, arg2)
                     local div_x = r.x + r.w - pad - trash_w - scale(4)
                     local down_left = div_x - scale(4) - arrow_w
                     local up_left = down_left - arrow_w
+                    local is_font_list = (self.current_view == "favorite_fonts")
+                    local setting_key = is_font_list and "page_scrubber_favorite_fonts" or "page_scrubber_quick_actions"
 
                     if ges.pos.x >= div_x then
-                        -- Tocar en la papelera: borra la acción
+                        -- Tocar en la papelera: borra el ítem
                         if it.action then it.action() end
                         return true
                     elseif ges.pos.x >= down_left then
                         -- Flecha abajo: intercambia hacia adelante
                         if it.can_down then
-                            local acts = self:readSetting("page_scrubber_quick_actions", {})
+                            local acts = self:readSetting(setting_key, {})
                             local idx = it.action_idx
                             if acts[idx] and acts[idx + 1] then
                                 acts[idx], acts[idx + 1] = acts[idx + 1], acts[idx]
-                                self:saveSetting("page_scrubber_quick_actions", acts)
+                                self:saveSetting(setting_key, acts)
                                 self:refreshView()
                             end
                         end
@@ -2174,17 +2699,16 @@ function ScrubberSettings:onTap(arg1, arg2)
                     elseif ges.pos.x >= up_left then
                         -- Flecha arriba: intercambia hacia atrás
                         if it.can_up then
-                            local acts = self:readSetting("page_scrubber_quick_actions", {})
+                            local acts = self:readSetting(setting_key, {})
                             local idx = it.action_idx
                             if acts[idx] and acts[idx - 1] then
                                 acts[idx], acts[idx - 1] = acts[idx - 1], acts[idx]
-                                self:saveSetting("page_scrubber_quick_actions", acts)
+                                self:saveSetting(setting_key, acts)
                                 self:refreshView()
                             end
                         end
                         return true
                     else
-                        -- Tocar en el texto o icono también abre la confirmación de borrado
                         if it.action then it.action() end
                         return true
                     end
@@ -2211,17 +2735,10 @@ function ScrubberSettings:onTap(arg1, arg2)
                     self:saveSetting(it.setting, it.val)
 
                     if it.setting == "page_scrubber_title_bg" then
-                        local scrubber = self.scrubber_ui
-                        UIManager:close(self)
-                        if scrubber then
-                            if scrubber._closeStay then
-                                pcall(function() scrubber:_closeStay() end)
-                            else
-                                pcall(function() UIManager:close(scrubber) end)
-                            end
-                        else
-                            UIManager:setDirty(nil, "full")
+                        if self.scrubber_ui then
+                            UIManager:setDirty(self.scrubber_ui, "ui")
                         end
+                        self:refreshView()
                         return true
                     end
 
@@ -2235,18 +2752,10 @@ function ScrubberSettings:onTap(arg1, arg2)
                         if ok_wp and ScrubberWallpaper and ScrubberWallpaper.free then
                             ScrubberWallpaper.free()
                         end
-
-                        local scrubber = self.scrubber_ui
-                        UIManager:close(self)
-                        if scrubber then
-                            if scrubber._closeStay then
-                                pcall(function() scrubber:_closeStay() end)
-                            else
-                                pcall(function() UIManager:close(scrubber) end)
-                            end
-                        else
-                            UIManager:setDirty(nil, "full")
+                        if self.scrubber_ui then
+                            UIManager:setDirty(self.scrubber_ui, "ui")
                         end
+                        self:refreshView()
                         return true
                     end
 

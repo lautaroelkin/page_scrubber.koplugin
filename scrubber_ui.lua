@@ -387,7 +387,10 @@ function PageScrubber:init()
     local text_size_pref = G_reader_settings and G_reader_settings:readSetting("page_scrubber_text_size") or "medium"
     local t_off = 0
     if text_size_pref == "small" then t_off = -2
-    elseif text_size_pref == "large" then t_off = 2 end
+    elseif text_size_pref == "large" then
+        local is_eink = (Device.isKindle and Device:isKindle()) or (Device.isKobo and Device:isKobo()) or (Device.isEink and Device:isEink())
+        t_off = is_eink and 4 or 2
+    end
 
     -- Aplicamos el desplazamiento a todos los tamaños base
     local S_GRANDE   = S(15 + t_off)
@@ -2718,15 +2721,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local found = nil
         local cur_disp = tostring(self:_getDisplayPageInfo(self._cur_page))
 
-        -- 1. Restauración post-edición (Bridge): solo aquí se sincroniza la pantalla interna
+        -- Restauración local post-edición
         local target_order = PageScrubber._last_edited_order or self._target_hl_order
-        if not target_order then
-            pcall(function()
-                local Bridge = require("page_scrubber_bridge")
-                target_order = Bridge._last_edited_order
-            end)
-        end
-
         if target_order then
             for _, it in ipairs(other_items) do
                 if type(it) == "table" and it.disp_page == cur_disp and it.order == target_order then
@@ -2743,7 +2739,6 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 end
             end
 
-            -- Solo salta de pantalla si venimos directamente de editar esa anotación
             if found and found.page and found.page ~= self._cur_page then
                 self._cur_page = found.page
                 self._slider.value = self._cur_page
@@ -2752,10 +2747,6 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
             PageScrubber._last_edited_order = nil
             self._target_hl_order = nil
-            pcall(function()
-                local Bridge = require("page_scrubber_bridge")
-                Bridge._last_edited_order = nil
-            end)
         end
 
         -- 2. Navegación normal: conservar la selección previa solo si pertenece a la página actual
@@ -3455,7 +3446,6 @@ function PageScrubber:_setHighlightType(new_drawer)
     if self._split_selected_item and self._split_selected_item.annotation then
         target_item = self._split_selected_item.annotation
     elseif self.ui.annotation and self.ui.annotation.annotations then
-        -- Priorizar el highlight que coincida con el filtro de tipo activo
         for _, item in ipairs(self.ui.annotation.annotations) do
             local p = self:_getNumericalPage(item)
             local is_real_hl = item.pos0 and item.pos1
@@ -3473,7 +3463,6 @@ function PageScrubber:_setHighlightType(new_drawer)
             end
         end
 
-        -- Fallback si no hubo coincidencia por filtro
         if not target_item then
             for _, item in ipairs(self.ui.annotation.annotations) do
                 local p = self:_getNumericalPage(item)
@@ -3488,66 +3477,45 @@ function PageScrubber:_setHighlightType(new_drawer)
 
     if not target_item then return end
 
-    -- 1. Actualizar el estilo (drawer) en la anotación
+    -- 1. Actualizar el estilo de resaltado y guardar en el libro
     target_item.drawer = new_drawer
-
-    -- 2. Guardar en el archivo .sdr del libro
     pcall(function()
         if self.ui.annotation and self.ui.annotation.saveAnnotations then
             self.ui.annotation:saveAnnotations()
         end
     end)
 
-    -- 3. Calcular el nuevo filtro para que coincida con el nuevo tipo
+    -- 2. Notificar al sistema de lectura de KOReader que la anotación cambió
+    pcall(function()
+        local Event = require("ui/event")
+        if self.ui and self.ui.handleEvent then
+            self.ui:handleEvent(Event:new("AnnotationsModified", { target_item }))
+            self.ui:handleEvent(Event:new("RedrawCurrentPage"))
+        end
+    end)
+
+    -- 3. Calcular y actualizar el filtro si correspondía
     local new_filt = "normal"
     if new_drawer == "invert" then new_filt = "invert"
     elseif new_drawer == "underscore" then new_filt = "underline"
     elseif new_drawer == "strikeout" then new_filt = "strikethrough" end
-    local next_hl_filter = current_filter and new_filt or nil
+    if self._hl_filter then
+        self._hl_filter = new_filt
+    end
 
-    -- 4. Mostrar pantalla de carga
-    local loading_widget = InfoMessage:new{ text = _("Updating highlight…") }
-    UIManager:show(loading_widget)
+    -- 4. Ocultar el selector de tipos de forma instantánea
+    self._show_type_picker = false
+    self._show_delete_confirm = false
 
-    -- 5. Guardar el estado completo en el Bridge para restaurar exactamente la vista
-    local target_order = self._split_selected_item and self._split_selected_item.order
-    local target_screen_page = (self._split_selected_item and self._split_selected_item.page) or self._cur_page
-    PageScrubber._last_edited_order = target_order
+    -- 5. Invalidar únicamente las miniaturas de esta página en el scrubber
+    self:_invalidateGridTilesForPage(target_page)
 
-    pcall(function()
-        local Bridge = require("page_scrubber_bridge")
-        Bridge._last_edited_order = target_order
-        Bridge.requestReopenAfterReload{
-            mode             = "split",
-            tab              = self._active_tab or "highlights",
-            page             = target_screen_page,
-            origin           = self._origin_page,
-            fixed_page       = self._split_fixed_page,
-            base_mode        = self._base_grid_mode,
-            sort_order       = self._sort_order,
-            bm_page          = self._split_bm_page,
-            hl_filter        = next_hl_filter,
-            hl_order         = target_order,
-            target_order     = target_order,
-            initial_hl_order = target_order,
-        }
-        Bridge.setLoadingWidget(loading_widget)
-    end)
-
-    -- Timeout de seguridad
-    UIManager:scheduleIn(10, function()
-        pcall(function()
-            local Bridge = require("page_scrubber_bridge")
-            Bridge.closeLoadingWidget()
-        end)
-    end)
-
-    -- 6. Cerrar el scrubber y forzar el reload del motor crengine para que redibuje con el nuevo drawer
-    self._closing = true
-    self:_cancelHold()
-    UIManager:close(self)
-    UIManager:scheduleIn(0.02, function()
-        pcall(function() self.ui:reloadDocument(nil, true) end)
+    -- 6. Actualizar las listas en memoria y repintar la miniatura
+    UIManager:scheduleIn(0.08, function()
+        if self._closing then return end
+        self:_extractAnnotations()
+        self:_updateGridPages()
+        UIManager:setDirty(self, "ui", self.dimen)
     end)
 end
 
@@ -3583,11 +3551,19 @@ function PageScrubber:_paintToImpl(bb, x, y)
         return
     end
 
+    local show_top_line = false
+    if G_reader_settings then
+        local line_setting = G_reader_settings:readSetting("page_scrubber_top_line")
+        if line_setting ~= nil then
+            show_top_line = (line_setting == true or line_setting == "true" or line_setting == 1)
+        end
+    end
+
     -- MODO HORIZONTAL PROTEGIDO (SPLIT, GRID Y GRID_SIX)
     if is_landscape and (self._view_mode == "split" or self._view_mode == "grid" or self._view_mode == "grid_six") then
         local td = self._top_bar_dimen
         bb:paintRect(td.x, td.y, td.w, td.h, Blitbuffer.COLOR_WHITE)
-        if has_wallpaper then
+        if show_top_line then
             bb:paintRect(td.x, td.y + td.h - S(2), td.w, S(2), Blitbuffer.COLOR_BLACK)
         end
 
@@ -3715,54 +3691,58 @@ function PageScrubber:_paintToImpl(bb, x, y)
             bb:paintRect(0, title_strip_y, sw, title_strip_h, Blitbuffer.COLOR_WHITE)
         end
 
-        -- Barra superior: fondo blanco con línea divisoria si hay wallpaper
+        -- Barra superior: fondo blanco con línea divisoria si está habilitada
         bb:paintRect(td.x, td.y, td.w, td.h, Blitbuffer.COLOR_WHITE)
-        if has_wallpaper then
+        if show_top_line then
             bb:paintRect(td.x, td.y + td.h - S(2), td.w, S(2), Blitbuffer.COLOR_BLACK)
         end
         
         if self._view_mode == "grid" or self._view_mode == "grid_six" then
             if self._view_mode ~= "grid_six" then
                 local title_x = pad
-                if has_wallpaper then
-                    local pill_mode = "border"
-                    if G_reader_settings then
-                        local s_val = G_reader_settings:readSetting("page_scrubber_title_bg")
-                        if s_val == false or s_val == "false" or s_val == 0 or s_val == "off" or s_val == "none" then
-                            pill_mode = "off"
-                        elseif s_val == "no_border" or s_val == "borderless" then
-                            pill_mode = "no_border"
-                        elseif s_val == "translucent" or s_val == "opacity" or s_val == "semi_transparent" then
-                            pill_mode = "translucent"
-                        elseif s_val == true or s_val == "true" or s_val == 1 or s_val == "border" then
-                            pill_mode = "border"
-                        end
+                local pill_mode = "none"
+                if G_reader_settings then
+                    local s_val = G_reader_settings:readSetting("page_scrubber_title_bg")
+                    if s_val == "border" or s_val == true or s_val == "true" or s_val == 1 then
+                        pill_mode = "border"
+                    elseif s_val == "no_border" or s_val == "borderless" then
+                        pill_mode = "no_border"
+                    elseif s_val == "translucent" or s_val == "opacity" or s_val == "semi_transparent" then
+                        pill_mode = "translucent"
+                    elseif s_val == "aura" or s_val == "off" then
+                        pill_mode = "aura"
+                    else
+                        pill_mode = "none"
                     end
+                end
 
-                    if pill_mode == "border" or pill_mode == "no_border" or pill_mode == "translucent" then
-                        local tsz = self.tw_booktitle:getSize()
-                        local pad_h = S(12)
-                        local pad_v = S(4)
-                        local pill_w = tsz.w + pad_h * 2
-                        local pill_h = tsz.h + pad_v * 2
-                        local pill_x = title_x
-                        local pill_y = self._booktitle_y - pad_v
-                        local r = math.floor(pill_h / 2)
-                        local b = S(2)
+                if pill_mode == "border" or pill_mode == "no_border" or pill_mode == "translucent" then
+                    local tsz = self.tw_booktitle:getSize()
+                    local pad_h = S(12)
+                    local pad_v = S(4)
+                    local pill_w = tsz.w + pad_h * 2
+                    local pill_h = tsz.h + pad_v * 2
+                    local pill_x = title_x
+                    local pill_y = self._booktitle_y - pad_v
+                    local r = math.floor(pill_h / 2)
+                    local b = S(2)
 
-                        if pill_mode == "border" then
-                            paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_BLACK)
-                            paintRoundRect(bb, pill_x + b, pill_y + b, pill_w - b*2, pill_h - b*2, math.max(1, r - b), Blitbuffer.COLOR_WHITE)
-                        elseif pill_mode == "translucent" then
+                    if pill_mode == "border" then
+                        paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_BLACK)
+                        paintRoundRect(bb, pill_x + b, pill_y + b, pill_w - b*2, pill_h - b*2, math.max(1, r - b), Blitbuffer.COLOR_WHITE)
+                    elseif pill_mode == "translucent" then
+                        if has_wallpaper then
                             paintTranslucentPill(bb, pill_x, pill_y, pill_w, pill_h, r, 0.82)
                         else
                             paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_WHITE)
                         end
-                        self.tw_booktitle.fgcolor = Blitbuffer.COLOR_BLACK
-                        self.tw_booktitle:paintTo(bb, pill_x + pad_h, self._booktitle_y)
                     else
-                        paintTextWithHalo(self.tw_booktitle, bb, title_x, self._booktitle_y, self.S(2))
+                        paintRoundRect(bb, pill_x, pill_y, pill_w, pill_h, r, Blitbuffer.COLOR_WHITE)
                     end
+                    self.tw_booktitle.fgcolor = Blitbuffer.COLOR_BLACK
+                    self.tw_booktitle:paintTo(bb, pill_x + pad_h, self._booktitle_y)
+                elseif pill_mode == "aura" and has_wallpaper then
+                    paintTextWithHalo(self.tw_booktitle, bb, title_x, self._booktitle_y, self.S(2))
                 else
                     self.tw_booktitle.fgcolor = Blitbuffer.COLOR_BLACK
                     self.tw_booktitle:paintTo(bb, title_x, self._booktitle_y)

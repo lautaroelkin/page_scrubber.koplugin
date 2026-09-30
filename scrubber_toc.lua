@@ -1341,46 +1341,88 @@ function ScrubberToc:_paintToImpl(bb, x, y)
                 return nil
             end
 
-            if self.parent_scrubber and self.parent_scrubber._cached_hl then
-                for _, it in ipairs(self.parent_scrubber._cached_hl) do
-                    local p = it.page
+            -- 1. Resaltados / Notas de texto (Highlights)
+            local scrubber_source = self.parent_scrubber or self._scrubber_helper
+
+            -- 1. Resaltados / Notas de texto (Highlights)
+            if scrubber_source and scrubber_source._cached_hl then
+                for _, it in ipairs(scrubber_source._cached_hl) do
+                    local p = it.page or (it.pos0 and doc and doc.getPageFromXPointer and pcall(function() return doc:getPageFromXPointer(it.pos0) end))
+                    p = tonumber(p)
                     if p and p >= start_page and p <= end_page then
                         hl_cnt = hl_cnt + 1
                     end
                 end
             else
-                for _, it in ipairs(raw_anns) do
-                    local p = getPage(it)
-                    if p and p >= start_page and p <= end_page then
-                        if it.drawer or it.highlight or (it.pos0 and it.pos1) or (it.text and it.text ~= "") then
-                            hl_cnt = hl_cnt + 1
+                local anns_list = raw_anns
+                if type(anns_list) == "table" then
+                    for _, it in pairs(anns_list) do
+                        if type(it) == "table" then
+                            local is_bookmark = (it.type == "bookmark" or it.is_bookmark == true or (not it.text and not it.drawer and not it.highlight))
+                            if not is_bookmark then
+                                local p = getPage(it)
+                                if p and p >= start_page and p <= end_page then
+                                    hl_cnt = hl_cnt + 1
+                                end
+                            end
                         end
                     end
                 end
             end
 
+            -- 2. Marcadores de página (Bookmarks)
             local bms_seen = {}
             local function check_and_add_bm(p)
+                p = tonumber(p)
                 if p and p >= start_page and p <= end_page and not bms_seen[p] then
                     bms_seen[p] = true
                     bm_cnt = bm_cnt + 1
                 end
             end
 
-            if self.parent_scrubber and self.parent_scrubber._getAllBookmarks then
-                local all_b = self.parent_scrubber:_getAllBookmarks()
-                for _, bp in ipairs(all_b) do
-                    check_and_add_bm(tonumber(bp))
+            if scrubber_source and scrubber_source._getAllBookmarks then
+                local all_b = scrubber_source:_getAllBookmarks()
+                if type(all_b) == "table" then
+                    for _, bp in ipairs(all_b) do
+                        check_and_add_bm(bp)
+                    end
                 end
-            else
-                local raw_bms = (self.ui and self.ui.bookmark and (self.ui.bookmark._bookmarks or self.ui.bookmark.bookmarks)) or {}
-                for k, v in pairs(raw_bms) do
-                    local p = type(v) == "table" and getPage(v) or tonumber(k)
-                    check_and_add_bm(p)
+            end
+
+            -- Fallback si el scrubber_helper no devolvió bookmarks
+            if bm_cnt == 0 then
+                local ui = self.ui
+                if ui and ui.bookmark then
+                    if type(ui.bookmark.getBookmarks) == "function" then
+                        local ok_bms, bms = pcall(ui.bookmark.getBookmarks, ui.bookmark)
+                        if ok_bms and type(bms) == "table" then
+                            for _, b in ipairs(bms) do
+                                check_and_add_bm(b.page or b.pageno or getPage(b))
+                            end
+                        end
+                    end
+                    local raw_bms = ui.bookmark._bookmarks or ui.bookmark.bookmarks
+                    if type(raw_bms) == "table" then
+                        for k, v in pairs(raw_bms) do
+                            local p = type(v) == "table" and (v.page or v.pageno or getPage(v)) or tonumber(k)
+                            check_and_add_bm(p)
+                        end
+                    end
                 end
-                if self.ui and self.ui.doc_props and self.ui.doc_props.bookmarks then
-                    for k, v in pairs(self.ui.doc_props.bookmarks) do
-                        local p = type(v) == "table" and getPage(v) or tonumber(k)
+
+                if ui and ui.doc_settings then
+                    local saved_bms = ui.doc_settings:readSetting("bookmarks")
+                    if type(saved_bms) == "table" then
+                        for k, v in pairs(saved_bms) do
+                            local p = type(v) == "table" and (v.page or v.pageno or getPage(v)) or tonumber(k)
+                            check_and_add_bm(p)
+                        end
+                    end
+                end
+
+                if ui and ui.doc_props and type(ui.doc_props.bookmarks) == "table" then
+                    for k, v in pairs(ui.doc_props.bookmarks) do
+                        local p = type(v) == "table" and (v.page or v.pageno or getPage(v)) or tonumber(k)
                         check_and_add_bm(p)
                     end
                 end
