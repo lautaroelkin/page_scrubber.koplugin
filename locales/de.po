@@ -266,6 +266,9 @@ msgstr "Aktion in diesem Dokument oder dieser Ansicht nicht verfügbar."
 msgid "Layout"
 msgstr "Layout"
 
+msgid "Appearance"
+msgstr "Erscheinungsbild"
+
 msgid "Wallpaper"
 msgstr "Hintergrundbild"
 
@@ -282,6 +285,9 @@ msgstr "Keines"
 msgid "Book title background"
 msgstr "Buchtitel-Hintergrund"
 
+msgid "Book title style"
+msgstr "Buchtitel-Stil"
+
 msgid "With border"
 msgstr "Mit Rahmen"
 
@@ -291,8 +297,39 @@ msgstr "Ohne Rahmen"
 msgid "Translucent"
 msgstr "Durchscheinend"
 
+msgid "Aura"
+msgstr "Aura"
+
 msgid "Off"
 msgstr "Aus"
+
+msgid "Top bar separator line"
+msgstr "Trennlinie der oberen Leiste"
+
+# Schnellmenü & Schriften
+msgid "Quick Menu"
+msgstr "Schnellmenü"
+
+msgid "Enable Quick Menu"
+msgstr "Schnellmenü aktivieren"
+
+msgid "Start quick menu with..."
+msgstr "Schnellmenü starten mit..."
+
+msgid "Quick actions"
+msgstr "Schnellaktionen"
+
+msgid "Typography (Aa)"
+msgstr "Typografie (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Bevorzugte Schriftarten"
+
+msgid "+ Add fonts"
+msgstr "+ Schriftarten hinzufügen"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "„%s“ aus bevorzugten Schriftarten entfernen?"
 
 # Ordnerinformationen
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

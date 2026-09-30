@@ -269,6 +269,9 @@ msgstr "このドキュメントまたは表示モードでは利用できない
 msgid "Layout"
 msgstr "レイアウト"
 
+msgid "Appearance"
+msgstr "外観"
+
 msgid "Wallpaper"
 msgstr "壁紙"
 
@@ -285,6 +288,9 @@ msgstr "なし"
 msgid "Book title background"
 msgstr "本のタイトルの背景"
 
+msgid "Book title style"
+msgstr "本のタイトルスタイル"
+
 msgid "With border"
 msgstr "枠線あり"
 
@@ -294,8 +300,39 @@ msgstr "枠線なし"
 msgid "Translucent"
 msgstr "半透明"
 
+msgid "Aura"
+msgstr "オーラ"
+
 msgid "Off"
 msgstr "オフ"
+
+msgid "Top bar separator line"
+msgstr "トップバーの区切り線"
+
+# クイックメニューとフォント
+msgid "Quick Menu"
+msgstr "クイックメニュー"
+
+msgid "Enable Quick Menu"
+msgstr "クイックメニューを有効化"
+
+msgid "Start quick menu with..."
+msgstr "クイックメニューの初期タブ..."
+
+msgid "Quick actions"
+msgstr "クイックアクション"
+
+msgid "Typography (Aa)"
+msgstr "タイポグラフィ (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "お気に入りフォント"
+
+msgid "+ Add fonts"
+msgstr "+ フォントを追加"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "お気に入りフォントから「%s」を削除しますか？"
 
 # フォルダ情報
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

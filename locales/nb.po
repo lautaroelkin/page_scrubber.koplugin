@@ -1,0 +1,356 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: nb\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Library"
+msgstr "Bibliotek"
+
+msgid "Page"
+msgstr "Side"
+
+msgid "Pages"
+msgstr "Sider"
+
+msgid "Added on"
+msgstr "Lagt til"
+
+msgid "Bookmarked"
+msgstr "Bokmerket"
+
+msgid "Delete"
+msgstr "Slett"
+
+msgid "Jan"
+msgstr "Jan"
+
+msgid "Feb"
+msgstr "Feb"
+
+msgid "Mar"
+msgstr "Mar"
+
+msgid "Apr"
+msgstr "Apr"
+
+msgid "May"
+msgstr "Mai"
+
+msgid "Jun"
+msgstr "Jun"
+
+msgid "Jul"
+msgstr "Jul"
+
+msgid "Aug"
+msgstr "Aug"
+
+msgid "Sep"
+msgstr "Sep"
+
+msgid "Oct"
+msgstr "Okt"
+
+msgid "Nov"
+msgstr "Nov"
+
+msgid "Dec"
+msgstr "Des"
+
+msgid "No chapters found"
+msgstr "Ingen kapitler funnet"
+
+msgid "Updating highlight…"
+msgstr "Oppdaterer markering…"
+
+msgid "Edit note"
+msgstr "Rediger notat"
+
+msgid "Cancel"
+msgstr "Avbryt"
+
+msgid "Save"
+msgstr "Lagre"
+
+msgid "Configuration"
+msgstr "Konfigurasjon"
+
+msgid "UI Scale:"
+msgstr "Grensesnittskalering:"
+
+msgid "UI Scale (%)"
+msgstr "Grensesnittskalering (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "3-siders rutenett: Vis hele sider"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Rutenett"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Enkelt rutenett"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Fler-rutenett"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Meny (Bokmerker)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Meny (Markeringer)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Innholdsfortegnelse"
+
+msgid "Export notes of this document"
+msgstr "Eksporter notater fra dette dokumentet"
+
+msgid "Notes"
+msgstr "Notater"
+
+msgid "Export as..."
+msgstr "Eksporter som..."
+
+msgid "Exporting..."
+msgstr "Eksporterer..."
+
+msgid "Saved successfully in:"
+msgstr "Lagret i:"
+
+msgid "Failed to export notes"
+msgstr "Kunne ikke eksportere notater"
+
+msgid "Untitled"
+msgstr "Uten tittel"
+
+msgid "Chapter"
+msgstr "Kapittel"
+
+msgid "Reading Pop-Ups"
+msgstr "Lese-sprettoppvinduer"
+
+msgid "Scrubber Dictionary"
+msgstr "Scrubber-ordbok"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Standardknapper i ordbok"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Vis eksterne programtilleggsknapper i ordbok"
+
+msgid "Buttons in dictionary"
+msgstr "Knapper i ordbok"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Programtilleggsknapper i ordbok"
+
+msgid "Dictionary text size"
+msgstr "Tekststørrelse for ordbok"
+
+msgid "Very small"
+msgstr "Veldig liten"
+
+msgid "Small"
+msgstr "Liten"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Medium"
+msgstr "Middels"
+
+msgid "Large"
+msgstr "Stor"
+
+msgid "Very large"
+msgstr "Veldig stor"
+
+msgid "Scrubber Selection Menu"
+msgstr "Scrubber-valgmeny"
+
+msgid "Position of selection menu"
+msgstr "Plassering av valgmeny"
+
+msgid "Right (Vertical)"
+msgstr "Høyre (vertikal)"
+
+msgid "Left (Vertical)"
+msgstr "Venstre (vertikal)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Bunn (horisontal)"
+
+msgid "Center (Horizontal)"
+msgstr "Senter (horisontal)"
+
+msgid "Buttons in selection menu"
+msgstr "Knapper i valgmeny"
+
+msgid "Reverse selection buttons"
+msgstr "Omvendt rekkefølge på valgknapper"
+
+msgid "Wikipedia"
+msgstr "Wikipedia"
+
+msgid "Translate"
+msgstr "Oversett"
+
+msgid "Highlight"
+msgstr "Marker"
+
+msgid "Search"
+msgstr "Søk"
+
+msgid "Note"
+msgstr "Notat"
+
+msgid "Strikethrough"
+msgstr "Gjennomstreking"
+
+msgid "Underline"
+msgstr "Understreking"
+
+msgid "Invert"
+msgstr "Inverter"
+
+msgid "AI Assistant"
+msgstr "AI-assistent"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Tekststørrelse"
+
+msgid "Adjust Selection"
+msgstr "Juster markering"
+
+msgid "Adj"
+msgstr "Just"
+
+msgid "Show chapter marks in slider"
+msgstr "Vis kapittelmerker på glidebryter"
+
+msgid "Scrubber Actions"
+msgstr "Scrubber-handlinger"
+
+msgid "+ Add action"
+msgstr "+ Legg til handling"
+
+msgid "Add Scrubber Action"
+msgstr "Legg til Scrubber-handling"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "Fjerne «%s» fra Scrubber-handlinger?"
+
+msgid "Remove"
+msgstr "Fjern"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "Maksgrense på 8 handlinger nådd. Fjern én først."
+
+msgid "No system actions available."
+msgstr "Ingen systemhandlinger tilgjengelig."
+
+msgid "Action unavailable in this document or view."
+msgstr "Handling utilgjengelig i dette dokumentet eller denne visningen."
+
+# Oppsett og Bakgrunnsbilde
+msgid "Layout"
+msgstr "Oppsett"
+
+msgid "Appearance"
+msgstr "Utseende"
+
+msgid "Wallpaper"
+msgstr "Bakgrunnsbilde"
+
+msgid "Choose wallpaper"
+msgstr "Velg bakgrunnsbilde"
+
+msgid "Add wallpaper"
+msgstr "Legg til bakgrunnsbilde"
+
+msgid "None"
+msgstr "Ingen"
+
+# Boktittel-stil
+msgid "Book title background"
+msgstr "Boktittel-bakgrunn"
+
+msgid "Book title style"
+msgstr "Boktittel-stil"
+
+msgid "With border"
+msgstr "Med ramme"
+
+msgid "No border"
+msgstr "Uten ramme"
+
+msgid "Translucent"
+msgstr "Halvgjennomsiktig"
+
+msgid "Aura"
+msgstr "Aura"
+
+msgid "Off"
+msgstr "Av"
+
+msgid "Top bar separator line"
+msgstr "Skillelinje for topplinje"
+
+# Hurtigmeny og Skrifter
+msgid "Quick Menu"
+msgstr "Hurtigmeny"
+
+msgid "Enable Quick Menu"
+msgstr "Aktiver hurtigmeny"
+
+msgid "Start quick menu with..."
+msgstr "Start hurtigmeny med..."
+
+msgid "Quick actions"
+msgstr "Hurtighandlinger"
+
+msgid "Typography (Aa)"
+msgstr "Typografi (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Favorittskrifter"
+
+msgid "+ Add fonts"
+msgstr "+ Legg til skrifttyper"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "Fjerne «%s» fra favorittskrifter?"
+
+# Mappeinformasjon
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "For å legge til egne bakgrunnsbilder, kopier bilder (.png, .jpg) til:"
+
+msgid "Shared folders also detected:"
+msgstr "Delte mapper funnet:"
+
+# System
+msgid "System Error exporting notes."
+msgstr "Systemfeil under eksportering av notater."
+
+# Gester og handlinger / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Indeks (Innholdsfortegnelse)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Veksle RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (PÅ)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (AV)"

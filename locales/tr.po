@@ -278,6 +278,9 @@ msgstr "Eylem bu belgede veya görünümde kullanılamıyor."
 msgid "Layout"
 msgstr "Düzen"
 
+msgid "Appearance"
+msgstr "Görünüm"
+
 msgid "Wallpaper"
 msgstr "Duvar Kağıdı"
 
@@ -294,6 +297,9 @@ msgstr "Yok"
 msgid "Book title background"
 msgstr "Kitap başlığı arka planı"
 
+msgid "Book title style"
+msgstr "Kitap başlığı stili"
+
 msgid "With border"
 msgstr "Kenarlıklı"
 
@@ -303,8 +309,39 @@ msgstr "Kenarlıksız"
 msgid "Translucent"
 msgstr "Yarı saydam"
 
+msgid "Aura"
+msgstr "Işıltı"
+
 msgid "Off"
 msgstr "Kapalı"
+
+msgid "Top bar separator line"
+msgstr "Üst çubuk ayırıcı çizgi"
+
+# Hızlı Menü ve Yazı Tipleri
+msgid "Quick Menu"
+msgstr "Hızlı Menü"
+
+msgid "Enable Quick Menu"
+msgstr "Hızlı Menüyü Etkinleştir"
+
+msgid "Start quick menu with..."
+msgstr "Hızlı menüyü şununla başlat..."
+
+msgid "Quick actions"
+msgstr "Hızlı eylemler"
+
+msgid "Typography (Aa)"
+msgstr "Tipografi (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Favori Yazı Tipleri"
+
+msgid "+ Add fonts"
+msgstr "+ Yazı tipi ekle"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "«%s» favori yazı tiplerinden kaldırılsın mı?"
 
 # Klasör bilgileri
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

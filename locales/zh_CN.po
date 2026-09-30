@@ -266,6 +266,9 @@ msgstr "该动作在此文档或视图中不可用。"
 msgid "Layout"
 msgstr "布局"
 
+msgid "Appearance"
+msgstr "外观"
+
 msgid "Wallpaper"
 msgstr "壁纸"
 
@@ -282,6 +285,9 @@ msgstr "无"
 msgid "Book title background"
 msgstr "书名背景"
 
+msgid "Book title style"
+msgstr "书名样式"
+
 msgid "With border"
 msgstr "带边框"
 
@@ -291,8 +297,39 @@ msgstr "无边框"
 msgid "Translucent"
 msgstr "半透明"
 
+msgid "Aura"
+msgstr "光晕"
+
 msgid "Off"
 msgstr "关闭"
+
+msgid "Top bar separator line"
+msgstr "顶部顶栏分割线"
+
+# 快捷菜单与字体
+msgid "Quick Menu"
+msgstr "快捷菜单"
+
+msgid "Enable Quick Menu"
+msgstr "启用快捷菜单"
+
+msgid "Start quick menu with..."
+msgstr "启动快捷菜单于..."
+
+msgid "Quick actions"
+msgstr "快捷动作"
+
+msgid "Typography (Aa)"
+msgstr "排版字体 (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "收藏字体"
+
+msgid "+ Add fonts"
+msgstr "+ 添加字体"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "从收藏字体中移除“%s”？"
 
 # 文件夹说明
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

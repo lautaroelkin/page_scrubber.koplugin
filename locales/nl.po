@@ -266,6 +266,9 @@ msgstr "Actie niet beschikbaar in dit document of deze weergave."
 msgid "Layout"
 msgstr "Lay-out"
 
+msgid "Appearance"
+msgstr "Uiterlijk"
+
 msgid "Wallpaper"
 msgstr "Achtergrond"
 
@@ -282,6 +285,9 @@ msgstr "Geen"
 msgid "Book title background"
 msgstr "Achtergrond van boektitel"
 
+msgid "Book title style"
+msgstr "Stijl van boektitel"
+
 msgid "With border"
 msgstr "Met rand"
 
@@ -291,8 +297,39 @@ msgstr "Zonder rand"
 msgid "Translucent"
 msgstr "Doorschijnend"
 
+msgid "Aura"
+msgstr "Aura"
+
 msgid "Off"
 msgstr "Uit"
+
+msgid "Top bar separator line"
+msgstr "Scheidingslijn bovenbalk"
+
+# Snelmenu & Lettertypen
+msgid "Quick Menu"
+msgstr "Snelmenu"
+
+msgid "Enable Quick Menu"
+msgstr "Snelmenu inschakelen"
+
+msgid "Start quick menu with..."
+msgstr "Start snelmenu met..."
+
+msgid "Quick actions"
+msgstr "Snelle acties"
+
+msgid "Typography (Aa)"
+msgstr "Typografie (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Favoriete lettertypen"
+
+msgid "+ Add fonts"
+msgstr "+ Lettertypen toevoegen"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "„%s” verwijderen uit favoriete lettertypen?"
 
 # Mapinformatie
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

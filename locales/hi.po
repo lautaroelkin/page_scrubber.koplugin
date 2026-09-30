@@ -167,6 +167,9 @@ msgstr "स्क्रबर शब्दकोश"
 msgid "Layout"
 msgstr "लेआउट"
 
+msgid "Appearance"
+msgstr "दिखावट"
+
 msgid "Wallpaper"
 msgstr "वॉलपेपर"
 
@@ -183,6 +186,9 @@ msgstr "कोई नहीं"
 msgid "Book title background"
 msgstr "पुस्तक शीर्षक पृष्ठभूमि"
 
+msgid "Book title style"
+msgstr "पुस्तक शीर्षक शैली"
+
 msgid "With border"
 msgstr "बॉर्डर के साथ"
 
@@ -192,8 +198,39 @@ msgstr "बिना बॉर्डर"
 msgid "Translucent"
 msgstr "पारभासी"
 
+msgid "Aura"
+msgstr "आभा (Aura)"
+
 msgid "Off"
 msgstr "बंद"
+
+msgid "Top bar separator line"
+msgstr "शीर्ष पट्टी विभाजक रेखा"
+
+# त्वरित मेनू और फ़ॉन्ट
+msgid "Quick Menu"
+msgstr "त्वरित मेनू"
+
+msgid "Enable Quick Menu"
+msgstr "त्वरित मेनू सक्षम करें"
+
+msgid "Start quick menu with..."
+msgstr "त्वरित मेनू इससे शुरू करें..."
+
+msgid "Quick actions"
+msgstr "त्वरित क्रियाएं"
+
+msgid "Typography (Aa)"
+msgstr "टाइपोग्राफी (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "पसंदीदा फ़ॉन्ट"
+
+msgid "+ Add fonts"
+msgstr "+ फ़ॉन्ट जोड़ें"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "क्या \"%s\" को पसंदीदा फ़ॉन्ट से हटाएं?"
 
 # फ़ोल्डर जानकारी
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"

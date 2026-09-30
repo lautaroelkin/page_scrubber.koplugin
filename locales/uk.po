@@ -1,0 +1,356 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: page_scrubber\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: uk\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "Library"
+msgstr "Бібліотека"
+
+msgid "Page"
+msgstr "Стор."
+
+msgid "Pages"
+msgstr "Сторінки"
+
+msgid "Added on"
+msgstr "Додано"
+
+msgid "Bookmarked"
+msgstr "У закладках"
+
+msgid "Delete"
+msgstr "Видалити"
+
+msgid "Jan"
+msgstr "Січ"
+
+msgid "Feb"
+msgstr "Лют"
+
+msgid "Mar"
+msgstr "Бер"
+
+msgid "Apr"
+msgstr "Кві"
+
+msgid "May"
+msgstr "Тра"
+
+msgid "Jun"
+msgstr "Чер"
+
+msgid "Jul"
+msgstr "Лип"
+
+msgid "Aug"
+msgstr "Сер"
+
+msgid "Sep"
+msgstr "Вер"
+
+msgid "Oct"
+msgstr "Жов"
+
+msgid "Nov"
+msgstr "Лис"
+
+msgid "Dec"
+msgstr "Гру"
+
+msgid "No chapters found"
+msgstr "Розділів не знайдено"
+
+msgid "Updating highlight…"
+msgstr "Оновлення виділення…"
+
+msgid "Edit note"
+msgstr "Редагувати нотатку"
+
+msgid "Cancel"
+msgstr "Скасувати"
+
+msgid "Save"
+msgstr "Зберегти"
+
+msgid "Configuration"
+msgstr "Налаштування"
+
+msgid "UI Scale:"
+msgstr "Масштаб інтерфейсу:"
+
+msgid "UI Scale (%)"
+msgstr "Масштаб інтерфейсу (%)"
+
+msgid "3-Page Grid: Show full pages"
+msgstr "Сітка на 3 сторінки: Показувати повні сторінки"
+
+msgid "Page Scrubber: Grid"
+msgstr "Page Scrubber: Сітка"
+
+msgid "Page Scrubber: Simple Grid"
+msgstr "Page Scrubber: Проста сітка"
+
+msgid "Page Scrubber: Multi-Grid"
+msgstr "Page Scrubber: Мультисітка"
+
+msgid "Page Scrubber: Menu (Bookmarks)"
+msgstr "Page Scrubber: Меню (Закладки)"
+
+msgid "Page Scrubber: Menu (Highlights)"
+msgstr "Page Scrubber: Меню (Виділення)"
+
+msgid "Page Scrubber: Index"
+msgstr "Page Scrubber: Зміст"
+
+msgid "Export notes of this document"
+msgstr "Експортувати нотатки цього документа"
+
+msgid "Notes"
+msgstr "Нотатки"
+
+msgid "Export as..."
+msgstr "Експортувати як..."
+
+msgid "Exporting..."
+msgstr "Експортування..."
+
+msgid "Saved successfully in:"
+msgstr "Успішно збережено в:"
+
+msgid "Failed to export notes"
+msgstr "Не вдалося експортувати нотатки"
+
+msgid "Untitled"
+msgstr "Без назви"
+
+msgid "Chapter"
+msgstr "Розділ"
+
+msgid "Reading Pop-Ups"
+msgstr "Спливаючі вікна читання"
+
+msgid "Scrubber Dictionary"
+msgstr "Словник Scrubber"
+
+msgid "Standard Buttons in dictionary"
+msgstr "Стандартні кнопки у словнику"
+
+msgid "Show external plugin buttons in dictionary"
+msgstr "Показувати кнопки зовнішніх плагінів у словнику"
+
+msgid "Buttons in dictionary"
+msgstr "Кнопки у словнику"
+
+msgid "Plugin buttons in dictionary"
+msgstr "Кнопки плагінів у словнику"
+
+msgid "Dictionary text size"
+msgstr "Розмір тексту словника"
+
+msgid "Very small"
+msgstr "Дуже малий"
+
+msgid "Small"
+msgstr "Малий"
+
+msgid "Normal"
+msgstr "Звичайний"
+
+msgid "Medium"
+msgstr "Середній"
+
+msgid "Large"
+msgstr "Великий"
+
+msgid "Very large"
+msgstr "Дуже великий"
+
+msgid "Scrubber Selection Menu"
+msgstr "Меню виділення Scrubber"
+
+msgid "Position of selection menu"
+msgstr "Положення меню виділення"
+
+msgid "Right (Vertical)"
+msgstr "Праворуч (вертикально)"
+
+msgid "Left (Vertical)"
+msgstr "Ліворуч (вертикально)"
+
+msgid "Bottom (Horizontal)"
+msgstr "Знизу (горизонтально)"
+
+msgid "Center (Horizontal)"
+msgstr "По центру (горизонтально)"
+
+msgid "Buttons in selection menu"
+msgstr "Кнопки в меню виділення"
+
+msgid "Reverse selection buttons"
+msgstr "Зворотний порядок кнопок виділення"
+
+msgid "Wikipedia"
+msgstr "Вікіпедія"
+
+msgid "Translate"
+msgstr "Перекласти"
+
+msgid "Highlight"
+msgstr "Виділити"
+
+msgid "Search"
+msgstr "Шукати"
+
+msgid "Note"
+msgstr "Нотатка"
+
+msgid "Strikethrough"
+msgstr "Закреслити"
+
+msgid "Underline"
+msgstr "Підкреслити"
+
+msgid "Invert"
+msgstr "Інвертувати"
+
+msgid "AI Assistant"
+msgstr "ШІ-асистент"
+
+msgid "X-Ray"
+msgstr "X-Ray"
+
+msgid "Text size"
+msgstr "Розмір тексту"
+
+msgid "Adjust Selection"
+msgstr "Налаштувати виділення"
+
+msgid "Adj"
+msgstr "Нал"
+
+msgid "Show chapter marks in slider"
+msgstr "Показувати позначки розділів на повзунку"
+
+msgid "Scrubber Actions"
+msgstr "Дії Scrubber"
+
+msgid "+ Add action"
+msgstr "+ Додати дію"
+
+msgid "Add Scrubber Action"
+msgstr "Додати дію Scrubber"
+
+msgid "Remove \"%s\" from Scrubber Actions?"
+msgstr "Вилучити «%s» з дій Scrubber?"
+
+msgid "Remove"
+msgstr "Вилучити"
+
+msgid "OK"
+msgstr "ОК"
+
+msgid "Maximum of 8 actions reached. Remove one first."
+msgstr "Досягнуто ліміту у 8 дій. Спочатку видаліть одну."
+
+msgid "No system actions available."
+msgstr "Немає доступних системних дій."
+
+msgid "Action unavailable in this document or view."
+msgstr "Дія недоступна в цьому документі або режимі перегляду."
+
+# Макет і шпалери
+msgid "Layout"
+msgstr "Макет"
+
+msgid "Appearance"
+msgstr "Вигляд"
+
+msgid "Wallpaper"
+msgstr "Шпалери"
+
+msgid "Choose wallpaper"
+msgstr "Вибрати шпалери"
+
+msgid "Add wallpaper"
+msgstr "Додати шпалери"
+
+msgid "None"
+msgstr "Немає"
+
+# Стиль назви книги
+msgid "Book title background"
+msgstr "Тло назви книги"
+
+msgid "Book title style"
+msgstr "Стиль назви книги"
+
+msgid "With border"
+msgstr "З рамкою"
+
+msgid "No border"
+msgstr "Без рамки"
+
+msgid "Translucent"
+msgstr "Напівпрозоре"
+
+msgid "Aura"
+msgstr "Ореол"
+
+msgid "Off"
+msgstr "Вимкнено"
+
+msgid "Top bar separator line"
+msgstr "Розділювальна лінія верхньої панелі"
+
+# Швидке меню та шрифти
+msgid "Quick Menu"
+msgstr "Швидке меню"
+
+msgid "Enable Quick Menu"
+msgstr "Увімкнути швидке меню"
+
+msgid "Start quick menu with..."
+msgstr "Відкривати швидке меню з..."
+
+msgid "Quick actions"
+msgstr "Швидкі дії"
+
+msgid "Typography (Aa)"
+msgstr "Типографіка (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Улюблені шрифти"
+
+msgid "+ Add fonts"
+msgstr "+ Додати шрифти"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "Вилучити «%s» з улюблених шрифтів?"
+
+# Інформація про папки
+msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
+msgstr "Щоб додати власні шпалери, скопіюйте зображення (.png, .jpg) до:"
+
+msgid "Shared folders also detected:"
+msgstr "Також виявлено спільні папки:"
+
+# Система
+msgid "System Error exporting notes."
+msgstr "Системна помилка під час експорту нотаток."
+
+# Жести та дії Scrubber / RTL
+msgid "Page Scrubber: Index (Table of Content)"
+msgstr "Page Scrubber: Зміст (Таблиця змісту)"
+
+msgid "Page Scrubber: Toggle RTL"
+msgstr "Page Scrubber: Перемкнути RTL"
+
+msgid "Page Scrubber: RTL (ON)"
+msgstr "Page Scrubber: RTL (УВІМК)"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (ВИМК)"

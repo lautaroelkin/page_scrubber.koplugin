@@ -266,6 +266,9 @@ msgstr "Действие недоступно в этом документе и�
 msgid "Layout"
 msgstr "Макет"
 
+msgid "Appearance"
+msgstr "Внешний вид"
+
 msgid "Wallpaper"
 msgstr "Обои"
 
@@ -282,6 +285,9 @@ msgstr "Нет"
 msgid "Book title background"
 msgstr "Фон названия книги"
 
+msgid "Book title style"
+msgstr "Стиль названия книги"
+
 msgid "With border"
 msgstr "С рамкой"
 
@@ -291,8 +297,39 @@ msgstr "Без рамки"
 msgid "Translucent"
 msgstr "Полупрозрачный"
 
+msgid "Aura"
+msgstr "Ореол"
+
 msgid "Off"
 msgstr "Выкл."
+
+msgid "Top bar separator line"
+msgstr "Разделительная линия верхней панели"
+
+# Быстрое меню и Шрифты
+msgid "Quick Menu"
+msgstr "Быстрое меню"
+
+msgid "Enable Quick Menu"
+msgstr "Включить быстрое меню"
+
+msgid "Start quick menu with..."
+msgstr "Открывать быстрое меню с..."
+
+msgid "Quick actions"
+msgstr "Быстрые действия"
+
+msgid "Typography (Aa)"
+msgstr "Типографика (Aa)"
+
+msgid "Favorite Fonts"
+msgstr "Избранные шрифты"
+
+msgid "+ Add fonts"
+msgstr "+ Добавить шрифты"
+
+msgid "Remove \"%s\" from Favorite Fonts?"
+msgstr "Удалить «%s» из избранных шрифтов?"
 
 # Информация о папках
 msgid "To add your own wallpapers, copy images (.png, .jpg) to:"
