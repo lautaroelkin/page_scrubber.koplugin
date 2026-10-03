@@ -2465,11 +2465,12 @@ local function invokeAction(self_obj, action_name)
                     end
                 end
             elseif action_name == "wiki" then
-                if hl and hl.lookupWikipedia then hl:lookupWikipedia()
-                elseif hl and hl.wikipediaHighlightedWord then hl:wikipediaHighlightedWord(text)
-                else self_obj.plugin.ui:handleEvent(Event:new("LookupWikipedia", text)) end
+                -- The popup was already closed above, which clears hl.selected_text,
+                -- so hl:lookupWikipedia() would silently no-op. Use the stored text.
+                self_obj.plugin.ui:handleEvent(Event:new("LookupWikipedia", text))
             elseif action_name == "search" then
-                if hl and hl.onHighlightSearch then hl:onHighlightSearch()
+                -- Same as wiki: hl:onHighlightSearch() needs hl.selected_text, already cleared.
+                if self_obj.plugin.ui.search and self_obj.plugin.ui.search.searchText then self_obj.plugin.ui.search:searchText(text)
                 elseif self_obj.plugin.ui.search then self_obj.plugin.ui.search:onShowFulltextSearchInput(text)
                 else self_obj.plugin.ui:handleEvent(Event:new("ShowFulltextSearchInput", text)) end
             elseif action_name == "dict" then
