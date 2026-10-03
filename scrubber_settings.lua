@@ -15,9 +15,117 @@ local SpinWidget      = require("ui/widget/spinwidget")
 local InputDialog     = require("ui/widget/inputdialog")
 local InfoMessage     = require("ui/widget/infomessage")
 local ConfirmBox      = require("ui/widget/confirmbox")
+local FontList        = require("fontlist")
+local cre             = require("document/credocument"):engineInit()
 
 local Screen = Device.screen
 local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
+
+-- Lógica interna para manejar el cambio de fuente del sistema (UI Font patch)
+local function get_bold_path(path_regular)
+    local path_bold, n_repl = path_regular:gsub("%-Regular%.", "-Bold.", 1)
+    if n_repl > 0 then return path_bold end
+    path_bold, n_repl = path_regular:gsub("(%.)([^.]+)$", "-Bold.%2", 1)
+    return n_repl > 0 and path_bold
+end
+
+-- ¿El archivo de la familia ya es bold? ("Font-Bold.ttf", "Font-Bold-Italic.ttf", "Font-SemiBold.ttf")
+-- Se miran las palabras del nombre después de la primera (la familia), así una
+-- fuente llamada "Boldonse-Regular" no se confunde, y si dice "regular" no es bold.
+local function name_is_bold_only(base)
+    local stem = base:gsub("%.[^.]+$", "")
+    local is_first, found_bold, found_regular = true, false, false
+    for token in stem:gmatch("[^-_ ]+") do
+        if is_first then
+            is_first = false
+        elseif token:find("regular", 1, true) then
+            found_regular = true
+        elseif token:find("bold", 1, true) then
+            found_bold = true
+        end
+    end
+    return found_bold and not found_regular
+end
+
+-- Qué le falta a una fuente: ¿no tiene bold? ¿es solo cursiva? ¿es solo bold?
+local function font_flags(path_regular, path_exists)
+    local path_bold = get_bold_path(path_regular)
+    local has_bold = path_bold and path_exists[path_bold] or false
+    local base = (path_regular:match("([^/\\]+)$") or path_regular):lower()
+    -- si el único archivo de la familia ya es bold, no es "sin bold"
+    local bold_only = name_is_bold_only(base)
+    local italic_only = base:find("italic", 1, true) ~= nil or base:find("oblique", 1, true) ~= nil
+    return not has_bold and not bold_only, italic_only, bold_only
+end
+
+local function norm(s)
+    return (tostring(s):lower():gsub("[^%w]", ""))
+end
+
+-- ¿El plugin SimpleUI está instalado y habilitado?
+-- Sus ajustes quedan en disco aunque se lo desactive o desinstale,
+-- así que no alcanza con leer simpleui_ui_font_enabled.
+local function simpleui_plugin_active()
+    -- Ya cargado (solo posible con KOReader ya iniciado)
+    if type(package.loaded["sui_store"]) == "table" then return true end
+
+    -- Desactivado desde el administrador de plugins
+    local disabled = G_reader_settings and G_reader_settings:readSetting("plugins_disabled")
+    if type(disabled) == "table" then
+        for name, off in pairs(disabled) do
+            if off and norm(name):find("simpleui", 1, true) then return false end
+        end
+    end
+
+    -- Instalado
+    local ok, installed = pcall(function()
+        local lfs = require("libs/libkoreader-lfs")
+        local DataStorage = require("datastorage")
+        local dir = DataStorage:getDataDir() .. "/plugins"
+        local seen, found = 0, false
+        for entry in lfs.dir(dir) do
+            if entry:match("%.koplugin$") then
+                seen = seen + 1
+                if norm(entry):find("simpleui", 1, true) then found = true end
+            end
+        end
+        if seen == 0 then return true end -- no sabemos: asumimos que está instalado
+        return found
+    end)
+    if not ok then return true end
+    return installed
+end
+
+-- ¿SimpleUI está gestionando la fuente del sistema?
+-- Lee simpleui_ui_font_enabled de settings/simpleui/sui_settings.lua
+local function simpleui_font_enabled()
+    local ok, res = pcall(function()
+        if not simpleui_plugin_active() then return false end
+        local store = package.loaded["sui_store"]
+        if type(store) == "table" and store.isTrue then
+            return store:isTrue("simpleui_ui_font_enabled")
+        end
+        local DataStorage = require("datastorage")
+        local lfs = require("libs/libkoreader-lfs")
+        local path = DataStorage:getSettingsDir() .. "/simpleui/sui_settings.lua"
+        if lfs.attributes(path, "mode") ~= "file" then return false end
+        local LuaSettings = require("luasettings")
+        return LuaSettings:open(path):readSetting("simpleui_ui_font_enabled") == true
+    end)
+    return ok and res == true
+end
+
+-- Si el usuario eligió una fuente en SimpleUI, descartamos la nuestra
+local function clear_own_font_choice()
+    if not G_reader_settings then return end
+    if G_reader_settings:readSetting("ui_font_name") == nil
+       and G_reader_settings:readSetting("ui_font_enabled") == false then
+        return
+    end
+    G_reader_settings:saveSetting("ui_font_enabled", false)
+    G_reader_settings:delSetting("ui_font_name")
+    G_reader_settings:flush()
+end
 
 local _dict = {}
 local _lang = "en"
@@ -121,7 +229,7 @@ local function getSvgPath(filename)
         plugin_path .. "icons/" .. filename,
         plugin_path .. filename
     }
-    for _, p in ipairs(paths) do
+    for _i, p in ipairs(paths) do
         local f = io.open(p, "r")
         if f then f:close(); return p end
     end
@@ -234,9 +342,9 @@ function ScrubberSettings:getOrder(order_setting, default_order)
     end
     local seen = {}
     local order = {}
-    for _, k in ipairs(saved) do
+    for _i, k in ipairs(saved) do
         if not seen[k] then
-            for _, def_k in ipairs(default_order) do
+            for _i, def_k in ipairs(default_order) do
                 if def_k == k then
                     seen[k] = true
                     table.insert(order, k)
@@ -245,7 +353,7 @@ function ScrubberSettings:getOrder(order_setting, default_order)
             end
         end
     end
-    for _, def_k in ipairs(default_order) do
+    for _i, def_k in ipairs(default_order) do
         if not seen[def_k] then
             seen[def_k] = true
             table.insert(order, def_k)
@@ -545,9 +653,29 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "appearance" then
+        -- Detectar si ZenOS está activo buscando su huella dactilar (__zen_patched)
+        local has_zenos = false
+        pcall(function()
+            local TouchMenu = require("ui/widget/touchmenu")
+            if TouchMenu and TouchMenu.__zen_patched then
+                has_zenos = true
+            end
+        end)
+
+        local has_simpleui = (not has_zenos) and simpleui_font_enabled()
+
         return {
             title = _("Appearance"),
             items = {
+                { 
+                    text = has_zenos and _("System Font (Disabled by ZenOS)") or (has_simpleui and _("System Font (Managed by SimpleUI)") or _("System Font")), 
+                    icon = "droplet.svg", 
+                    kind = "action",
+                    disabled = has_zenos,
+                    action = function()
+                        if has_simpleui then self:showSimpleUIManagedNotice() else self:openSystemFontDialog() end
+                    end 
+                },
                 { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", action = function() self:openScaleDialog() end },
                 { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size" },
                 { text = _("Choose wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "choose_wallpaper" },
@@ -614,7 +742,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 end,
             })
         else
-            for _, act in ipairs(actions) do
+            for _i, act in ipairs(actions) do
                 local action_def = act
                 local act_id = (type(action_def) == "table" and action_def.id) or tostring(action_def)
                 local act_title = (type(action_def) == "table" and (action_def.title or action_def.id)) or act_id
@@ -806,7 +934,7 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
         local list = ScrubberWallpaper.list()
-        for _, wp in ipairs(list) do
+        for _i, wp in ipairs(list) do
             table.insert(items, {
                 text = wp.label,
                 icon = nil,
@@ -899,7 +1027,7 @@ function ScrubberSettings:calculateGlobalCardWidth()
     local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
-    for _, pid in ipairs(pages) do
+    for _i, pid in ipairs(pages) do
         -- Medimos solo los textos nativos de configuración para que NUNCA se corten,
         -- evitando que nombres externos (acciones del sistema, fuentes o archivos de imagen) estiren el menú.
         local is_dynamic_page = (pid == "scrubber_actions" or pid == "favorite_fonts" or pid == "actions_launcher" or pid == "choose_wallpaper")
@@ -915,7 +1043,7 @@ function ScrubberSettings:calculateGlobalCardWidth()
                 if sz.w > max_item_w then max_item_w = sz.w end
                 tw:free()
             end
-            for _, item in ipairs(pdef.items or {}) do
+            for _i, item in ipairs(pdef.items or {}) do
                 local tw = TextWidget:new{
                     text = item.text,
                     face = Font:getFace("cfont", scaleText(11)),
@@ -975,7 +1103,7 @@ function ScrubberSettings:updateLayout()
 
     self.row_dimens = {}
     local curr_y = r.y + border + self.header_h
-    for _, item in ipairs(data.items) do
+    for _i, item in ipairs(data.items) do
         local row_rect = Geom:new{ x = r.x + border, y = curr_y, w = r.w - (border * 2), h = self.row_h }
         table.insert(self.row_dimens, { dimen = row_rect, item = item })
         curr_y = curr_y + self.row_h
@@ -1223,7 +1351,7 @@ function ScrubberSettings:getAvailableActions()
         end)()
 
     local results = {}
-    for _, action_id in ipairs(order) do
+    for _i, action_id in ipairs(order) do
         local def = settings_list[action_id]
         if type(def) == "table" and def.category == "none" then
             local cond_ok = true
@@ -1381,7 +1509,7 @@ function ActionSelectDialog:updateLayout()
 
     self.row_dimens = {}
     local curr_y = card_y + border + self.header_h
-    for _, item in ipairs(self.current_items) do
+    for _i, item in ipairs(self.current_items) do
         local r_rect = Geom:new{ x = card_x + border, y = curr_y, w = self.card_w - (border * 2), h = self.row_h }
         table.insert(self.row_dimens, { dimen = r_rect, item = item })
         curr_y = curr_y + self.row_h
@@ -1477,7 +1605,7 @@ function ActionSelectDialog:paintTo(bb, x, y)
         tw_item:free()
 
         local is_already_added = false
-        for _, ex in ipairs(saved_actions) do
+        for _i, ex in ipairs(saved_actions) do
             local ex_id = (type(ex) == "table" and ex.id) or ex
             if ex_id == item.id then
                 is_already_added = true
@@ -1572,11 +1700,11 @@ function ActionSelectDialog:onTap(arg1, arg2)
         return true
     end
 
-    for _, rdef in ipairs(self.row_dimens or {}) do
+    for _i, rdef in ipairs(self.row_dimens or {}) do
         if pointInRect(p, rdef.dimen) then
             local act = rdef.item
             local saved = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_quick_actions")) or {}
-                for _, existing in ipairs(saved) do
+                for _i, existing in ipairs(saved) do
                     local existing_id = (type(existing) == "table" and existing.id) or existing
                     if existing_id == act.id then
                         return true
@@ -1703,7 +1831,7 @@ function FontSelectDialog:updateLayout()
 
     self.row_dimens = {}
     local curr_y = card_y + border + self.header_h
-    for _, item in ipairs(self.current_items) do
+    for _i, item in ipairs(self.current_items) do
         local r_rect = Geom:new{ x = card_x + border, y = curr_y, w = self.card_w - (border * 2), h = self.row_h }
         table.insert(self.row_dimens, { dimen = r_rect, item = item })
         curr_y = curr_y + self.row_h
@@ -1766,7 +1894,7 @@ function FontSelectDialog:paintTo(bb, x, y)
 
     local saved_fonts = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_favorite_fonts")) or {}
     local saved_map = {}
-    for _, f in ipairs(saved_fonts) do saved_map[f] = true end
+    for _i, f in ipairs(saved_fonts) do saved_map[f] = true end
 
     for idx, rdef in ipairs(self.row_dimens or {}) do
         local fname = rdef.item
@@ -1883,7 +2011,7 @@ function FontSelectDialog:onTap(arg1, arg2)
         return true
     end
 
-    for _, rdef in ipairs(self.row_dimens or {}) do
+    for _i, rdef in ipairs(self.row_dimens or {}) do
         if pointInRect(p, rdef.dimen) then
             local fname = rdef.item
             local saved = (G_reader_settings and G_reader_settings:readSetting("page_scrubber_favorite_fonts")) or {}
@@ -1957,6 +2085,494 @@ function ScrubberSettings:getAllSystemFonts()
     table.sort(faces, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
     self._cached_system_fonts = faces
     return faces
+end
+
+-- =========================================================================
+-- DIÁLOGO DE FUENTE DEL SISTEMA (mismo estilo que Add fonts / Scrubber Actions)
+-- =========================================================================
+local SystemFontSelectDialog = InputContainer:extend{
+    ui = nil,
+    scrubber_ui = nil,
+    fonts = nil,
+    font_notes = nil,
+    page = 1,
+    items_per_page = 14,
+    card_rect = nil,
+    row_dimens = nil,
+    footer_rect = nil,
+    btn_header_rect = nil,
+    on_close = nil,
+}
+
+function SystemFontSelectDialog:init()
+    local sw = Screen:getWidth()
+    local sh = Screen:getHeight()
+    self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
+
+    self.header_h = scale(34)
+    self.row_h = scale(32)
+    self.footer_h = scale(34)
+    self.page = 1
+
+    self:updateLayout()
+
+    if Device:isTouchDevice() then
+        self.ges_events = {
+            Tap = { GestureRange:new{ ges = "tap", range = self.dimen } },
+            Swipe = { GestureRange:new{ ges = "swipe", range = self.dimen } },
+        }
+    end
+end
+
+function SystemFontSelectDialog:updateLayout()
+    local sw = Screen:getWidth()
+    local sh = Screen:getHeight()
+
+    local top_bar = self.scrubber_ui and self.scrubber_ui._top_bar_dimen
+    local top_bar_bottom = top_bar and (top_bar.y + top_bar.h) or scale(58)
+    local start_y = top_bar_bottom + scale(6)
+
+    local bottom_limit = (self.scrubber_ui and self.scrubber_ui._chapter_dimen and self.scrubber_ui._chapter_dimen.y) or (sh - scale(115))
+
+    local border = scale(2)
+    local max_avail = bottom_limit - start_y
+    self.items_per_page = math.max(10, math.floor((max_avail - self.header_h - self.footer_h - (border * 2)) / self.row_h))
+
+    local total_items = #(self.fonts or {})
+    self.total_pages = math.max(1, math.ceil(total_items / self.items_per_page))
+    self.page = math.max(1, math.min(self.page, self.total_pages))
+
+    local start_idx = (self.page - 1) * self.items_per_page + 1
+    local end_idx = math.min(start_idx + self.items_per_page - 1, total_items)
+    self.current_items = {}
+    for i = start_idx, end_idx do
+        table.insert(self.current_items, self.fonts[i])
+    end
+
+    self.card_w = math.min(sw - scale(16), scale(640))
+    self.card_h = self.header_h + (self.items_per_page * self.row_h) + self.footer_h + (border * 2)
+
+    local card_x = math.floor((sw - self.card_w) / 2)
+    local card_y = start_y
+    self.card_rect = Geom:new{ x = card_x, y = card_y, w = self.card_w, h = self.card_h }
+    self.btn_header_rect = Geom:new{ x = card_x, y = card_y, w = self.card_w, h = self.header_h + border }
+
+    self.row_dimens = {}
+    local curr_y = card_y + border + self.header_h
+    for _i, item in ipairs(self.current_items) do
+        local r_rect = Geom:new{ x = card_x + border, y = curr_y, w = self.card_w - (border * 2), h = self.row_h }
+        table.insert(self.row_dimens, { dimen = r_rect, item = item })
+        curr_y = curr_y + self.row_h
+    end
+
+    local fy = card_y + border + self.header_h + (self.items_per_page * self.row_h)
+    local fw = self.card_w - (border * 2)
+    self.footer_rect = Geom:new{ x = card_x + border, y = fy, w = fw, h = self.footer_h }
+end
+
+function SystemFontSelectDialog:prevPage()
+    if self.page > 1 then
+        self.page = self.page - 1
+        self:updateLayout()
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+function SystemFontSelectDialog:nextPage()
+    if self.page < self.total_pages then
+        self.page = self.page + 1
+        self:updateLayout()
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+function SystemFontSelectDialog:paintTo(bb, x, y)
+    local r = self.card_rect
+    if not r then return end
+    local border = scale(2)
+    local radius = scale(16)
+    local pad = scale(14)
+
+    paintRoundRect(bb, r.x, r.y, r.w, r.h, radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, r.x + border, r.y + border, r.w - (border * 2), r.h - (border * 2), math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
+
+    local hy = r.y + border
+    local hh = self.header_h
+    local is_enabled = (G_reader_settings and G_reader_settings:readSetting("ui_font_enabled", true)) == true
+    local title_txt = is_enabled and (_("System Font") .. "  ✓") or _("System Font")
+    local tw_title = TextWidget:new{
+        text = "‹  " .. title_txt,
+        face = Font:getFace("cfont", scaleText(11)),
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_BLACK,
+    }
+    local tsz = tw_title:getSize()
+    tw_title:paintTo(bb, r.x + pad, hy + math.floor((hh - tsz.h) / 2))
+    tw_title:free()
+
+    local tw_close = TextWidget:new{
+        text = "✕",
+        face = Font:getFace("cfont", scaleText(11)),
+        bold = true,
+        fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+    }
+    local csz = tw_close:getSize()
+    tw_close:paintTo(bb, r.x + r.w - pad - csz.w, hy + math.floor((hh - csz.h) / 2))
+    tw_close:free()
+
+    bb:paintRect(r.x + border, hy + hh - 1, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+
+    local current_name = (G_reader_settings and G_reader_settings:readSetting("ui_font_name")) or nil
+
+    for idx, rdef in ipairs(self.row_dimens or {}) do
+        local fname = rdef.item
+        local ry = rdef.dimen.y
+        local rh = rdef.dimen.h
+
+        if idx > 1 then
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+        end
+
+        local item_face = Font:getFace("cfont", scaleText(12))
+        pcall(function()
+            local ok_cre, credoc = pcall(require, "document/credocument")
+            if ok_cre and credoc and credoc.engineInit then
+                local ok2, cre2 = pcall(credoc.engineInit, credoc)
+                if ok2 and cre2 and cre2.getFontFaceFilenameAndFaceIndex then
+                    local f_file, f_idx = cre2.getFontFaceFilenameAndFaceIndex(fname)
+                    if not f_file then f_file, f_idx = cre2.getFontFaceFilenameAndFaceIndex(fname, nil, true) end
+                    if f_file and f_idx then
+                        local ok_f, custom_face = pcall(Font.getFace, Font, f_file, scaleText(12), f_idx)
+                        if ok_f and custom_face then item_face = custom_face end
+                    end
+                end
+            end
+        end)
+
+        local is_selected = (is_enabled and current_name == fname)
+        local max_tw = r.w - (pad * 2) - scale(32)
+        local tw_item = TextWidget:new{
+            text = tostring(fname),
+            face = item_face,
+            bold = is_selected,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+            max_width = math.max(scale(60), max_tw),
+            truncate_with_ellipsis = true,
+        }
+        local isz = tw_item:getSize()
+        tw_item:paintTo(bb, r.x + pad, ry + math.floor((rh - isz.h) / 2))
+        local name_w = isz.w
+        tw_item:free()
+
+        -- Aviso en gris al lado del nombre: sin bold / solo cursiva
+        local note = self.font_notes and self.font_notes[fname]
+        if note then
+            local note_x = r.x + pad + name_w + scale(8)
+            local note_max = (r.x + r.w - pad - scale(32)) - note_x
+            if note_max >= scale(40) then
+                local tw_note = TextWidget:new{
+                    text = note,
+                    face = Font:getFace("cfont", scaleText(9)),
+                    fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                    max_width = note_max,
+                    truncate_with_ellipsis = true,
+                }
+                local nsz = tw_note:getSize()
+                tw_note:paintTo(bb, note_x, ry + math.floor((rh - nsz.h) / 2))
+                tw_note:free()
+            end
+        end
+
+        local tw_sym = TextWidget:new{
+            text = is_selected and "✓" or "",
+            face = Font:getFace("cfont", scaleText(13)),
+            bold = true,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+        local psz = tw_sym:getSize()
+        tw_sym:paintTo(bb, r.x + r.w - pad - psz.w, ry + math.floor((rh - psz.h) / 2))
+        tw_sym:free()
+    end
+
+    if self.footer_rect then
+        local fy = self.footer_rect.y
+        local fh = self.footer_rect.h
+        bb:paintRect(r.x + border, fy - 1, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+
+        local tw_p = TextWidget:new{
+            text = "‹",
+            face = Font:getFace("cfont", scaleText(14)),
+            bold = true,
+            fgcolor = (self.page > 1) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local psz = tw_p:getSize()
+        tw_p:paintTo(bb, r.x + scale(28) - math.floor(psz.w / 2), fy + math.floor((fh - psz.h) / 2))
+        tw_p:free()
+
+        local tw_cnt = TextWidget:new{
+            text = string.format("%d / %d", self.page, self.total_pages),
+            face = Font:getFace("cfont", scaleText(11)),
+            bold = true,
+            fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local cnsz = tw_cnt:getSize()
+        tw_cnt:paintTo(bb, r.x + math.floor((r.w - cnsz.w) / 2), fy + math.floor((fh - cnsz.h) / 2))
+        tw_cnt:free()
+
+        local tw_n = TextWidget:new{
+            text = "›",
+            face = Font:getFace("cfont", scaleText(14)),
+            bold = true,
+            fgcolor = (self.page < self.total_pages) and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local nsz = tw_n:getSize()
+        tw_n:paintTo(bb, r.x + r.w - scale(28) - math.floor(nsz.w / 2), fy + math.floor((fh - nsz.h) / 2))
+        tw_n:free()
+    end
+end
+
+function SystemFontSelectDialog:closeDialog()
+    UIManager:close(self)
+    if self.on_close then self.on_close() end
+end
+
+function SystemFontSelectDialog:onSwipe(arg1, arg2)
+    local ges = arg2 or arg1
+    if not ges then return false end
+    local dir = ges.direction
+    if dir == "left" or dir == "west" or dir == "up" or dir == "north" then
+        self:nextPage()
+        return true
+    elseif dir == "right" or dir == "east" or dir == "down" or dir == "south" then
+        self:prevPage()
+        return true
+    end
+    return false
+end
+
+-- La fuente del sistema se aplica con un patch mínimo (ui_font_patch.lua) que tiene
+-- que correr ANTES de que KOReader cargue su interfaz. Un plugin se carga demasiado
+-- tarde, así que lo copiamos solos a patches/. Se aplica en el próximo reinicio.
+local function ensure_font_patch()
+    local ok, err = pcall(function()
+        local DataStorage = require("datastorage")
+        local lfs = require("libs/libkoreader-lfs")
+        local patches_dir = DataStorage:getDataDir() .. "/patches"
+        if lfs.attributes(patches_dir, "mode") ~= "directory" then
+            lfs.mkdir(patches_dir)
+        end
+        local function read_all(path)
+            local f = io.open(path, "rb")
+            if not f then return nil end
+            local data = f:read("*a")
+            f:close()
+            return data
+        end
+        local src = read_all(plugin_path .. "ui_font_patch.lua")
+        if not src then return end
+        local dest = patches_dir .. "/2--page-scrubber-font.lua"
+        if read_all(dest) == src then return end
+        local f = assert(io.open(dest, "wb"))
+        f:write(src)
+        f:close()
+    end)
+    if not ok then
+        require("logger").warn("page_scrubber: no se pudo instalar el patch de fuente:", err)
+    end
+end
+
+function SystemFontSelectDialog:onTap(arg1, arg2)
+    local p = getTouchPoint(arg1, arg2)
+    if not p then return false end
+
+    if not pointInRect(p, self.card_rect) or (self.btn_header_rect and pointInRect(p, self.btn_header_rect)) then
+        self:closeDialog()
+        return true
+    end
+
+    for _i, rdef in ipairs(self.row_dimens or {}) do
+        if pointInRect(p, rdef.dimen) then
+            local fname = rdef.item
+            local current_name = (G_reader_settings and G_reader_settings:readSetting("ui_font_name")) or nil
+            local is_enabled = (G_reader_settings and G_reader_settings:readSetting("ui_font_enabled", true)) == true
+
+            -- Solo guardamos settings. NO aplicamos Font.fontmap acá
+            -- (el patch 2--ui-font.lua lo aplica solo al arrancar).
+            if is_enabled and current_name == fname then
+                if G_reader_settings then
+                    G_reader_settings:saveSetting("ui_font_enabled", false)
+                    G_reader_settings:flush()
+                end
+            else
+                if G_reader_settings then
+                    G_reader_settings:saveSetting("ui_font_enabled", true)
+                    G_reader_settings:saveSetting("ui_font_name", fname)
+                    G_reader_settings:flush()
+                    ensure_font_patch()
+                end
+            end
+
+            -- Cerrar primero el diálogo de fuentes, después mostrar el cartel
+            local ui_ref = self.ui
+            local scrubber_ref = self.scrubber_ui
+            local on_close_cb = self.on_close
+
+            UIManager:close(self)
+
+            UIManager:nextTick(function()
+                UIManager:show(ConfirmBox:new{
+                    text = _("For the changes to apply, KOReader needs to be restarted."),
+                    ok_text = _("Restart"),
+                    cancel_text = _("Cancel"),
+                    ok_callback = function()
+                        UIManager:nextTick(function()
+                            if UIManager.restartKOReader then
+                                UIManager:restartKOReader()
+                            else
+                                -- Exit code 85 = restart en KOReader
+                                UIManager:quit(85)
+                            end
+                        end)
+                    end,
+                    cancel_callback = function()
+                        -- Seguir como si nada: reabrir Appearance
+                        if on_close_cb then
+                            on_close_cb()
+                        elseif ui_ref then
+                            UIManager:nextTick(function()
+                                local ScrubberSettingsMod = require("scrubber_settings")
+                                local inst = ScrubberSettingsMod:new{
+                                    ui = ui_ref,
+                                    scrubber_ui = scrubber_ref,
+                                }
+                                inst.current_view = "appearance"
+                                inst.history = { "main" }
+                                inst.card_w = nil
+                                inst:updateLayout()
+                                UIManager:show(inst)
+                            end)
+                        end
+                    end,
+                })
+            end)
+            return true
+        end
+    end
+
+    if self.footer_rect and pointInRect(p, self.footer_rect) then
+        local left_zone = self.card_rect.x + math.floor(self.card_w * 0.4)
+        local right_zone = self.card_rect.x + self.card_w - math.floor(self.card_w * 0.4)
+
+        if p.x <= left_zone then
+            self:prevPage()
+            return true
+        elseif p.x >= right_zone then
+            self:nextPage()
+            return true
+        end
+    end
+
+    return true
+end
+
+function SystemFontSelectDialog:onShow()
+    if self.ui then UIManager:setDirty(self.ui, "ui") end
+    UIManager:setDirty(self, "ui")
+end
+
+function SystemFontSelectDialog:onCloseWidget()
+    if self.scrubber_ui then UIManager:setDirty(self.scrubber_ui, "ui") end
+    if self.ui then UIManager:setDirty(self.ui, "ui") else UIManager:setDirty(nil, "ui") end
+end
+
+function ScrubberSettings:getUIFontList()
+    local font_list = {}
+    local font_notes = {}
+    local path_exists = {}
+    for _i, font in ipairs(FontList.fontlist or {}) do
+        path_exists[font] = true
+    end
+    pcall(function()
+        for _i, name in ipairs(cre.getFontFaces() or {}) do
+            local path_regular = cre.getFontFaceFilenameAndFaceIndex(name)
+            if path_regular then
+                if path_exists[path_regular] then
+                    table.insert(font_list, name)
+                    local no_bold, italic_only, bold_only = font_flags(path_regular, path_exists)
+                    local notes = {}
+                    if bold_only and italic_only then
+                        table.insert(notes, _("bold italic only"))
+                    elseif bold_only then
+                        table.insert(notes, _("bold only"))
+                    else
+                        if italic_only then table.insert(notes, _("italic only")) end
+                        if no_bold then table.insert(notes, _("no bold")) end
+                    end
+                    if #notes > 0 then font_notes[name] = "(" .. table.concat(notes, ", ") .. ")" end
+                end
+            end
+        end
+    end)
+    table.sort(font_list, function(a, b) return tostring(a):lower() < tostring(b):lower() end)
+    return font_list, font_notes
+end
+
+function ScrubberSettings:showSimpleUIManagedNotice()
+    -- La fuente la gestiona SimpleUI: descartamos la que se eligió acá
+    clear_own_font_choice()
+
+    if Font.__scrubber_font_applied then
+        -- Este arranque se aplicó nuestra fuente: hace falta reiniciar para que SimpleUI aplique la suya
+        UIManager:show(ConfirmBox:new{
+            text = _("The system font is managed by SimpleUI. Restart KOReader to apply it."),
+            ok_text = _("Restart"),
+            cancel_text = _("Cancel"),
+            ok_callback = function()
+                UIManager:nextTick(function()
+                    if UIManager.restartKOReader then
+                        UIManager:restartKOReader()
+                    else
+                        UIManager:quit(85)
+                    end
+                end)
+            end,
+        })
+    else
+        UIManager:show(InfoMessage:new{
+            text = _("The system font is managed by SimpleUI. Change it from SimpleUI's settings."),
+        })
+    end
+end
+
+function ScrubberSettings:openSystemFontDialog()
+    ensure_font_patch()
+    local font_list, font_notes = self:getUIFontList()
+    local ui = self.ui
+    local scrubber_ui = self.scrubber_ui
+
+    UIManager:close(self)
+
+    local dlg = SystemFontSelectDialog:new{
+        ui = ui,
+        scrubber_ui = scrubber_ui,
+        fonts = font_list,
+        font_notes = font_notes,
+        on_close = function()
+            UIManager:nextTick(function()
+                local ScrubberSettingsMod = require("scrubber_settings")
+                local inst = ScrubberSettingsMod:new{
+                    ui = ui,
+                    scrubber_ui = scrubber_ui,
+                }
+                inst.current_view = "appearance"
+                inst.history = { "main" }
+                inst.card_w = nil
+                inst:updateLayout()
+                UIManager:show(inst)
+            end)
+        end,
+    }
+    UIManager:show(dlg)
 end
 
 function ScrubberSettings:openAddFontDialog()
@@ -2195,7 +2811,7 @@ function ScrubberSettings:exportNotes()
                             local pages = {}
                             local page_order = {}
 
-                            for _, ann in ipairs(annotations) do
+                            for _i, ann in ipairs(annotations) do
                                 local p = tonumber(ann.pageno) or tonumber(ann.page) or tonumber(ann.pos0)
                                 if type(ann.page) == "string" and ui.document and ui.document.getPageFromXPointer then
                                     pcall(function() p = ui.document:getPageFromXPointer(ann.page) end)
@@ -2218,7 +2834,7 @@ function ScrubberSettings:exportNotes()
                             table.sort(page_order)
 
                             local bm_list = {}
-                            for p, _ in pairs(bm_pages_set) do table.insert(bm_list, p) end
+                            for p, _v in pairs(bm_pages_set) do table.insert(bm_list, p) end
                             table.sort(bm_list)
 
                             local export_dir = ""
@@ -2245,10 +2861,10 @@ function ScrubberSettings:exportNotes()
                                     f:write("# " .. title .. "\n\n")
                                     if #bm_list > 0 then f:write("⚑ : " .. table.concat(bm_list, ", ") .. "\n\n") end
                                     f:write("---\n\n")
-                                    for _, p in ipairs(page_order) do
+                                    for _i, p in ipairs(page_order) do
                                         f:write("## " .. tostring(p) .. "\n")
 
-                                        for _, ann in ipairs(pages[p]) do
+                                        for _i, ann in ipairs(pages[p]) do
                                             if ann.text and ann.text ~= "" then
                                                 local text = ann.text:gsub("\n", " ")
                                                 local drawer = ann.drawer or "lighten"
@@ -2624,7 +3240,7 @@ function ScrubberSettings:onTap(arg1, arg2)
 
     -- Filas
     if self.row_dimens then
-        for _, rdef in ipairs(self.row_dimens) do
+        for _i, rdef in ipairs(self.row_dimens) do
             if ges.pos:intersectWith(rdef.dimen) then
                 local it = rdef.item
 

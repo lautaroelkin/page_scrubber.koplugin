@@ -219,7 +219,6 @@ end
 local ScrubberToc = InputContainer:extend{
     name = "scrubber_toc",
     transparent = true,
-    alpha = 0.25,
 }
 
 function ScrubberToc:init()
@@ -752,6 +751,7 @@ function ScrubberToc:_updatePreviewTile()
 
     thumbnail:getPageThumbnail(page, req_w, req_h, batch_id, function(tile, resp_batch_id)
         if self._closing or resp_batch_id ~= self._current_batch_id then return end
+        if self._slider and self._slider._dragging then return end
         local processed = processTile(tile, req_w, req_h)
         if processed and processed.bb then
             if self._preview_tile and self._preview_tile.is_scaled and self._preview_tile.bb then
@@ -795,15 +795,21 @@ function ScrubberToc:_previewPage(page, is_dragging, explicit_toc_idx)
             self._preview_tile = nil
         end
 
-        -- Modo fast limitado estrictamente a la barra inferior sólida
-        if self._bar_dimen then
-            UIManager:setDirty(self, "fast", self._bar_dimen)
-        else
-            UIManager:setDirty(self, "fast", self.dimen)
+        -- Primer frame del arrastre: refrescamos tarjeta + barra juntas (un solo
+        -- rectángulo continuo) para que la miniatura y su contorno se borren
+        -- de la pantalla sin dejar la barra a medias. Los frames siguientes
+        -- solo refrescan la barra.
+        local region = self._bar_dimen or self.dimen
+        if not self._card_hidden and self._preview_dimen and self._bar_dimen then
+            local top = math.max(0, math.min(self._preview_dimen.y, self._bar_dimen.y) - self.S(8))
+            region = Geom:new{ x = 0, y = top, w = self._sw, h = self._sh - top }
+            self._card_hidden = true
         end
+        UIManager:setDirty(self, "fast", region)
         return
     else
         -- Al soltar: sincronizamos la lista de capítulos, seleccionamos el actual y pedimos la miniatura
+        self._card_hidden = false
         self:_syncTocPageWithCurrentPage()
 
         self._drag_token = (self._drag_token or 0) + 1
@@ -980,7 +986,17 @@ end
 function ScrubberToc:paintTo(bb, x, y)
     if self._closing then return end
     local ok, err = pcall(function() self:_paintToImpl(bb, x, y) end)
-    if not ok then logger.warn("scrubber_toc paintTo error:", err) end
+    if not ok then
+        logger.warn("scrubber_toc paintTo error:", err)
+        -- Si el pintado falla a mitad de camino, la barra inferior nunca llega a
+        -- pintarse y se ve lo que hay detrás (libro / grid). Dejamos al menos el
+        -- fondo blanco y el borde para que no "desaparezca".
+        local bd = self._bar_dimen
+        if bd and not self._is_expanded and not (self._sw and self._sh and self._sw > self._sh) then
+            bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
+            bb:paintRect(bd.x, bd.y, bd.w, self.S(3), Blitbuffer.COLOR_BLACK)
+        end
+    end
 end
 
 function ScrubberToc:_paintToImpl(bb, x, y)
@@ -1582,13 +1598,22 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         local pr_y = self.slider_y_pos - pr_h - S(4)
         self._preview_dimen = Geom:new{ x = pr_x, y = pr_y, w = pr_w, h = pr_h }
 
-        paintRoundRect(bb, pr_x, pr_y + S(3), pr_w, pr_h, pr_radius, Blitbuffer.COLOR_DARK_GRAY)
-        paintRoundRect(bb, pr_x, pr_y, pr_w, pr_h, pr_radius, Blitbuffer.COLOR_BLACK)
+        local slider_dragging = self._slider and self._slider._dragging
 
         local ox = pr_x + pr_b_thick
         local oy = pr_y + pr_b_thick
 
-        if is_scrubbing then
+        if slider_dragging then
+            -- Arrastrando el knob: no se pinta nada (ni sombra, ni contorno, ni página).
+            -- Reaparece sola al soltar, cuando _previewPage(..., false) pide el refresh.
+        else
+            paintRoundRect(bb, pr_x, pr_y + S(3), pr_w, pr_h, pr_radius, Blitbuffer.COLOR_DARK_GRAY)
+            paintRoundRect(bb, pr_x, pr_y, pr_w, pr_h, pr_radius, Blitbuffer.COLOR_BLACK)
+        end
+
+        if slider_dragging then
+            -- nada
+        elseif is_scrubbing then
             -- Durante el arrastre: marco blanco liso sin números
             paintRoundRect(bb, ox, oy, inner_w, inner_h, inner_r, Blitbuffer.COLOR_WHITE)
         elseif self._preview_tile and self._preview_tile.bb then

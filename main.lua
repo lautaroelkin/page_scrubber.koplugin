@@ -72,7 +72,7 @@ function PageScrubberPlugin:init()
     Dispatcher:registerAction("page_scrubber_toc_action", { category = "none", event = "PageScrubberToc", title = _("Page Scrubber: Index"), reader = true })
     Dispatcher:registerAction("page_scrubber_toc_expanded_action", { category = "none", event = "PageScrubberTocExpanded", title = _("Page Scrubber: Index (Table of Content)"), reader = true })
     Dispatcher:registerAction("page_scrubber_toggle_rtl_action", { category = "none", event = "PageScrubberToggleRTL", title = _("Page Scrubber: Toggle RTL"), reader = true })
-    Dispatcher:registerAction("page_scrubber_quick_menu_action", { category = "none", event = "PageScrubberQuickMenu", title = _("Page Scrubber: Quick Menu"), reader = true })
+    Dispatcher:registerAction("page_scrubber_quick_menu_action", { category = "none", event = "PageScrubberQuickMenu", title = _("Page Scrubber: Quick Menu"), reader = true, separator = true })
 
     if self.ui.menu then self.ui.menu:registerToMainMenu(self) end
 
@@ -195,7 +195,7 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
         text = "Page Scrubber", 
         sub_item_table = {
             {
-                text = _("Configuration"),
+                text = "⚙ " .. _("Configuration"),
                 keep_menu_open = false,
                 callback = function()
                     local ScrubberSettings = require("scrubber_settings")
@@ -203,6 +203,7 @@ function PageScrubberPlugin:addToMainMenu(menu_items)
                         ui = self.ui,
                     })
                 end,
+                separator = true,
             },
             { text = _("Page Scrubber: Grid"), callback = function() self.ui:onPageScrubberGrid() end },
             { text = _("Page Scrubber: Simple Grid"), callback = function() self.ui:onPageScrubberSimpleGrid() end },
