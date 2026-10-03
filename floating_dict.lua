@@ -2456,7 +2456,10 @@ local function invokeAction(self_obj, action_name)
                     local NetworkMgr = require("ui/network/manager")
                     NetworkMgr:runWhenOnline(function()
                         UIManager:nextTick(function()
-                            assistant.assistant_dialog:show(text)
+                            -- AI Assistant (v1.18) exposes showAskDialog(), not show(); try both.
+                            local dlg = assistant.assistant_dialog
+                            if dlg.showAskDialog then dlg:showAskDialog(text)
+                            elseif dlg.show then dlg:show(text) end
                         end)
                     end)
                 else
