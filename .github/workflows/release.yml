@@ -1,14 +1,12 @@
 name: Build release zip
 
-# Se ejecuta solo al publicar un release.
-# También se puede lanzar a mano desde la pestaña Actions (para releases ya publicados).
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag del release al que se le adjunta el zip (ej: v7.7.0)"
+        description: "Release tag (example: v7.7.0)"
         required: true
 
 permissions:
@@ -20,8 +18,7 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - name: Checkout the tagged code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
@@ -29,11 +26,6 @@ jobs:
         run: |
           PLUGIN_DIR="page_scrubber.koplugin"
           mkdir -p "/tmp/build/$PLUGIN_DIR"
-
-          # Copia todo tal cual, salvo lo que solo sirve para GitHub:
-          #   - la carpeta images/ (de la raíz del repo)
-          #   - README.md (de la raíz del repo)
-          #   - .git, .github y .gitignore (no son parte del plugin)
           rsync -a \
             --exclude='/images/' \
             --exclude='/README.md' \
@@ -41,14 +33,28 @@ jobs:
             --exclude='/.github/' \
             --exclude='/.gitignore' \
             ./ "/tmp/build/$PLUGIN_DIR/"
-
-          # El zip trae adentro la carpeta con el nombre correcto
-          # (page_scrubber.koplugin), así que se descomprime y se copia sin renombrar.
           cd /tmp/build
           zip -r "$GITHUB_WORKSPACE/page_scrubber.koplugin-${TAG}.zip" "$PLUGIN_DIR"
 
       - name: Upload zip to the release
         env:
           GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "page_scrubber.koplugin-${TAG}.zip" --clobber
+
+      - name: Add installation instructions to the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$TAG" "page_scrubber.koplugin-${TAG}.zip" --clobber
+          gh release view "$TAG" --json body --jq .body > notes.md
+          if ! grep -q "^## Installation" notes.md; then
+            cat >> notes.md <<'NOTES'
+
+          ## Installation
+          1. Download the zip named `page_scrubber.koplugin-<version>.zip` from the **Assets** section below (not "Source code").
+          2. Unzip it and copy the `page_scrubber.koplugin` folder into `koreader/plugins/`.
+          3. Restart KOReader.
+
+          To update, replace the folder. To uninstall, delete it (and `koreader/patches/2--page-scrubber-font.lua` if you used the system font).
+          NOTES
+            gh release edit "$TAG" --notes-file notes.md
+          fi
