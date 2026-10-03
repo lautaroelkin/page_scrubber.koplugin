@@ -366,5 +366,38 @@ msgstr "Normal"
 msgid "Very large"
 msgstr "Muy grande"
 
+msgid "Restore default order"
+msgstr "Restaurar orden predeterminado"
 
+msgid "Quick Actions"
+msgstr "Acciones rápidas"
 
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Fuente del sistema (desactivada por ZenOS)"
+
+msgid "System Font"
+msgstr "Fuente del sistema"
+
+msgid "More"
+msgstr "Más"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Para aplicar los cambios, es necesario reiniciar KOReader."
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Fuente del sistema (gestionada por SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "La fuente del sistema la gestiona SimpleUI. Es necesario reiniciar KOReader para aplicarla."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "La fuente del sistema la gestiona SimpleUI. Se cambia desde los ajustes de SimpleUI."
+
+msgid "no bold"
+msgstr "sin negrita"
+
+msgid "italic only"
+msgstr "solo cursiva"

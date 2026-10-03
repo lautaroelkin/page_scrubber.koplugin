@@ -353,3 +353,62 @@ msgstr "Tespit edilen paylaşılan klasörler:"
 # Sistem
 msgid "System Error exporting notes."
 msgstr "Notlar dışa aktarılırken sistem hatası oluştu."
+
+# System Font
+msgid "System Font"
+msgstr "Sistem yazı tipi"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Sistem yazı tipi (ZenOS tarafından devre dışı)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Değişikliklerin uygulanması için KOReader'ın yeniden başlatılması gerekir."
+
+msgid "Restart"
+msgstr "Yeniden başlat"
+
+msgid "Restore default order"
+msgstr "Varsayılan sırayı geri yükle"
+
+msgid "More"
+msgstr "Daha fazla"
+
+msgid "Quick Actions"
+msgstr "Hızlı eylemler"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Sistem Yazı Tipi (SimpleUI Tarafından Yönetiliyor)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Sistem yazı tipi SimpleUI tarafından yönetiliyor. Uygulamak için KOReader'ı yeniden başlatın."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Sistem yazı tipi SimpleUI tarafından yönetiliyor. SimpleUI ayarlarından değiştirin."
+
+msgid "UI font: %1"
+msgstr "Arayüz yazı tipi: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Arayüz yazı tipi: [Bir yazı tipi seçin]"
+
+msgid "UI font: [Disabled]"
+msgstr "Arayüz yazı tipi: [Devre dışı]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Arayüz yazı tipi: [SimpleUI Tarafından Yönetiliyor]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Arayüz yazı tipi: [ZenOS tarafından devre dışı]"
+
+msgid "Disable font replacement"
+msgstr "Yazı tipi değiştirmeyi devre dışı bırak"
+
+msgid "Enable font replacement"
+msgstr "Yazı tipi değiştirmeyi etkinleştir"
+
+msgid "Restart to apply the change"
+msgstr "Değişikliği uygulamak için yeniden başlat"
+
+msgid "Restart to apply the UI font change"
+msgstr "Arayüz yazı tipi değişikliğini uygulamak için yeniden başlat"
+

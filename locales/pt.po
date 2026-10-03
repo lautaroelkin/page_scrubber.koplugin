@@ -394,5 +394,83 @@ msgstr "Normal"
 msgid "Very large"
 msgstr "Muito grande"
 
+# System Font
+msgid "System Font"
+msgstr "Fonte do sistema"
 
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Fonte do sistema (desativada pelo ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Para que as alterações sejam aplicadas, o KOReader precisa ser reiniciado."
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Restore default order"
+msgstr "Restaurar ordem padrão"
+
+msgid "More"
+msgstr "Mais"
+
+msgid "Quick Actions"
+msgstr "Ações rápidas"
+
+# System Font
+msgid "System Font"
+msgstr "Fonte do sistema"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Fonte do sistema (desativada pelo ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Para que as alterações sejam aplicadas, o KOReader precisa de ser reiniciado."
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Restore default order"
+msgstr "Restaurar ordem predefinida"
+
+msgid "More"
+msgstr "Mais"
+
+msgid "Quick Actions"
+msgstr "Ações rápidas"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Fonte do sistema (gerenciada pelo SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "A fonte do sistema é gerenciada pelo SimpleUI. Reinicie o KOReader para aplicá-la."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "A fonte do sistema é gerenciada pelo SimpleUI. Altere nas configurações do SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Fonte do sistema: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Fonte do sistema: [Escolher uma fonte]"
+
+msgid "UI font: [Disabled]"
+msgstr "Fonte do sistema: [Desativada]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Fonte do sistema: [Gerenciada pelo SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Fonte do sistema: [Desativada pelo ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Desativar substituição de fonte"
+
+msgid "Enable font replacement"
+msgstr "Ativar substituição de fonte"
+
+msgid "Restart to apply the change"
+msgstr "É necessário reiniciar para aplicar a alteração"
+
+msgid "Restart to apply the UI font change"
+msgstr "É necessário reiniciar para aplicar a fonte do sistema"
 

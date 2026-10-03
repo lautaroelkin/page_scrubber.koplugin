@@ -342,3 +342,62 @@ msgstr "Gedeelde mappen ook gedetecteerd:"
 msgid "System Error exporting notes."
 msgstr "Systeemfout bij exporteren van notities."
 
+# System Font
+msgid "System Font"
+msgstr "Systeemlettertype"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Systeemlettertype (uitgeschakeld door ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Om de wijzigingen toe te passen, moet KOReader opnieuw worden gestart."
+
+msgid "Restart"
+msgstr "Opnieuw starten"
+
+msgid "Restore default order"
+msgstr "Standaardvolgorde herstellen"
+
+msgid "More"
+msgstr "Meer"
+
+msgid "Quick Actions"
+msgstr "Snelle acties"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Systeemlettertype (Beheerd door SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Het systeemlettertype wordt beheerd door SimpleUI. Start KOReader opnieuw op om dit toe te passen."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Het systeemlettertype wordt beheerd door SimpleUI. Wijzig dit in de instellingen van SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Systeemlettertype: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Systeemlettertype: [Kies een lettertype]"
+
+msgid "UI font: [Disabled]"
+msgstr "Systeemlettertype: [Uitgeschakeld]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Systeemlettertype: [Beheerd door SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Systeemlettertype: [Uitgeschakeld door ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Lettertypevervanging uitschakelen"
+
+msgid "Enable font replacement"
+msgstr "Lettertypevervanging inschakelen"
+
+msgid "Restart to apply the change"
+msgstr "Opnieuw starten om de wijziging toe te passen"
+
+msgid "Restart to apply the UI font change"
+msgstr "Opnieuw starten om de wijziging in het systeemlettertype toe te passen"
+
+

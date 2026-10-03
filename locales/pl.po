@@ -368,4 +368,61 @@ msgstr "Normalny"
 msgid "Very large"
 msgstr "Bardzo duży"
 
+# System Font
+msgid "System Font"
+msgstr "Czcionka systemowa"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Czcionka systemowa (wyłączona przez ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Aby zmiany zaczęły obowiązywać, należy ponownie uruchomić KOReader."
+
+msgid "Restart"
+msgstr "Uruchom ponownie"
+
+msgid "Restore default order"
+msgstr "Przywróć domyślną kolejność"
+
+msgid "More"
+msgstr "Więcej"
+
+msgid "Quick Actions"
+msgstr "Szybkie akcje"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Czcionka systemowa (zarządzana przez SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Czcionka systemowa jest zarządzana przez SimpleUI. Uruchom ponownie KOReader, aby ją zastosować."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Czcionka systemowa jest zarządzana przez SimpleUI. Zmień ją w ustawieniach SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Czcionka interfejsu: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Czcionka interfejsu: [Wybierz czcionkę]"
+
+msgid "UI font: [Disabled]"
+msgstr "Czcionka interfejsu: [Wyłączona]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Czcionka interfejsu: [Zarządzana przez SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Czcionka interfejsu: [Wyłączona przez ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Wyłącz zastępowanie czcionki"
+
+msgid "Enable font replacement"
+msgstr "Włącz zastępowanie czcionki"
+
+msgid "Restart to apply the change"
+msgstr "Uruchom ponownie, aby zastosować zmianę"
+
+msgid "Restart to apply the UI font change"
+msgstr "Uruchom ponownie, aby zastosować zmianę czcionki interfejsu"
 

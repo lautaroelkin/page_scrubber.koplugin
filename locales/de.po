@@ -368,4 +368,61 @@ msgstr "Normal"
 msgid "Very large"
 msgstr "Sehr groß"
 
+# System Font
+msgid "System Font"
+msgstr "Systemschrift"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Systemschrift (durch ZenOS deaktiviert)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Damit die Änderungen wirksam werden, muss KOReader neu gestartet werden."
+
+msgid "Restart"
+msgstr "Neu starten"
+
+msgid "Restore default order"
+msgstr "Standardreihenfolge wiederherstellen"
+
+msgid "More"
+msgstr "Mehr"
+
+msgid "Quick Actions"
+msgstr "Schnellaktionen"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Systemschrift (Verwaltet von SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Die Systemschrift wird von SimpleUI verwaltet. Starten Sie KOReader neu, um sie anzuwenden."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Die Systemschrift wird von SimpleUI verwaltet. Ändern Sie sie in den SimpleUI-Einstellungen."
+
+msgid "UI font: %1"
+msgstr "Systemschrift: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Systemschrift: [Schriftart auswählen]"
+
+msgid "UI font: [Disabled]"
+msgstr "Systemschrift: [Deaktiviert]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Systemschrift: [Verwaltet von SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Systemschrift: [Durch ZenOS deaktiviert]"
+
+msgid "Disable font replacement"
+msgstr "Schriftersetzung deaktivieren"
+
+msgid "Enable font replacement"
+msgstr "Schriftersetzung aktivieren"
+
+msgid "Restart to apply the change"
+msgstr "Neustart, um die Änderung anzuwenden"
+
+msgid "Restart to apply the UI font change"
+msgstr "Neustart, um die Änderung der Systemschrift anzuwenden"
 

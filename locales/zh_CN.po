@@ -368,4 +368,62 @@ msgstr "正常"
 msgid "Very large"
 msgstr "极大"
 
+# System Font
+msgid "System Font"
+msgstr "系统字体"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "系统字体（已被 ZenOS 禁用）"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "要使更改生效，需要重新启动 KOReader。"
+
+msgid "Restart"
+msgstr "重新启动"
+
+msgid "Restore default order"
+msgstr "恢复默认顺序"
+
+msgid "More"
+msgstr "更多"
+
+msgid "Quick Actions"
+msgstr "快捷动作"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "系统字体（由 SimpleUI 管理）"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "系统字体由 SimpleUI 管理。请重新启动 KOReader 以应用它。"
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "系统字体由 SimpleUI 管理。请在 SimpleUI 设置中对其进行更改。"
+
+msgid "UI font: %1"
+msgstr "界面字体: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "界面字体: [选择字体]"
+
+msgid "UI font: [Disabled]"
+msgstr "界面字体: [已禁用]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "界面字体: [由 SimpleUI 管理]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "界面字体: [已被 ZenOS 禁用]"
+
+msgid "Disable font replacement"
+msgstr "禁用字体替换"
+
+msgid "Enable font replacement"
+msgstr "启用字体替换"
+
+msgid "Restart to apply the change"
+msgstr "重新启动以应用更改"
+
+msgid "Restart to apply the UI font change"
+msgstr "重新启动以应用界面字体更改"
+
 

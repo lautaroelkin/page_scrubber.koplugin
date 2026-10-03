@@ -368,4 +368,62 @@ msgstr "Normal"
 msgid "Very large"
 msgstr "Très grand"
 
+# System Font
+msgid "System Font"
+msgstr "Police système"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Police système (désactivée par ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Pour que les modifications s'appliquent, KOReader doit être redémarré."
+
+msgid "Restart"
+msgstr "Redémarrer"
+
+msgid "Restore default order"
+msgstr "Restaurer l'ordre par défaut"
+
+msgid "More"
+msgstr "Plus"
+
+msgid "Quick Actions"
+msgstr "Actions rapides"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Police système (Gérée par SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "La police système est gérée par SimpleUI. Redémarrez KOReader pour l'appliquer."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "La police système est gérée par SimpleUI. Modifiez-la depuis les paramètres de SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Police système : %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Police système : [Choisir une police]"
+
+msgid "UI font: [Disabled]"
+msgstr "Police système : [Désactivée]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Police système : [Gérée par SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Police système : [Désactivée par ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Désactiver le remplacement de police"
+
+msgid "Enable font replacement"
+msgstr "Activer le remplacement de police"
+
+msgid "Restart to apply the change"
+msgstr "Redémarrer pour appliquer la modification"
+
+msgid "Restart to apply the UI font change"
+msgstr "Redémarrer pour appliquer la police système"
+
 

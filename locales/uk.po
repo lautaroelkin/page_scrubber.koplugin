@@ -354,3 +354,61 @@ msgstr "Page Scrubber: RTL (УВІМК)"
 
 msgid "Page Scrubber: RTL (OFF)"
 msgstr "Page Scrubber: RTL (ВИМК)"
+
+# System Font
+msgid "System Font"
+msgstr "Системний шрифт"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Системний шрифт (вимкнено ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Щоб зміни набули чинності, потрібно перезапустити KOReader."
+
+msgid "Restart"
+msgstr "Перезапустити"
+
+msgid "Restore default order"
+msgstr "Відновити порядок за замовчуванням"
+
+msgid "More"
+msgstr "Більше"
+
+msgid "Quick Actions"
+msgstr "Швидкі дії"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Системний шрифт (керується SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Системний шрифт керується SimpleUI. Перезапустіть KOReader, щоб застосувати його."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Системний шрифт керується SimpleUI. Змініть його в налаштуваннях SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Шрифт інтерфейсу: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Шрифт інтерфейсу: [Вибрати шрифт]"
+
+msgid "UI font: [Disabled]"
+msgstr "Шрифт інтерфейсу: [Вимкнено]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Шрифт інтерфейсу: [Керується SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Шрифт інтерфейсу: [Вимкнено ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Вимкнути заміну шрифту"
+
+msgid "Enable font replacement"
+msgstr "Увімкнути заміну шрифту"
+
+msgid "Restart to apply the change"
+msgstr "Перезапустіть, щоб застосувати зміни"
+
+msgid "Restart to apply the UI font change"
+msgstr "Перезапустіть, щоб застосувати зміну шрифту інтерфейсу"

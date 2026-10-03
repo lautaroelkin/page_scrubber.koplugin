@@ -354,3 +354,61 @@ msgstr "Page Scrubber: RTL (PÅ)"
 
 msgid "Page Scrubber: RTL (OFF)"
 msgstr "Page Scrubber: RTL (AV)"
+
+# System Font
+msgid "System Font"
+msgstr "Systemskrift"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Systemskrift (deaktivert av ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "For at endringene skal tre i kraft, må KOReader startes på nytt."
+
+msgid "Restart"
+msgstr "Start på nytt"
+
+msgid "Restore default order"
+msgstr "Gjenopprett standardrekkefølge"
+
+msgid "More"
+msgstr "Mer"
+
+msgid "Quick Actions"
+msgstr "Hurtighandlinger"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Systemskrift (Administrert av SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Systemskriften administreres av SimpleUI. Start KOReader på nytt for å bruke den."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Systemskriften administreres av SimpleUI. Endre den i SimpleUIs innstillinger."
+
+msgid "UI font: %1"
+msgstr "Systemskrift: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Systemskrift: [Velg en skrifttype]"
+
+msgid "UI font: [Disabled]"
+msgstr "Systemskrift: [Deaktivert]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Systemskrift: [Administrert av SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Systemskrift: [Deaktivert av ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Deaktiver erstatning av skrifttype"
+
+msgid "Enable font replacement"
+msgstr "Aktiver erstatning av skrifttype"
+
+msgid "Restart to apply the change"
+msgstr "Start på nytt for å ta i bruk endringen"
+
+msgid "Restart to apply the UI font change"
+msgstr "Start på nytt for å ta i bruk endringen av systemskrift"

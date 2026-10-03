@@ -371,3 +371,65 @@ msgstr "標準"
 msgid "Very large"
 msgstr "特大"
 
+# System Font
+msgid "System Font"
+msgstr "システムフォント"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "システムフォント（ZenOSにより無効）"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "変更を適用するには、KOReaderの再起動が必要です。"
+
+msgid "Restart"
+msgstr "再起動"
+
+msgid "Restore default order"
+msgstr "デフォルトの順序に戻す"
+
+msgid "More"
+msgstr "その他"
+
+msgid "Quick Actions"
+msgstr "クイックアクション"
+
+msgid "Page Scrubber: RTL (OFF)"
+msgstr "Page Scrubber: RTL (オフ)"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "システムフォント（SimpleUIにより管理）"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "システムフォントはSimpleUIによって管理されています。適用するにはKOReaderを再起動してください。"
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "システムフォントはSimpleUIによって管理されています。SimpleUIの設定から変更してください。"
+
+msgid "UI font: %1"
+msgstr "UIフォント: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "UIフォント: [フォントを選択]"
+
+msgid "UI font: [Disabled]"
+msgstr "UIフォント: [無効]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "UIフォント: [SimpleUIにより管理]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "UIフォント: [ZenOSにより無効]"
+
+msgid "Disable font replacement"
+msgstr "フォント置換を無効化"
+
+msgid "Enable font replacement"
+msgstr "フォント置換を有効化"
+
+msgid "Restart to apply the change"
+msgstr "変更を適用するには再起動が必要です"
+
+msgid "Restart to apply the UI font change"
+msgstr "UIフォントの変更を適用するには再起動が必要です"
+
+

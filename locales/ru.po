@@ -394,4 +394,61 @@ msgstr "Обычный"
 msgid "Very large"
 msgstr "Очень большой"
 
+# System Font
+msgid "System Font"
+msgstr "Системный шрифт"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Системный шрифт (отключён ZenOS)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Чтобы изменения вступили в силу, необходимо перезапустить KOReader."
+
+msgid "Restart"
+msgstr "Перезапустить"
+
+msgid "Restore default order"
+msgstr "Восстановить порядок по умолчанию"
+
+msgid "More"
+msgstr "Ещё"
+
+msgid "Quick Actions"
+msgstr "Быстрые действия"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Системный шрифт (управляется SimpleUI)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "Системный шрифт управляется SimpleUI. Перезапустите KOReader, чтобы применить его."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "Системный шрифт управляется SimpleUI. Измените его в настройках SimpleUI."
+
+msgid "UI font: %1"
+msgstr "Шрифт интерфейса: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "Шрифт интерфейса: [Выбрать шрифт]"
+
+msgid "UI font: [Disabled]"
+msgstr "Шрифт интерфейса: [Отключен]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "Шрифт интерфейса: [Управляется SimpleUI]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "Шрифт интерфейса: [Отключен ZenOS]"
+
+msgid "Disable font replacement"
+msgstr "Отключить замену шрифта"
+
+msgid "Enable font replacement"
+msgstr "Включить замену шрифта"
+
+msgid "Restart to apply the change"
+msgstr "Перезапустите, чтобы применить изменение"
+
+msgid "Restart to apply the UI font change"
+msgstr "Перезапустите, чтобы применить изменение шрифта интерфейса"
 

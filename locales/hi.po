@@ -360,3 +360,62 @@ msgstr "सामान्य"
 
 msgid "Very large"
 msgstr "बहुत बड़ा"
+
+# System Font
+msgid "System Font"
+msgstr "सिस्टम फ़ॉन्ट"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "सिस्टम फ़ॉन्ट (ZenOS द्वारा अक्षम)"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "परिवर्तन लागू करने के लिए KOReader को पुनः आरंभ करना होगा।"
+
+msgid "Restart"
+msgstr "पुनः आरंभ करें"
+
+msgid "Restore default order"
+msgstr "डिफ़ॉल्ट क्रम पुनर्स्थापित करें"
+
+msgid "More"
+msgstr "अधिक"
+
+msgid "Quick Actions"
+msgstr "त्वरित क्रियाएं"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "सिस्टम फ़ॉन्ट (SimpleUI द्वारा प्रबंधित)"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "सिस्टम फ़ॉन्ट SimpleUI द्वारा प्रबंधित है। इसे लागू करने के लिए KOReader को पुनः आरंभ करें।"
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "सिस्टम फ़ॉन्ट SimpleUI द्वारा प्रबंधित है। इसे SimpleUI की सेटिंग्स से बदलें।"
+
+msgid "UI font: %1"
+msgstr "UI फ़ॉन्ट: %1"
+
+msgid "UI font: [Select a font]"
+msgstr "UI फ़ॉन्ट: [फ़ॉन्ट चुनें]"
+
+msgid "UI font: [Disabled]"
+msgstr "UI फ़ॉन्ट: [अक्षम]"
+
+msgid "UI font: [Managed by SimpleUI]"
+msgstr "UI फ़ॉन्ट: [SimpleUI द्वारा प्रबंधित]"
+
+msgid "UI font: [Disabled by ZenOS]"
+msgstr "UI फ़ॉन्ट: [ZenOS द्वारा अक्षम]"
+
+msgid "Disable font replacement"
+msgstr "फ़ॉन्ट प्रतिस्थापन अक्षम करें"
+
+msgid "Enable font replacement"
+msgstr "फ़ॉन्ट प्रतिस्थापन सक्षम करें"
+
+msgid "Restart to apply the change"
+msgstr "परिवर्तन लागू करने के लिए पुनः आरंभ करें"
+
+msgid "Restart to apply the UI font change"
+msgstr "UI फ़ॉन्ट परिवर्तन लागू करने के लिए पुनः आरंभ करें"
+
