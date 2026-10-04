@@ -979,6 +979,23 @@ local FloatingDictionaryPopup = InputContainer:extend({
     text = nil, results = nil, boxes = nil, anchor_top = false, anchor_left = false, is_landscape = false,
     highlight_obj = nil, plugin = nil, current_result_idx = 1,
 })
+-- Al tocar una acción, el popup se cierra ANTES de ejecutarla, y al cerrarse borra la
+-- selección de texto (highlight.selected_text = nil). Corremos fn con la selección que
+-- el popup guardó al abrirse, y después la volvemos a limpiar.
+function FloatingDictionaryPopup.withRestoredSelection(self_obj, fn)
+    local hl = self_obj.highlight_obj
+    local restored = false
+    if hl and not hl.selected_text and self_obj.selected_text then
+        hl.selected_text = self_obj.selected_text
+        restored = true
+    end
+    local ok, err = pcall(fn)
+    if restored and hl.selected_text == self_obj.selected_text then
+        hl.selected_text = nil
+    end
+    return ok, err
+end
+
 function FloatingDictionaryPopup:init()
     self.dialog = self.dialog or self
     local screen_width = Screen:getWidth()
@@ -1218,7 +1235,8 @@ function FloatingDictionaryPopup:init()
                         else
                             -- Plugins de reproducción/acción (TTS, audiolibros, etc.): ejecutan y cierran el panel
                             UIManager:close(self)
-                            pcall(spec.external_callback)
+                            -- el cierre del popup borró la selección: se la restauramos al plugin
+                            self:withRestoredSelection(spec.external_callback)
                         end
                     end
                 })
@@ -2319,7 +2337,7 @@ end
 -- ==========================================
 -- LÓGICA COMPARTIDA DE ACCIONES NATIVAS
 -- ==========================================
-local function saveCustomHighlight(self_obj, style)
+local function saveCustomHighlightInner(self_obj, style)
     local hl = self_obj.highlight_obj
     if not hl then return end
     
@@ -2401,6 +2419,12 @@ local function saveCustomHighlight(self_obj, style)
         pcall(function() hl.ui:handleEvent(Event:new("AnnotationsModified", { item, nb_highlights_added = 1, index_modified = index })) end)
     end
     if hl.clear then pcall(function() hl:clear() end) end
+end
+
+local function saveCustomHighlight(self_obj, style)
+    FloatingDictionaryPopup.withRestoredSelection(self_obj, function()
+        saveCustomHighlightInner(self_obj, style)
+    end)
 end
 
 local function invokeAction(self_obj, action_name)
