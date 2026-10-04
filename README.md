@@ -75,8 +75,10 @@ Basically, it takes the native features, removes the friction, and puts them int
 </table>
 
 ---
+
 ## ⚙️ Installation:
 Download `page_scrubber.koplugin-vX.Y.Z.zip` from the [latest release](../../releases/latest) (under **Assets**, not "Source code"), unzip it, copy the `page_scrubber.koplugin` folder into `koreader/plugins/` and restart KOReader.
+
 ---
 
 ## Tutorial if needed: **How to Open Page Scrubber**
