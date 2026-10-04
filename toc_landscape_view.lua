@@ -14,6 +14,7 @@ local Geom            = require("ui/geometry")
 local TextWidget      = require("ui/widget/textwidget")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Widget          = require("ui/widget/widget")
+local ok_hatch, Hatching = pcall(require, "hatching")
 
 local _dict = {}
 local _lang = "en"
@@ -280,8 +281,21 @@ function TocLandscapeView.paint(toc, bb)
     local tab_radius = S(24)
     local b_thick = S(3)
 
-    -- Fondo blanco general
-    bb:paintRect(0, 0, sw, sh, Blitbuffer.COLOR_WHITE)
+    -- Fondo: el rayado cubre solo el hueco entre persiana y barra y las esquinas
+    -- redondeadas de la persiana (arranca tab_radius más arriba para que no queden
+    -- "agujeros"). El resto lo tapan la persiana y la barra, que se pintan después.
+    local gap_y = math.max(0, pd.h - tab_radius)
+    local gap_h = (toc._is_expanded and sh or bd.y) - gap_y
+    if gap_h > 0 then
+        if ok_hatch and Hatching and bb.hatchRect then
+            -- Como en vertical: se omite durante el arrastre
+            if not ((toc._slider and toc._slider._dragging) or toc._repeat_running) then
+                Hatching.paint(bb, 0, gap_y, sw, gap_h)
+            end
+        else
+            bb:paintRect(0, gap_y, sw, gap_h, Blitbuffer.COLOR_WHITE)
+        end
+    end
 
     -- Persiana exterior limpia sin tramas ni sombras
     paintBottomRoundedTab(bb, 0, 0, sw, pd.h, tab_radius, Blitbuffer.COLOR_BLACK)
