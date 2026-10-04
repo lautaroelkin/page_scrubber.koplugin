@@ -27,8 +27,6 @@ Here is what it does differently:
 
 Basically, it takes the native features, removes the friction, and puts them into a streamlined tool. Give it a try!
 
-> ⚠️¡! **IMPORTANT:** When updating manually, do not overwrite the existing folder. Delete the previous page_scrubber.koplugin directory first, then place the new version to prevent caching issues and file conflicts.
-
 > ⚠️¡! **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 **[Get the plugin in the Releases page!]**
@@ -77,13 +75,8 @@ Basically, it takes the native features, removes the friction, and puts them int
 </table>
 
 ---
-
-## ⚙️ Installation
- 1. Go to the **Releases** page and download the `.zip` file of the latest version.
- 2. Extract the archive. You will get a folder named `page_scrubber.koplugin`.
- 3. Place that entire folder in your KOReader user plugins directory (usually `koreader/plugins/`).
- 4. Restart KOReader.
-
+## ⚙️ Installation:
+Download `page_scrubber.koplugin-vX.Y.Z.zip` from the [latest release](../../releases/latest) (under **Assets**, not "Source code"), unzip it, copy the `page_scrubber.koplugin` folder into `koreader/plugins/` and restart KOReader.
 ---
 
 ## Tutorial if needed: **How to Open Page Scrubber**
