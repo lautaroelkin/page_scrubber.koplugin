@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="page-scrubber-banner.svg" alt="Page Scrubber Banner" width="100%">
+  <img src="images/page-scrubber-banner.svg" alt="Page Scrubber Banner" width="100%">
 </p>
 
 # Page Scrubber Plugin! 
