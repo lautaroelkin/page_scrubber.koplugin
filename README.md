@@ -5,12 +5,12 @@
 This plugin allows you to quickly flip back and forth through the book, with the option to easily return to your original page using the 'x' button or stay on the new page. You can also use the interactive progress bar and bookmark browser. Streamlined, E-ink optimized, based on KOReader's browser architecture and inspired by the native Kindle page picker experience. Compatible with EPUB, CBZ, and PDFs and works seamlessly in both portrait and landscape modes! 
    
 ### Features
-*   **Thumbnail Grids:** Live 3-page and 6-page previews, plus a minimalist distraction-free "Simple Grid" mode.
+*   **Thumbnail Grids:** Live 3-page and Multi-page previews, plus a minimalist distraction-free "Simple Grid" mode.
 *   **Interactive Index:** A dedicated visual Table of Contents view with its own progress bar for easy chapter navigation.
 *   **Advanced Navigation:** Interactive progress slider, chapter-skip buttons, a quick-access top toolbar, and physical D-Pad support.
 *   **Split-View Annotations:** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
 *   **Redesigned Reading Pop-Ups :** Features a modern, pill-shaped floating dictionary and multi-word selection menu. It intelligently anchors away from your finger so it never blocks your text. Fully compatible with the AI Assistant, X-Ray, and other external plugins.
-*   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large) and even choose your own optional custom wallpaper.
+*   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large), choose your own optional custom wallpaper and even pick a font to change the system font of Koreader.
 * **Quick Menu:** A quick-access overlay featuring two dedicated tabs for seamless reading management:
   * **Quick Actions:** Instantly access device controls (toggle front light, day/night mode), execute custom shortcuts (scrubber actions), and navigate settings.
   * **Typography (Aa):** Personalize your reading experience on the fly by selecting your favorite fonts, adjusting text size, and modifying line spacing.
@@ -27,7 +27,7 @@ Here is what it does differently:
 *   **Smarter Rendering:** The 3-grid renders images one by one instead of processing all pages at once, making it significantly smoother.
 *   **Hold to Flip:** Introduces a "hold" action to quickly scrub through pages.
 *   **Classic "Simple Grid":** A transparent, older-Kindle inspired grid. Tap outside the window to instantly cancel and return to your original page.
-*   **Instant Switching:** Jump seamlessly between the 3-page and 6-page grids with a single tap, no menus required.
+*   **Instant Switching:** Jump seamlessly between the 3-page and Multi-page grids with a single tap, no menus required.
 *   **Integrated TOC & Annotations:** View chapters, bookmarks, highlights, and notes on the fly while simultaneously looking at the live page preview.
 
 Basically, it takes the native features, removes the friction, and puts them into a streamlined tool. Give it a try!
@@ -90,8 +90,8 @@ Download `page_scrubber.koplugin-vX.Y.Z.zip` from the [latest release](../../rel
 
 ## Useful Gestures & Shortcuts
 
->* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 6-grid and the standard grid.
->* **Long press 6-grid button:** Switches to Simple Grid.
+>* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 Multi-grid and the standard grid.
+>* **Long press Multi-grid button:** Switches to Simple Grid.
 >* **Long press TOC button:** Opens the full index with the bottom bar hidden.
 >* **Notes button / Long press bottom bookmark icon:** Opens the split menu.
 >* **Long press Notes button:** Opens the split menu directly on the highlights tab.
