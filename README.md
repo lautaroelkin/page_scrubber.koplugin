@@ -32,8 +32,6 @@ Basically, it takes the native features, removes the friction, and puts them int
 
 > ⚠️¡! **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
-**[Get the plugin in the Releases page!]**
-
 ---
 
 ## 📱 Screenshots
@@ -41,38 +39,38 @@ Basically, it takes the native features, removes the friction, and puts them int
 <table align="center" width="100%">
   <tr>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-GridView.jpg" width="100%" alt="Grid View"/><br>
-      <b>Grid View</b>
+      <img src="images/Grid.jpg" width="100%" alt="Grid"/><br>
+      <b>Grid</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-SimpleGridView.jpg" width="100%" alt="Simple Grid View"/><br>
+      <img src="images/Simple-Grid.jpg" width="100%" alt="Simple Grid"/><br>
       <b>Simple Grid</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-SixGridView.jpg" width="100%" alt="Six Grid View"/><br>
-      <b>Six Grid</b>
+      <img src="images/Multi-Grid.jpg" width="100%" alt="Multi Grid"/><br>
+      <b>Multi Grid</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-Index.jpg" width="100%" alt="Index"/><br>
+      <img src="images/Index.jpg" width="100%" alt="Index"/><br>
       <b>Index</b>
     </td>
   </tr>
   <tr>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-Bookmarks.jpg" width="100%" alt="Bookmarks"/><br>
-      <b>Bookmarks</b>
+      <img src="images/Split-View.jpg" width="100%" alt="Split View"/><br>
+      <b>Split View</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-Highlights.jpg" width="100%" alt="Highlights"/><br>
-      <b>Highlights</b>
+      <img src="images/Quick-menu.jpg" width="100%" alt="Quick menu"/><br>
+      <b>Quick menu</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-Dictionary.jpg" width="100%" alt="Dictionary Pop-up"/><br>
-      <b>Dictionary</b>
+      <img src="images/PopUp-SelectionMenu.jpg" width="100%" alt="PopUp SelectionMenu"/><br>
+      <b>PopUp Selection Menu</b>
     </td>
     <td align="center" width="25%" valign="top">
-      <img src="images/PageScrubber-Menu.jpg" width="100%" alt="Menu"/><br>
-      <b>Export your notes!</b>
+      <img src="images/PopUp-Dictionary.jpg" width="100%" alt="PopUp Dictionary"/><br>
+      <b>PopUp Dictionary</b>
     </td>
   </tr>
 </table>
