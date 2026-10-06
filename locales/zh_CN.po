@@ -426,4 +426,7 @@ msgstr "重新启动以应用更改"
 msgid "Restart to apply the UI font change"
 msgstr "重新启动以应用界面字体更改"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "多网格: 显示 9 页"
+
 

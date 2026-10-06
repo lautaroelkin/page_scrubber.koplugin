@@ -401,3 +401,9 @@ msgstr "sin negrita"
 
 msgid "italic only"
 msgstr "solo cursiva"
+
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multi-Grid: Mostrar 9 páginas"
+
+msgid "bold italic only"
+msgstr "solo negrita y cursiva"

@@ -412,3 +412,6 @@ msgstr "Değişikliği uygulamak için yeniden başlat"
 msgid "Restart to apply the UI font change"
 msgstr "Arayüz yazı tipi değişikliğini uygulamak için yeniden başlat"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Çoklu Izgara: 9 sayfayı göster"
+

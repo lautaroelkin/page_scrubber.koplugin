@@ -419,3 +419,6 @@ msgstr "परिवर्तन लागू करने के लिए प�
 msgid "Restart to apply the UI font change"
 msgstr "UI फ़ॉन्ट परिवर्तन लागू करने के लिए पुनः आरंभ करें"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "मल्टी-ग्रिड: 9 पृष्ठ दिखाएं"
+

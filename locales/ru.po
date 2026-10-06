@@ -452,3 +452,6 @@ msgstr "Перезапустите, чтобы применить изменен
 msgid "Restart to apply the UI font change"
 msgstr "Перезапустите, чтобы применить изменение шрифта интерфейса"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Мульти-сетка: Показывать 9 страниц"
+

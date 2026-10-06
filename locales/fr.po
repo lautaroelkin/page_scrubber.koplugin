@@ -426,4 +426,6 @@ msgstr "Redémarrer pour appliquer la modification"
 msgid "Restart to apply the UI font change"
 msgstr "Redémarrer pour appliquer la police système"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multi-Grille : Afficher 9 pages"
 

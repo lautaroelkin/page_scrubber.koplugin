@@ -426,3 +426,6 @@ msgstr "Riavvia per applicare la modifica"
 msgid "Restart to apply the UI font change"
 msgstr "Riavvia per applicare il carattere di sistema"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multi-Griglia: Mostra 9 pagine"
+

@@ -426,3 +426,10 @@ msgstr "Uruchom ponownie, aby zastosować zmianę"
 msgid "Restart to apply the UI font change"
 msgstr "Uruchom ponownie, aby zastosować zmianę czcionki interfejsu"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multi-siatka: Pokaż 9 stron"
+
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multigrade: Mostrar 9 páginas"
+
+

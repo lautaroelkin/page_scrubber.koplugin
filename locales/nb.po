@@ -412,3 +412,6 @@ msgstr "Start på nytt for å ta i bruk endringen"
 
 msgid "Restart to apply the UI font change"
 msgstr "Start på nytt for å ta i bruk endringen av systemskrift"
+
+msgid "Multi Grid: Show 9 pages"
+msgstr "Fler-rutenett: Vis 9 sider"

@@ -353,3 +353,7 @@ msgstr "Pastas compartilhadas também detectadas:"
 # Sistema
 msgid "System Error exporting notes."
 msgstr "Erro do sistema ao exportar notas."
+
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multigrade: Mostrar 9 páginas"
+

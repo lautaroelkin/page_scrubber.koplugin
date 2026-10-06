@@ -426,3 +426,6 @@ msgstr "Neustart, um die Änderung anzuwenden"
 msgid "Restart to apply the UI font change"
 msgstr "Neustart, um die Änderung der Systemschrift anzuwenden"
 
+msgid "Multi Grid: Show 9 pages"
+msgstr "Multi-Raster: 9 Seiten anzeigen"
+
