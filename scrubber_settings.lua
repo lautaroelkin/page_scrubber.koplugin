@@ -607,6 +607,24 @@ function ScrubberSettings:getPageDefinition(page_id)
                     default = false,
                 },
                 {
+                    text = _("Multi Grid: Show 9 pages"),
+                    icon = "layout-grid.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_multigrid_nine",
+                    default = false,
+                    on_change = function()
+                        local sc = self.scrubber_ui
+                        if sc and sc._view_mode == "grid_six" then
+                            if sc._clearGridTiles then sc:_clearGridTiles(true) end
+                            sc._is_busy = false
+                            sc._tasks_in_flight = 0
+                            if sc._updateTexts then sc:_updateTexts() end
+                            if sc._updateGridPages then sc:_updateGridPages() end
+                            UIManager:setDirty(sc, "ui")
+                        end
+                    end,
+                },
+                {
                     text = _("Show chapter marks in slider"),
                     icon = "step-forward.svg",
                     kind = "toggle",

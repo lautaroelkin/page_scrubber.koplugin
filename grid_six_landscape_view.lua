@@ -2,6 +2,8 @@
     page_scrubber.koplugin/grid_six_landscape_view.lua
     Modo Apaisado (Landscape) para la vista 3x2 (Six Grid):
     - 6 páginas a proporción real idéntica al Grid Landscape sin achatamiento.
+    - Si "Multi Grid: Show 9 pages" está activo: 9 páginas, en 3x3 o en una sola fila de 9
+      (se elige la disposición que da miniaturas más grandes); la página actual queda en el slot 5.
     - Barra inferior de 2 niveles estandarizada a la misma altura que Grid y Split.
     - Botones ‹ y › precalculados en posición fija para evitar saltos.
 ]]--
@@ -20,6 +22,48 @@ end
 local function _(text) return _dict[text] or text end
 
 local GridSixLandscapeView = {}
+
+-- ¿Documento de página fija (cómic / PDF)? Ahí cada página puede tener su propia proporción.
+local function isFixedPageDoc(scrubber)
+    if scrubber._is_comic then return true end
+    local doc = scrubber.ui and scrubber.ui.document
+    local ext = (doc and doc.file and doc.file:match("%.([%a%d]+)$")) or ""
+    return ext:lower() == "pdf"
+end
+
+-- Recuadro que ocupa realmente la página dentro de la celda: la miniatura se dibuja a su
+-- proporción real (centrada) y el contorno la sigue, igual que en el grid de 3.
+local function getPageBox(rect, slot)
+    local tb = slot and slot.tile_bb
+    if tb then
+        local ok, tw, th = pcall(function() return tb:getWidth(), tb:getHeight() end)
+        if ok and tw and th and tw > 0 and th > 0 then
+            local bw, bh = math.min(tw, rect.w), math.min(th, rect.h)
+            if bw < rect.w - 2 or bh < rect.h - 2 then
+                return rect.x + math.floor((rect.w - bw) / 2),
+                       rect.y + math.floor((rect.h - bh) / 2), bw, bh
+            end
+        end
+    end
+    return rect.x, rect.y, rect.w, rect.h
+end
+
+local function isNineMode()
+    return G_reader_settings and G_reader_settings:readSetting("page_scrubber_multigrid_nine") == true
+end
+
+-- Mayor miniatura posible (proporción real) para una disposición cols x rows
+local function fitCell(avail_w, avail_h, cols, rows, gap_x, gap_y, ratio)
+    local max_cell_w = math.floor((avail_w - gap_x * (cols - 1)) / cols)
+    local max_cell_h = math.floor((avail_h - gap_y * (rows - 1)) / rows)
+    local cell_w = max_cell_w
+    local cell_h = math.floor(cell_w / ratio)
+    if cell_h > max_cell_h then
+        cell_h = max_cell_h
+        cell_w = math.floor(cell_h * ratio)
+    end
+    return cell_w, cell_h
+end
 
 local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, round_bl, round_br)
     if w <= 0 or h <= 0 then return end
@@ -89,17 +133,36 @@ function GridSixLandscapeView.getSlotDimens(scrubber)
     local gap_x = S(16)
     local gap_y = S(12)
     local cols, rows = 3, 2
+    local is_nine = isNineMode()
 
     local ratio = getLandscapeAspectRatio(scrubber)
-    local max_cell_w = math.floor((avail_w - gap_x * (cols - 1)) / cols)
-    local max_cell_h = math.floor((avail_h - gap_y * (rows - 1)) / rows)
+    local cell_w, cell_h
 
-    local cell_w = max_cell_w
-    local cell_h = math.floor(cell_w / ratio)
+    if is_nine then
+        gap_x = S(14)
+        gap_y = S(10)
+        -- Elegimos 3x3 o una fila de 9 según cuál dé miniaturas más grandes
+        local w33, h33 = fitCell(avail_w, avail_h, 3, 3, gap_x, gap_y, ratio)
+        local w91, h91 = fitCell(avail_w, avail_h, 9, 1, gap_x, gap_y, ratio)
+        if w91 * h91 > w33 * h33 then
+            cols, rows, cell_w, cell_h = 9, 1, w91, h91
+        else
+            cols, rows, cell_w, cell_h = 3, 3, w33, h33
+        end
 
-    if cell_h > max_cell_h then
-        cell_h = max_cell_h
-        cell_w = math.floor(cell_h * ratio)
+        -- Un poco más chicas para dar más aire
+        local SHRINK = 0.94
+        cell_w = math.floor(cell_w * SHRINK)
+        cell_h = math.floor(cell_h * SHRINK)
+
+        -- Horizontal: páginas juntas (gap_x fijo) y el espacio sobrante queda a los costados.
+        -- Vertical: espacio repartido por igual entre filas y bordes.
+        if rows > 1 then
+            local space_v = math.floor((avail_h - cell_h * rows) / (rows + 1))
+            if space_v > gap_y then gap_y = space_v end
+        end
+    else
+        cell_w, cell_h = fitCell(avail_w, avail_h, cols, rows, gap_x, gap_y, ratio)
     end
 
     local grid_w = cell_w * cols + gap_x * (cols - 1)
@@ -150,7 +213,9 @@ function GridSixLandscapeView.paint(scrubber, bb)
     local slots = GridSixLandscapeView.getSlotDimens(scrubber)
     local all_bms = scrubber:_getAllBookmarks() or {}
 
-    for idx = 1, 6 do
+    local is_fixed = isFixedPageDoc(scrubber)
+
+    for idx = 1, #slots do
         local rect = slots[idx]
         local slot = scrubber._grid_tiles[idx]
         local is_origin = (slot and slot.page and tonumber(slot.page) == tonumber(scrubber._origin_page))
@@ -163,8 +228,12 @@ function GridSixLandscapeView.paint(scrubber, bb)
                 local tw, th = slot.tile_bb:getWidth(), slot.tile_bb:getHeight()
                 local render_bb = slot.tile_bb
                 local must_free = false
-                if math.abs(tw - rect.w) > 4 or math.abs(th - rect.h) > 4 then
-                    local ok, sc = pcall(function() return slot.tile_bb:scale(rect.w, rect.h) end)
+                -- Solo se reduce (conservando proporción) si no entra en la celda; nunca se estira
+                if tw > rect.w or th > rect.h then
+                    local f = math.min(rect.w / tw, rect.h / th)
+                    local nw = math.max(1, math.floor(tw * f))
+                    local nh = math.max(1, math.floor(th * f))
+                    local ok, sc = pcall(function() return slot.tile_bb:scale(nw, nh) end)
                     if ok and sc then render_bb = sc; must_free = true end
                 end
 
@@ -176,6 +245,11 @@ function GridSixLandscapeView.paint(scrubber, bb)
                 bb:blitFrom(render_bb, ox, oy, 0, 0, bw, bh)
                 if must_free then pcall(function() render_bb:free() end) end
 
+                local box_x, box_y, box_w, box_h = ox, oy, bw, bh
+                if not (bw < rect.w - 2 or bh < rect.h - 2) then
+                    box_x, box_y, box_w, box_h = rect.x, rect.y, rect.w, rect.h
+                end
+
                 local is_bmed = false
                 for _, bmp in ipairs(all_bms) do
                     if tonumber(bmp) == tonumber(slot.page) then is_bmed = true; break end
@@ -183,19 +257,19 @@ function GridSixLandscapeView.paint(scrubber, bb)
 
                 if is_bmed then
                     local rw, rh = S(22), S(38)
-                    local rx = rect.x + rect.w - rw - S(10) - border
-                    local ry = rect.y + border
+                    local rx = box_x + box_w - rw - S(10) - border
+                    local ry = box_y + border
 
                     local mask_x = rx - S(2)
                     local mask_y = ry
-                    local mask_w = (rect.x + rect.w - border) - mask_x
+                    local mask_w = (box_x + box_w - border) - mask_x
                     local mask_h = S(24)
 
                     bb:paintRect(mask_x, mask_y, mask_w, mask_h, Blitbuffer.COLOR_WHITE)
                     drawBookmarkRibbon(bb, rx, ry, rw, rh, Blitbuffer.COLOR_BLACK)
                 end
 
-                bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
 
                 -- Pastilla con número de página
                 if not scrubber._tw_gsix_page then
@@ -206,20 +280,20 @@ function GridSixLandscapeView.paint(scrubber, bb)
                 local tsz = scrubber._tw_gsix_page:getSize()
                 local badge_h = tsz.h + S(4)
                 local badge_w = math.max(tsz.w + S(10), badge_h)
-                local bx = rect.x + math.floor((rect.w - badge_w) / 2)
-                local by = rect.y + rect.h - badge_h
+                local bx = box_x + math.floor((box_w - badge_w) / 2)
+                local by = box_y + box_h - badge_h
 
                 paintRoundRect(bb, bx, by, badge_w, badge_h, math.floor(badge_h / 2), Blitbuffer.COLOR_BLACK)
                 scrubber._tw_gsix_page:paintTo(bb, bx + math.floor((badge_w - tsz.w)/2), by + math.floor((badge_h - tsz.h)/2))
             elseif slot.error then
-                bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+                if not is_fixed then bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0) end
                 if not scrubber._tw_grid_error then
                     scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
                 end
                 local etsz = scrubber._tw_grid_error:getSize()
                 scrubber._tw_grid_error:paintTo(bb, rect.x + math.floor((rect.w - etsz.w)/2), rect.y + math.floor((rect.h - etsz.h)/2))
             elseif slot.loading then
-                bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+                if not is_fixed then bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0) end
                 bb:paintRect(rect.x + math.floor(rect.w/2) - 1, rect.y + math.floor(rect.h/2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
             end
         end
@@ -365,7 +439,7 @@ end
 function GridSixLandscapeView.onTap(scrubber, ges)
     local slots = GridSixLandscapeView.getSlotDimens(scrubber)
     local S = scrubber.S
-    for idx = 1, 6 do
+    for idx = 1, #slots do
         local rect = slots[idx]
         if ges.pos:intersectWith(rect) then
             local slot = scrubber._grid_tiles[idx]
@@ -373,9 +447,10 @@ function GridSixLandscapeView.onTap(scrubber, ges)
                 local rw, rh = S(22), S(38)
                 local bm_w = math.max(S(36), rw + S(16))
                 local bm_h = math.max(S(42), rh + S(10))
+                local box_x, box_y, box_w = getPageBox(rect, slot)
                 local bm_touch_rect = Geom:new{
-                    x = rect.x + rect.w - bm_w,
-                    y = rect.y,
+                    x = box_x + box_w - bm_w,
+                    y = box_y,
                     w = bm_w,
                     h = bm_h
                 }

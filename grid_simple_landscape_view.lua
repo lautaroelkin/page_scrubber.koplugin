@@ -74,10 +74,155 @@ local function getLandscapeAspectRatio(scrubber)
             return dim.w / dim.h
         end
     end
-    return scrubber._sw / scrubber._sh
+    -- Las páginas de libros/cómics son naturalmente verticales.
+    -- Al estar en modo apaisado (sw > sh), el fallback correcto es sh / sw.
+    return scrubber._sh / scrubber._sw
 end
 
 local GridSimpleLandscapeView = {}
+
+-- Altura del efecto de ‹ › como fracción de la altura de la página (más chico = más bajo).
+-- Siempre queda centrado en la altura de las flechas y es igual para los dos lados.
+local SIDE_PILL_H_RATIO = 0.40
+
+-- Pinta un icono en BLANCO sobre el efecto negro. Se dibuja el icono (en negro) en un buffer
+-- temporal de grises y solo se escriben en pantalla los píxeles con "tinta", con su
+-- antialiasing. Así no queda ningún recuadro ni esquinas del SVG.
+-- clip (opcional): rectángulo fuera del cual no se escribe nada.
+local function paintIconWhite(bb, icon, x, y, double, clip)
+    local sz = icon:getSize()
+    local w, h = sz.w + 2, sz.h
+    local ok = pcall(function()
+        local tmp = Blitbuffer.new(w, h, Blitbuffer.TYPE_BB8)
+        tmp:fill(Blitbuffer.COLOR_WHITE)
+        icon.fgcolor = Blitbuffer.COLOR_BLACK
+        icon:paintTo(tmp, 0, 0)
+        if double then icon:paintTo(tmp, 1, 0) end
+        for py = 0, h - 1 do
+            local dy = y + py
+            if not clip or (dy >= clip.y and dy < clip.y + clip.h) then
+                for px = 0, w - 1 do
+                    local dx = x + px
+                    if not clip or (dx >= clip.x and dx < clip.x + clip.w) then
+                        local ink = 255 - tmp:getPixel(px, py):getColor8().a
+                        if ink > 8 then
+                            bb:setPixel(dx, dy, Blitbuffer.Color8(ink))
+                        end
+                    end
+                end
+            end
+        end
+        tmp:free()
+    end)
+    if not ok then
+        icon.fgcolor = Blitbuffer.COLOR_WHITE
+        icon:paintTo(bb, x, y)
+        if double then icon:paintTo(bb, x + 1, y) end
+    end
+end
+
+-- Margen (en dp) entre las puntas de la ✕ y el borde del círculo. Subilo para agrandar.
+local X_PRESS_PAD_DP = 5
+
+-- Radio mínimo (px) del círculo que encierra toda la tinta del icono. Se mide una sola vez.
+local _ink_r_cache = {}
+local function inkRadius(icon)
+    local sz = icon:getSize()
+    local key = sz.w .. "x" .. sz.h
+    if _ink_r_cache[key] then return _ink_r_cache[key] end
+    local r = math.ceil(math.sqrt((sz.w / 2) ^ 2 + (sz.h / 2) ^ 2))   -- plan B: diagonal
+    pcall(function()
+        local tmp = Blitbuffer.new(sz.w, sz.h, Blitbuffer.TYPE_BB8)
+        tmp:fill(Blitbuffer.COLOR_WHITE)
+        icon:paintTo(tmp, 0, 0)
+        local cx, cy = sz.w / 2, sz.h / 2
+        local m = 0
+        for py = 0, sz.h - 1 do
+            for px = 0, sz.w - 1 do
+                if 255 - tmp:getPixel(px, py):getColor8().a > 8 then
+                    local dx, dy = px + 0.5 - cx, py + 0.5 - cy
+                    local d2 = dx * dx + dy * dy
+                    if d2 > m then m = d2 end
+                end
+            end
+        end
+        tmp:free()
+        if m > 0 then r = math.ceil(math.sqrt(m)) end
+    end)
+    _ink_r_cache[key] = r
+    return r
+end
+
+-- Zona (y radio) del efecto al apretar, calculada con las áreas táctiles de la última
+-- pintada. which: "close" (círculo), "prev" / "next" (espacio tocable lateral).
+function GridSimpleLandscapeView.pressRect(scrubber, which)
+    local S = scrubber.S
+    local pn = scrubber._gs_panel_dimen
+    if not pn then return nil end
+    local inset = S(2) + S(4)            -- borde de la tarjeta + aire
+    local rad = S(14)
+    local x, y, w, h
+
+    -- ‹ › simétricos: misma altura, centrados en la altura de las flechas y siempre dentro
+    -- de la zona entre la ✕ y el borde inferior de la página (sobre el porcentaje y páginas).
+    local function side_y_range()
+        local nd = scrubber._gs_next_dimen
+        local pg = scrubber._gs_page_dimen
+        if not (nd and pg) then return nil end
+        local min_top = nd.y + S(2)
+        local max_bottom = pg.y + pg.h
+        local h = math.max(math.floor(pg.h * SIDE_PILL_H_RATIO), S(64))
+        h = math.min(h, max_bottom - min_top)
+        local cy = pn.y + math.floor(pn.h / 2)       -- centro de las flechas
+        local top = cy - math.floor(h / 2)
+        if top < min_top then top = min_top end
+        if top + h > max_bottom then top = max_bottom - h end
+        return top, h
+    end
+
+    if which == "close" then
+        local cd = scrubber._gs_close_dimen
+        if not cd then return nil end
+        -- Diámetro = diagonal del icono (+ aire), pero sin salirse de la tarjeta.
+        local icon = scrubber.icon_gs_x or scrubber.tw_x
+        local isz = icon and icon:getSize() or { w = S(32), h = S(32) }
+        local d = 2 * ((icon and inkRadius(icon) or math.floor(isz.w / 2)) + S(X_PRESS_PAD_DP))
+        local cx = cd.x + math.floor(cd.w / 2)
+        local cy = cd.y + math.floor(cd.h / 2)
+        local margin = S(2)
+        d = math.min(d,
+                     2 * (cy - (pn.y + margin)),
+                     2 * ((pn.x + pn.w - margin) - cx))
+        if d < S(20) then d = S(20) end
+        x = cx - math.floor(d / 2)
+        y = cy - math.floor(d / 2)
+        w, h = d, d
+        rad = math.floor(d / 2)          -- círculo
+    elseif which == "prev" then
+        local d = scrubber._gs_prev_dimen
+        if not d then return nil end
+        local ty, th = side_y_range()
+        if not ty then return nil end
+        x = d.x + inset
+        y = ty
+        w = d.w - inset                  -- hasta el borde de la página
+        h = th
+    elseif which == "next" then
+        local d = scrubber._gs_next_dimen
+        if not d then return nil end
+        local ty, th = side_y_range()
+        if not ty then return nil end
+        x = d.x                          -- desde el borde de la página
+        y = ty
+        w = (pn.x + pn.w - inset) - x
+        h = th
+    else
+        return nil
+    end
+
+    if w <= 0 or h <= 0 then return nil end
+    return Geom:new{ x = x, y = y, w = w, h = h }, rad
+end
 
 function GridSimpleLandscapeView.getThumbDims(scrubber)
     local sw, sh = scrubber._sw, scrubber._sh
@@ -91,17 +236,10 @@ function GridSimpleLandscapeView.getThumbDims(scrubber)
     local arrow_area_w = S(42)
     local pad_x = S(8)
 
-    local max_page_h = avail_h - top_offset - bot_offset
-    local max_page_w = math.floor(avail_w * 0.75) - (arrow_area_w * 2) - (pad_x * 2)
-
-    local ratio = getLandscapeAspectRatio(scrubber)
-    local page_h = max_page_h
-    local page_w = math.floor(page_h * ratio)
-
-    if page_w > max_page_w then
-        page_w = max_page_w
-        page_h = math.floor(page_w / ratio)
-    end
+    -- Fijamos el recuadro blanco al tamaño máximo permitido en horizontal.
+    -- Así la interfaz queda estable y "apaisada". La imagen luego se escalará dentro de esto.
+    local page_h = avail_h - top_offset - bot_offset
+    local page_w = math.floor(avail_w * 0.75) - (arrow_area_w * 2) - (pad_x * 2)
 
     return page_w, page_h
 end
@@ -149,6 +287,15 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
     paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
+    -- Efecto al apretar ‹ › (negro, redondeado). Se pinta antes que iconos y textos.
+    -- El de la ✕ se pinta al final de la tarjeta para que la página no lo tape.
+    if scrubber._gs_pressed == "prev" or scrubber._gs_pressed == "next" then
+        local pr, prad = GridSimpleLandscapeView.pressRect(scrubber, scrubber._gs_pressed)
+        if pr then
+            paintRoundRect(bb, pr.x, pr.y, pr.w, pr.h, prad, Blitbuffer.COLOR_BLACK)
+        end
+    end
+
     -- Reloj en la cabecera
     local time_str = os.date("%H:%M")
     if not scrubber._tw_gs_clock then
@@ -174,7 +321,7 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
         w = touch_btn_size,
         h = touch_btn_size
     }
-    if icon_x then
+    if icon_x and scrubber._gs_pressed ~= "close" then
         icon_x.fgcolor = Blitbuffer.COLOR_BLACK
         icon_x:paintTo(bb, xx, xy)
     end
@@ -209,12 +356,17 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
             local render_bb = slot.tile_bb
             local must_free = false
 
-            if math.abs(tw - page_w) > 4 or math.abs(th - page_h) > 4 then
-                local ok, sc = pcall(function() return slot.tile_bb:scale(page_w, page_h) end)
+            -- ESCALADO PROPORCIONAL ESTRICTO: evita achatamientos
+            local scale_factor = math.min(page_w / tw, page_h / th)
+            local new_w = math.max(1, math.floor(tw * scale_factor))
+            local new_h = math.max(1, math.floor(th * scale_factor))
+
+            if math.abs(tw - new_w) > 4 or math.abs(th - new_h) > 4 then
+                local ok, sc = pcall(function() return slot.tile_bb:scale(new_w, new_h) end)
                 if ok and sc then
                     render_bb = sc
                     must_free = true
-                    tw, th = render_bb:getWidth(), render_bb:getHeight()
+                    tw, th = new_w, new_h
                 end
             end
 
@@ -255,16 +407,30 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
     local arrow_r_y = panel_y + math.floor((panel_h - rsz.h) / 2)
 
     if icon_l then
-        icon_l.fgcolor = Blitbuffer.COLOR_BLACK
-        icon_l:paintTo(bb, left_arrow_x, arrow_l_y)
+        if scrubber._gs_pressed == "prev" then
+            paintIconWhite(bb, icon_l, left_arrow_x, arrow_l_y, false, (GridSimpleLandscapeView.pressRect(scrubber, "prev")))
+        else
+            icon_l.fgcolor = Blitbuffer.COLOR_BLACK
+            icon_l:paintTo(bb, left_arrow_x, arrow_l_y)
+        end
     end
     if icon_r then
-        icon_r.fgcolor = Blitbuffer.COLOR_BLACK
-        icon_r:paintTo(bb, right_arrow_x, arrow_r_y)
+        if scrubber._gs_pressed == "next" then
+            paintIconWhite(bb, icon_r, right_arrow_x, arrow_r_y, false, (GridSimpleLandscapeView.pressRect(scrubber, "next")))
+        else
+            icon_r.fgcolor = Blitbuffer.COLOR_BLACK
+            icon_r:paintTo(bb, right_arrow_x, arrow_r_y)
+        end
     end
 
-    scrubber._gs_prev_dimen = Geom:new{ x = panel_x, y = panel_y, w = pad_x + arrow_area_w, h = panel_h }
+    -- ‹ y › simétricos: los dos arrancan debajo de la ✕
     local next_y_start = scrubber._gs_close_dimen.y + scrubber._gs_close_dimen.h
+    scrubber._gs_prev_dimen = Geom:new{
+        x = panel_x,
+        y = next_y_start,
+        w = pad_x + arrow_area_w,
+        h = panel_y + panel_h - next_y_start,
+    }
     scrubber._gs_next_dimen = Geom:new{ 
         x = page_x + page_w, 
         y = next_y_start, 
@@ -272,6 +438,15 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
         h = panel_y + panel_h - next_y_start 
     }
     scrubber._gs_page_dimen = Geom:new{ x = page_x, y = page_y, w = page_w, h = page_h }
+
+    -- ✕ apretada: círculo negro + icono blanco (solo sus píxeles, sin recuadro)
+    if icon_x and scrubber._gs_pressed == "close" then
+        local pr, prad = GridSimpleLandscapeView.pressRect(scrubber, "close")
+        if pr then
+            paintRoundRect(bb, pr.x, pr.y, pr.w, pr.h, prad, Blitbuffer.COLOR_BLACK)
+            paintIconWhite(bb, icon_x, xx, xy, false, pr)
+        end
+    end
 
     -- Información de lectura (% · Pág. X / Y) al pie de la tarjeta
     if scrubber.tw_info then

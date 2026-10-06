@@ -75,7 +75,24 @@ local function isFullPage()
     return val == true or val == "true" or val == 1
 end
 
+-- ¿Documento de página fija (cómic / PDF)? Ahí cada página puede tener su propia proporción.
+local function isFixedPageDoc(scrubber)
+    if scrubber._is_comic then return true end
+    local doc = scrubber.ui and scrubber.ui.document
+    local ext = (doc and doc.file and doc.file:match("%.([%a%d]+)$")) or ""
+    return ext:lower() == "pdf"
+end
+
 local function getLandscapeAspectRatio(scrubber)
+    local is_fixed = isFixedPageDoc(scrubber)
+
+    -- 1. Si es un EPUB/Libro de texto normal, el texto se reacomoda y llena
+    -- la pantalla apaisada. Su proporción natural ES la pantalla (sw / sh).
+    if not is_fixed then
+        return scrubber._sw / scrubber._sh
+    end
+
+    -- 2. Solo para PDFs y Cómics (isFixedPageDoc) leemos la proporción física real.
     local doc = scrubber.ui and scrubber.ui.document
     if doc and type(doc.getPageDimension) == "function" then
         local ok, dim = pcall(function() return doc:getPageDimension(scrubber._cur_page) end)
@@ -83,7 +100,9 @@ local function getLandscapeAspectRatio(scrubber)
             return dim.w / dim.h
         end
     end
-    return scrubber._sw / scrubber._sh
+    
+    -- 3. Fallback seguro por si falla la lectura del cómic: asumimos hoja vertical.
+    return scrubber._sh / scrubber._sw
 end
 
 function GridLandscapeView.getThumbDims(scrubber)
@@ -155,6 +174,7 @@ function GridLandscapeView.paint(scrubber, bb)
     local all_bms = scrubber:_getAllBookmarks()
     scrubber._center_bm_touch_dimen = nil
     scrubber._slot_dimens = {}
+    local is_fixed = isFixedPageDoc(scrubber)
 
     for idx = 1, 3 do
         local slot = scrubber._grid_tiles[idx]
@@ -174,17 +194,30 @@ function GridLandscapeView.paint(scrubber, bb)
 
                 local render_bb = slot.tile_bb
                 local must_free = false
-                if math.abs(tw - box_w) > 4 or math.abs(th - box_h) > 4 then
-                    local ok, sc = pcall(function() return slot.tile_bb:scale(box_w, box_h) end)
+                -- Solo se reduce (conservando la proporción) si no entra en la celda; nunca se estira
+                if tw > box_w or th > box_h then
+                    local f = math.min(box_w / tw, box_h / th)
+                    local nw = math.max(1, math.floor(tw * f))
+                    local nh = math.max(1, math.floor(th * f))
+                    local ok, sc = pcall(function() return slot.tile_bb:scale(nw, nh) end)
                     if ok and sc then render_bb = sc; must_free = true end
                 end
 
-                local ox = box_x
-                local oy = box_y
+                -- La página se dibuja a su tamaño real, centrada en la celda
+                local bw, bh = render_bb:getWidth(), render_bb:getHeight()
+                local ox = box_x + math.floor((box_w - bw) / 2)
+                local oy = box_y + math.floor((box_h - bh) / 2)
+
+                -- Recuadro real de la página (contorno, marcador y flash lo siguen)
+                local pg_x, pg_y, pg_w, pg_h = box_x, box_y, box_w, box_h
+                if bw < box_w - 2 or bh < box_h - 2 then
+                    pg_x, pg_y, pg_w, pg_h = ox, oy, bw, bh
+                end
+
                 local src_x = 0
                 local src_y = 0
-                local blit_w = box_w
-                local blit_h = box_h
+                local blit_w = bw
+                local blit_h = bh
 
                 if ox < 0 then
                     src_x = -ox
@@ -212,54 +245,58 @@ function GridLandscapeView.paint(scrubber, bb)
                 end
 
                 if is_cur then
-                    local bw, bh = S(28), S(46)
-                    local bx = box_x + box_w - bw - S(14) - border
-                    local by = box_y + border
-                    scrubber._center_bm_touch_dimen = Geom:new{ x = bx - S(10), y = by, w = bw + S(20), h = bh + S(20) }
+                    local bmw, bmh = S(28), S(46)
+                    local bx = pg_x + pg_w - bmw - S(14) - border
+                    local by = pg_y + border
+                    scrubber._center_bm_touch_dimen = Geom:new{ x = bx - S(10), y = by, w = bmw + S(20), h = bmh + S(20) }
                 end
 
-                if is_bmed and (box_x + box_w) <= sw and (box_x + box_w) >= 0 then
-                    local bw, bh = S(28), S(46)
-                    local bx = box_x + box_w - bw - S(14) - border
-                    local by = box_y + border
+                if is_bmed and (pg_x + pg_w) <= sw and (pg_x + pg_w) >= 0 then
+                    local bmw, bmh = S(28), S(46)
+                    local bx = pg_x + pg_w - bmw - S(14) - border
+                    local by = pg_y + border
 
                     local mask_x = bx - S(2)
                     local mask_y = by
-                    local mask_w = (box_x + box_w - border) - mask_x
+                    local mask_w = (pg_x + pg_w - border) - mask_x
                     local mask_h = S(26)
 
                     bb:paintRect(mask_x, mask_y, mask_w, mask_h, Blitbuffer.COLOR_WHITE)
-                    drawBookmarkRibbon(bb, bx, by, bw, bh, Blitbuffer.COLOR_BLACK)
+                    drawBookmarkRibbon(bb, bx, by, bmw, bmh, Blitbuffer.COLOR_BLACK)
                 end
 
                 -- Puntito gris en la esquina superior izquierda de la página de origen
                 if tonumber(slot.page) == tonumber(scrubber._origin_page) then
                     local dot_sz = S(8)
                     local dot_off = S(8)
-                    local dx = box_x + dot_off + border
-                    local dy = box_y + dot_off + border
+                    local dx = pg_x + dot_off + border
+                    local dy = pg_y + dot_off + border
                     paintRoundRect(bb, dx, dy, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
                 end
 
-                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                bb:paintBorder(pg_x, pg_y, pg_w, pg_h, border, Blitbuffer.COLOR_BLACK, 0)
             else
                 local ox = math.max(0, box_x)
                 local ow = math.min(sw - ox, (box_x + box_w) - ox)
                 if ow > 0 then
-                    bb:paintRect(ox, box_y, ow, box_h, Blitbuffer.COLOR_WHITE)
+                    if not is_fixed then
+                        bb:paintRect(ox, box_y, ow, box_h, Blitbuffer.COLOR_WHITE)
+                    end
                     if slot.error then
                         if not scrubber._tw_grid_error then
                             scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
                         end
                         local etsz = scrubber._tw_grid_error:getSize()
                         scrubber._tw_grid_error:paintTo(bb, box_x + math.floor((box_w - etsz.w) / 2), box_y + math.floor((box_h - etsz.h) / 2))
-                    elseif slot.loading then
+                    elseif slot.loading and not is_fixed then
                         if (box_x + math.floor(box_w / 2)) >= 0 and (box_x + math.floor(box_w / 2)) <= sw then
                             bb:paintRect(box_x + math.floor(box_w / 2) - 1, box_y + math.floor(box_h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
                         end
                     end
                 end
-                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                if not is_fixed then
+                    bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                end
             end
         end
     end

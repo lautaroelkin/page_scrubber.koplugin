@@ -213,7 +213,11 @@ local function processTile(tile, req_w, req_h)
     if not ok_dim or not w or not h or w <= 0 or h <= 0 then return nil end
 
     if w > req_w + 4 or h > req_h + 4 then
-        local ok, scaled = pcall(function() return tile.bb:scale(req_w, req_h) end)
+        -- Reducimos conservando la proporción real de la página (nunca se estira a req_w x req_h)
+        local f = math.min(req_w / w, req_h / h)
+        local nw = math.max(1, math.floor(w * f))
+        local nh = math.max(1, math.floor(h * f))
+        local ok, scaled = pcall(function() return tile.bb:scale(nw, nh) end)
         if ok and scaled then return { bb = scaled, is_scaled = true } end
     end
     
@@ -546,6 +550,10 @@ function PageScrubber:init()
     
     local gs_x_sz = S(36)
     self.icon_gs_x = createSafeIcon("✕", "x.svg", gs_x_sz)
+    -- Versiones blancas para el efecto al apretar del grid simple (fondo negro)
+    self.icon_gs_x_inv             = createSafeIcon("✕", "x.svg", gs_x_sz, Blitbuffer.COLOR_WHITE)
+    self.icon_gs_chevron_left_inv  = createSafeIcon("‹", "chevron-left.svg", gs_chevron_sz, Blitbuffer.COLOR_WHITE)
+    self.icon_gs_chevron_right_inv = createSafeIcon("›", "chevron-right.svg", gs_chevron_sz, Blitbuffer.COLOR_WHITE)
 
     self.tw_fb_l = TextWidget:new{ text = "‹", face = Font:getFace("cfont", S(48)), fgcolor = Blitbuffer.COLOR_BLACK }
     self.tw_fb_r = TextWidget:new{ text = "›", face = Font:getFace("cfont", S(48)), fgcolor = Blitbuffer.COLOR_BLACK }
@@ -706,6 +714,7 @@ function PageScrubber:init()
         }
     else
         self.ges_events = {
+            Touch       = { GestureRange:new{ ges = "touch",       range = self.dimen } },
             Tap         = { GestureRange:new{ ges = "tap",         range = self.dimen } },
             Pan         = { GestureRange:new{ ges = "pan",         range = self.dimen } },
             PanRelease  = { GestureRange:new{ ges = "pan_release", range = Geom:new{ x = 0, y = 0, w = sw, h = sh } } },
@@ -1150,7 +1159,7 @@ function PageScrubber:onPrevPage()
         UIManager:setDirty(self, "ui", self.dimen)
         return true
     else
-        local jump = (self._view_mode == "grid_six") and 6 or 1
+        local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
         self:_previewPage(self._cur_page - jump, false) 
     end
     return true 
@@ -1168,7 +1177,7 @@ function PageScrubber:onNextPage()
         UIManager:setDirty(self, "ui", self.dimen)
         return true
     else
-        local jump = (self._view_mode == "grid_six") and 6 or 1
+        local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
         self:_previewPage(self._cur_page + jump, false) 
     end
     return true 
@@ -1505,8 +1514,9 @@ function PageScrubber:_updateTexts()
     self.tw_chapter:setText(self:_getChapter(self._cur_page))
     
     if self._view_mode == "grid_six" then
-        local start_raw = math.max(1, self._cur_page - 1)
-        local end_raw = math.min(self._cur_page + 4, self._total_pages)
+        local g6_count, g6_origin = self:_g6Count(), self:_g6Origin()
+        local start_raw = math.max(1, self._cur_page - (g6_origin - 1))
+        local end_raw = math.min(self._cur_page + (g6_count - g6_origin), self._total_pages)
         
         local disp_start = self:_getDisplayPageInfo(start_raw)
         local disp_end = self:_getDisplayPageInfo(end_raw)
@@ -1515,6 +1525,19 @@ function PageScrubber:_updateTexts()
     else
         self.tw_info:setText(pct .. "%  ·  " .. disp_page .. " / " .. disp_total)
     end
+end
+
+-- Multi Grid: cantidad de páginas en pantalla (6 ó 9) y slot donde va la página actual (2 ó 5).
+-- Aplica tanto en vertical como en horizontal.
+function PageScrubber:_g6Count()
+    if G_reader_settings and G_reader_settings:readSetting("page_scrubber_multigrid_nine") == true then
+        return 9
+    end
+    return 6
+end
+
+function PageScrubber:_g6Origin()
+    return (self:_g6Count() == 9) and 5 or 2
 end
 
 function PageScrubber:_gridSlotDimen(idx)
@@ -1546,8 +1569,10 @@ function PageScrubber:_updateGridPages()
             end
         end
     elseif self._view_mode == "grid_six" then
-        self._grid_dimen.y = self._top_bar_dimen.y + self._top_bar_dimen.h + S(26)
-        self._grid_dimen.h = self._bar_dimen.y - self._grid_dimen.y - S(26)
+        -- Con 9 páginas se reduce el margen vertical para ganar altura
+        local g6_vpad = (self:_g6Count() == 9) and S(6) or S(26)
+        self._grid_dimen.y = self._top_bar_dimen.y + self._top_bar_dimen.h + g6_vpad
+        self._grid_dimen.h = self._bar_dimen.y - self._grid_dimen.y - g6_vpad
     elseif self._view_mode == "grid_simple" then
         self._grid_dimen.y = 0
         self._grid_dimen.h = self._bar_dimen.y
@@ -1675,8 +1700,9 @@ function PageScrubber:_updateGridPages()
             resolveSlot(idx, self._cur_page + offset_p, "grid")
         end
     elseif self._view_mode == "grid_six" then
-        for idx = 1, 6 do
-            resolveSlot(idx, self._cur_page + (idx - 2), "grid_six")
+        local g6_origin = self:_g6Origin()
+        for idx = 1, self:_g6Count() do
+            resolveSlot(idx, self._cur_page + (idx - g6_origin), "grid_six")
         end
     else
         resolveSlot(2, self._cur_page, self._view_mode)
@@ -1698,10 +1724,18 @@ function PageScrubber:_updateGridPages()
             end
         end
     elseif self._view_mode == "grid_six" then
-        if self._grid_tiles[2] and self._grid_tiles[2].page and not self._grid_tiles[2].tile_bb then
-            center_missing = 2
+        local g6_origin, g6_count = self:_g6Origin(), self:_g6Count()
+        if self._grid_tiles[g6_origin] and self._grid_tiles[g6_origin].page and not self._grid_tiles[g6_origin].tile_bb then
+            center_missing = g6_origin
         end
-        for _, idx in ipairs({ 3, 1, 4, 5, 6 }) do
+        -- Orden de carga: vecina derecha, vecina izquierda y luego el resto
+        local g6_order = { g6_origin + 1, g6_origin - 1 }
+        for i = 1, g6_count do
+            if i ~= g6_origin and i ~= g6_origin + 1 and i ~= g6_origin - 1 then
+                g6_order[#g6_order + 1] = i
+            end
+        end
+        for _, idx in ipairs(g6_order) do
             local slot = self._grid_tiles[idx]
             if slot and slot.page and not slot.tile_bb then
                 table.insert(side_missing, idx)
@@ -3222,8 +3256,9 @@ function PageScrubber:_previewPage(page, is_dragging)
 
     -- Actualizamos los números lógicos de los slots de inmediato
     if self._view_mode == "grid_six" and self._grid_tiles then
-        for idx = 1, 6 do
-            local p = self._cur_page + (idx - 2)
+        local g6_origin = self:_g6Origin()
+        for idx = 1, self:_g6Count() do
+            local p = self._cur_page + (idx - g6_origin)
             if p >= 1 and p <= self._total_pages then
                 self._grid_tiles[idx] = self._grid_tiles[idx] or {}
                 if self._grid_tiles[idx].page ~= p then
@@ -4157,6 +4192,76 @@ PageScrubber.executeAction = PageScrubber._closeAndShow
 PageScrubber.executeScrubberAction = PageScrubber._closeAndShow
 PageScrubber._closeAndRun = PageScrubber._closeAndShow
 
+-- Botón Library: va al destino de "Start with..." de KOReader.
+--   * "homescreen_simpleui" -> evento de SimpleUI (el mismo del gesto "Go to Homescreen").
+--   * resto -> cierre nativo del libro (ReaderUI:onClose + showFileManager, igual que
+--     ReaderUI:onHome) y, EN EL MISMO TICK, ir a home_dir y abrir historial/favoritos/atajos
+--     como hace reader.lua al arrancar (sin esperar con timers, para que no se vea el explorador).
+-- Nunca toca self después del cierre del scrubber.
+function PageScrubber:_goToLibrary()
+    local ui = self.ui
+    local start_with = G_reader_settings and G_reader_settings:readSetting("start_with") or "filemanager"
+
+    self:_closeStay(function()
+        -- 1) SimpleUI homescreen
+        if start_with == "homescreen_simpleui" and ui and ui.handleEvent then
+            local ok, handled = pcall(function()
+                return ui:handleEvent(Event:new("SimpleUIGoHomescreen"))
+            end)
+            if ok and handled then return end
+        end
+
+        -- 2) Cierre nativo + destino según start_with
+        local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+        local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
+        if not ok_fm then return end
+
+        local function goDestination()
+            local fm = FileManager.instance
+            if not fm then return false end
+            local home = G_reader_settings and G_reader_settings:readSetting("home_dir")
+            if home and fm.file_chooser then
+                pcall(function() fm.file_chooser:changeToPath(home) end)
+            end
+            pcall(function()
+                if start_with == "history" and fm.history then
+                    fm.history:onShowHist()
+                elseif start_with == "favorites" and fm.collections then
+                    fm.collections:onShowColl()
+                elseif start_with == "folder_shortcuts" and fm.folder_shortcuts then
+                    fm.folder_shortcuts:onShowFolderShortcutsDialog()
+                end
+            end)
+            return true
+        end
+
+        local rui = ok_rui and ReaderUI.instance
+        local closed = false
+        if rui then
+            local file = rui.document and rui.document.file
+            closed = pcall(function()
+                rui:onClose()
+                rui:showFileManager(file)
+            end)
+        end
+
+        if closed and goDestination() then return end
+
+        -- Fallback: evento nativo "Home" y esperar al FileManager
+        if not closed and ui and ui.handleEvent then
+            pcall(function() ui:handleEvent(Event:new("Home")) end)
+        end
+        local tries = 0
+        local function poll()
+            tries = tries + 1
+            local reader_gone = not (ok_rui and ReaderUI.instance)
+            if reader_gone and goDestination() then return end
+            if tries < 30 then UIManager:scheduleIn(0.1, poll) end
+        end
+        UIManager:scheduleIn(0.2, poll)
+    end)
+end
+
 function PageScrubber:_startHold(action)
     self._hold_active = true
     self._hold_token = self._hold_token + 1
@@ -4178,7 +4283,7 @@ function PageScrubber:_startHold(action)
         end
 
         local target_page = self._cur_page
-        local jump = (self._view_mode == "grid_six") and 6 or 1
+        local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
 
         if action == "prev" then 
             if target_page > 1 then 
@@ -4207,6 +4312,68 @@ end
 function PageScrubber:_cancelHold()
     self._hold_active = false
     self._hold_token = self._hold_token + 1
+    if self._gs_pressed then self:_gsClearPressed() end
+end
+
+-- ==========================================================================
+-- Efecto visual al apretar en grid simple (✕ y ‹ ›). SOLO dibujo: no cambia
+-- cómo se reconocen ni se ejecutan los gestos (tap / hold / swipe).
+-- ==========================================================================
+function PageScrubber:_gsRefreshPress(which)
+    if self._closing or self._view_mode ~= "grid_simple" then return end
+    local mod_name = (self._sw and self._sh and self._sw > self._sh) and "grid_simple_landscape_view" or "grid_simple_view"
+    local ok, GSV = pcall(require, mod_name)
+    if not (ok and GSV and GSV.pressRect) then return end
+    local r = GSV.pressRect(self, which)
+    if not r then return end
+    local pad = self.S(4)
+    UIManager:setDirty(self, "ui", Geom:new{
+        x = math.max(0, r.x - pad), y = math.max(0, r.y - pad),
+        w = r.w + pad * 2,          h = r.h + pad * 2,
+    })
+end
+
+function PageScrubber:_gsClearPressed()
+    local which = self._gs_pressed
+    if not which then return end
+    self._gs_pressed = nil
+    self._gs_press_token = (self._gs_press_token or 0) + 1
+    self:_gsRefreshPress(which)
+end
+
+function PageScrubber:_gsSetPressed(which, duration)
+    if self._closing or self._gs_pressed == which then return end
+    local prev = self._gs_pressed
+    self._gs_pressed = which
+    self._gs_press_token = (self._gs_press_token or 0) + 1
+    if prev then self:_gsRefreshPress(prev) end
+    self:_gsRefreshPress(which)
+
+    -- Se apaga solo (si nunca llega un "soltar"); mientras dura un hold sigue encendido
+    local token = self._gs_press_token
+    local function auto_off()
+        if self._closing or self._gs_press_token ~= token or not self._gs_pressed then return end
+        if self._hold_active and not duration then
+            UIManager:scheduleIn(1.0, auto_off)
+            return
+        end
+        self:_gsClearPressed()
+    end
+    UIManager:scheduleIn(duration or 1.0, auto_off)
+end
+
+function PageScrubber:onTouch(_, ges)
+    if self._closing or self._view_mode ~= "grid_simple" or not (ges and ges.pos) then return false end
+    local which
+    if self._gs_close_dimen and ges.pos:intersectWith(self._gs_close_dimen) then
+        which = "close"
+    elseif self._gs_prev_dimen and ges.pos:intersectWith(self._gs_prev_dimen) then
+        which = "prev"
+    elseif self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
+        which = "next"
+    end
+    if which then self:_gsSetPressed(which) end
+    return false   -- nunca consume el evento: el táctil sigue exactamente igual que antes
 end
 
 function PageScrubber:onHide()
@@ -4248,7 +4415,7 @@ function PageScrubber:onTap(_, ges)
         if self._gsix_prev_dimen and ges.pos:intersectWith(self._gsix_prev_dimen) then
             self:_flashAndDo("gsix_prev", self._gsix_prev_dimen, function()
                 self._force_menu_sync = true
-                local delta = self.is_rtl and 6 or -6
+                local delta = self.is_rtl and self:_g6Count() or -self:_g6Count()
                 self:_previewPage(self._cur_page + delta, false)
             end)
             return true
@@ -4256,7 +4423,7 @@ function PageScrubber:onTap(_, ges)
         if self._gsix_next_dimen and ges.pos:intersectWith(self._gsix_next_dimen) then
             self:_flashAndDo("gsix_next", self._gsix_next_dimen, function()
                 self._force_menu_sync = true
-                local delta = self.is_rtl and -6 or 6
+                local delta = self.is_rtl and -self:_g6Count() or self:_g6Count()
                 self:_previewPage(self._cur_page + delta, false)
             end)
             return true
@@ -4287,12 +4454,14 @@ function PageScrubber:onTap(_, ges)
             return true
         end
         if self._gs_prev_dimen and ges.pos:intersectWith(self._gs_prev_dimen) then
+            self:_gsSetPressed("prev", 0.25)
             self._force_menu_sync = true
             local delta = self.is_rtl and 1 or -1
             self:_previewPage(self._cur_page + delta, false)
             return true
         end
         if self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
+            self:_gsSetPressed("next", 0.25)
             self._force_menu_sync = true
             local delta = self.is_rtl and -1 or 1
             self:_previewPage(self._cur_page + delta, false)
@@ -4686,9 +4855,10 @@ function PageScrubber:onTap(_, ges)
         end
 
         if self._lib_dimen and ges.pos:intersectWith(self._lib_dimen) then
-            self:_flashAndDo("lib", self._lib_dimen, function() self:_closeAndShow("Home") end)
+            self:_flashAndDo("lib", self._lib_dimen, function() self:_goToLibrary() end)
             return true
         end
+        
         if self._fn_dimen and ges.pos:intersectWith(self._fn_dimen) then
             local ScrubberMenu = require("scrubber_menu")
             local UIManager = require("ui/uimanager")
@@ -4970,7 +5140,7 @@ function PageScrubber:onSwipe(_, ges)
         end
     end
 
-    local jump = (self._view_mode == "grid_six") and 6 or 1
+    local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
     local swipe_forward = (ges.direction == "west")
     local swipe_backward = (ges.direction == "east")
     if self.is_rtl then
@@ -5061,9 +5231,11 @@ function PageScrubber:onHold(_, ges)
 
     if self._view_mode == "grid_simple" then
         if self._gs_prev_dimen and ges.pos:intersectWith(self._gs_prev_dimen) then
+            self:_gsSetPressed("prev")
             self:_startHold(self.is_rtl and "next" or "prev"); return true
         end
         if self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
+            self:_gsSetPressed("next")
             self:_startHold(self.is_rtl and "prev" or "next"); return true
         end
         if self._gs_page_dimen and ges.pos:intersectWith(self._gs_page_dimen) then
@@ -5123,9 +5295,10 @@ function PageScrubber:onHold(_, ges)
             if ok and GridSixView and GridSixView.getSlotDimens then
                 local slots = GridSixView.getSlotDimens(self)
                 if slots then
-                    for idx = 1, 6 do
+                    local g6_origin = self:_g6Origin()
+                    for idx = 1, self:_g6Count() do
                         if slots[idx] and ges.pos:intersectWith(slots[idx]) then
-                            local target_page = self._cur_page + (idx - 2)
+                            local target_page = self._cur_page + (idx - g6_origin)
                             if target_page >= 1 and target_page <= self._total_pages then
                                 self._view_mode = "split"
                                 self._active_tab = "bookmarks"
@@ -5241,6 +5414,7 @@ function PageScrubber:onCloseWidget()
         self._tw_tab_sort, self._tw_tab_bm, self._tw_tab_hl, self._tw_tab_note,
         self.tw_booktitle, self.tw_chapter, self.tw_info,
         self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_gallery, self.tw_toc, self.tw_grid_toggle, self.tw_x,
+        self.icon_gs_x_inv, self.icon_gs_chevron_left_inv, self.icon_gs_chevron_right_inv,
         self.tw_ch_l, self.tw_ch_r,
         self.tw_ctrl_prev, self.tw_ctrl_next,
         self.tw_fb_l, self.tw_fb_r,

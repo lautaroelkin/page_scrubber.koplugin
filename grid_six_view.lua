@@ -1,6 +1,7 @@
 --[[
     page_scrubber.koplugin/grid_six_view.lua
-    Renderizador y manejador táctil para la vista de 6 páginas (3x2) en vertical:
+    Renderizador y manejador táctil para la vista multi-grid en vertical (6 páginas 3x2, o 9 páginas 3x3 si
+    el ajuste page_scrubber_multigrid_nine está activo):
     - Proporción real de página idéntica al documento (sin achatamiento ni recuadros desfasados).
     - Contorno fiel al borde exacto de la miniatura.
     - Ocultamiento de la orejita nativa mediante máscara blanca detrás del bookmark.
@@ -23,7 +24,7 @@ local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, rou
     if not round_tl then bb:paintRect(x, y, r, r, color) end
     if not round_tr then bb:paintRect(x + w - r, y, r, r, color) end
     if not round_bl then bb:paintRect(x, y + h - r, r, r, color) end
-    if not round_br then bb:paintRect(x + w - r, y, r, r, color) end
+    if not round_br then bb:paintRect(x + w - r, y + h - r, r, r, color) end
     for j = 0, r - 1 do
         local arc = math.ceil(math.sqrt(r*r - (r-j-0.5)*(r-j-0.5)))
         if arc > 0 then
@@ -63,16 +64,51 @@ local function getDocPageAspectRatio(scrubber)
     return Screen:getWidth() / Screen:getHeight()
 end
 
+
+-- ¿Documento de página fija (cómic / PDF)? Ahí cada página puede tener su propia proporción.
+local function isFixedPageDoc(scrubber)
+    if scrubber._is_comic then return true end
+    local doc = scrubber.ui and scrubber.ui.document
+    local ext = (doc and doc.file and doc.file:match("%.([%a%d]+)$")) or ""
+    return ext:lower() == "pdf"
+end
+
+-- Recuadro que ocupa realmente la página dentro de la celda: la miniatura se dibuja a su
+-- proporción real (centrada) y el contorno la sigue, igual que en el grid de 3.
+local function getPageBox(rect, slot)
+    local tb = slot and slot.tile_bb
+    if tb then
+        local ok, tw, th = pcall(function() return tb:getWidth(), tb:getHeight() end)
+        if ok and tw and th and tw > 0 and th > 0 then
+            local bw, bh = math.min(tw, rect.w), math.min(th, rect.h)
+            if bw < rect.w - 2 or bh < rect.h - 2 then
+                return rect.x + math.floor((rect.w - bw) / 2),
+                       rect.y + math.floor((rect.h - bh) / 2), bw, bh
+            end
+        end
+    end
+    return rect.x, rect.y, rect.w, rect.h
+end
+
 local GridSixView = {}
 
--- Calcula la matriz 3x2 ajustada a la proporción real de la página
+-- Devuelve cols, rows y total de celdas según el ajuste "Multi Grid: Show 9 pages"
+function GridSixView.getLayout()
+    local nine = G_reader_settings and G_reader_settings:readSetting("page_scrubber_multigrid_nine") == true
+    if nine then return 3, 3, 9 end
+    return 3, 2, 6
+end
+
+-- Calcula la matriz (3x2 o 3x3) ajustada a la proporción real de la página
 function GridSixView.getSlotDimens(scrubber)
     local gd = scrubber._grid_dimen
     local S = scrubber.S
-    local margin_x = S(16)
-    local gap_x = S(12)
-    local gap_y = S(16)
-    local cols, rows = 3, 2
+    local cols, rows = GridSixView.getLayout()
+    local is_nine = (rows == 3)
+    -- En 9 páginas los márgenes son más chicos para aprovechar la pantalla
+    local margin_x = is_nine and S(10) or S(16)
+    local gap_x = is_nine and S(8) or S(12)
+    local gap_y = is_nine and S(5) or S(16)
 
     local max_cell_w = math.floor((gd.w - (margin_x * 2) - (gap_x * (cols - 1))) / cols)
     local max_cell_h = math.floor((gd.h - (gap_y * (rows - 1))) / rows)
@@ -85,6 +121,27 @@ function GridSixView.getSlotDimens(scrubber)
     if cell_h > max_cell_h then
         cell_h = max_cell_h
         cell_w = math.floor(cell_h * ratio)
+    end
+
+    -- En 9 páginas: miniaturas un poco más chicas para dar más aire a todo
+    if is_nine then
+        local SHRINK = 0.94
+        cell_w = math.floor(cell_w * SHRINK)
+        cell_h = math.floor(cell_h * SHRINK)
+        -- Espacio vertical repartido por igual entre filas y bordes
+        local space_v = math.floor((gd.h - (cell_h * rows)) / (rows + 1))
+        if space_v > gap_y then gap_y = space_v end
+    end
+
+    -- En 9 páginas: el espacio entre página y borde es un poco menor (EDGE_RATIO) que entre páginas
+    if is_nine then
+        local EDGE_RATIO = 0.7
+        local free = gd.w - (cell_w * cols)
+        local gap = math.floor(free / (2 * EDGE_RATIO + (cols - 1)))
+        if gap >= 0 then
+            gap_x = gap
+            margin_x = math.floor(gap * EDGE_RATIO)
+        end
     end
 
     local grid_w = cell_w * cols + gap_x * (cols - 1)
@@ -110,11 +167,14 @@ end
 
 function GridSixView.paint(scrubber, bb)
     local slots = GridSixView.getSlotDimens(scrubber)
+    local _, _, total = GridSixView.getLayout()
     local S = scrubber.S
     local font_badge = Font:getFace("cfont", S(12))
     local all_bms = scrubber:_getAllBookmarks() or {}
 
-    for idx = 1, 6 do
+    local is_fixed = isFixedPageDoc(scrubber)
+
+    for idx = 1, total do
         local rect = slots[idx]
         local slot = scrubber._grid_tiles[idx]
         
@@ -128,11 +188,14 @@ function GridSixView.paint(scrubber, bb)
                 local tw, th = slot.tile_bb:getWidth(), slot.tile_bb:getHeight()
                 local render_bb = slot.tile_bb
 
-                -- Cacheamos el escalado en memoria para no reescalar en cada frame
-                if math.abs(tw - rect.w) > 4 or math.abs(th - rect.h) > 4 then
-                    local ok, sc = pcall(function() return slot.tile_bb:scale(rect.w, rect.h) end)
+                -- Solo reducimos (conservando proporción) si la miniatura no entra en la celda.
+                -- Nunca se estira a rect.w x rect.h: eso aplastaba cómics y PDF.
+                if tw > rect.w or th > rect.h then
+                    local f = math.min(rect.w / tw, rect.h / th)
+                    local nw = math.max(1, math.floor(tw * f))
+                    local nh = math.max(1, math.floor(th * f))
+                    local ok, sc = pcall(function() return slot.tile_bb:scale(nw, nh) end)
                     if ok and sc then
-                        if slot.is_scaled then pcall(function() slot.tile_bb:free() end) end
                         slot.tile_bb = sc
                         slot.is_scaled = true
                         render_bb = sc
@@ -147,6 +210,8 @@ function GridSixView.paint(scrubber, bb)
                 bb:blitFrom(render_bb, ox, oy, 0, 0, bw, bh)
 
                 -- Marcador y solapa blanca para tapar la orejita nativa
+                local box_x, box_y, box_w, box_h = getPageBox(rect, slot)
+
                 local is_bmed = false
                 if scrubber._cached_bms_map then
                     is_bmed = scrubber._cached_bms_map[tonumber(slot.page)] or false
@@ -158,12 +223,12 @@ function GridSixView.paint(scrubber, bb)
 
                 if is_bmed then
                     local rw, rh = S(20), S(34)
-                    local rx = rect.x + rect.w - rw - S(8) - border
-                    local ry = rect.y + border
+                    local rx = box_x + box_w - rw - S(8) - border
+                    local ry = box_y + border
 
                     local mask_x = rx - S(2)
                     local mask_y = ry
-                    local mask_w = (rect.x + rect.w - border) - mask_x
+                    local mask_w = (box_x + box_w - border) - mask_x
                     local mask_h = S(22)
 
                     bb:paintRect(mask_x, mask_y, mask_w, mask_h, Blitbuffer.COLOR_WHITE)
@@ -180,8 +245,11 @@ function GridSixView.paint(scrubber, bb)
                 bb:paintRect(rect.x + math.floor(rect.w / 2) - 1, rect.y + math.floor(rect.h / 2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
             end
 
-            -- Contorno exacto en los bordes de la página
-            bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+            -- Contorno exacto en los bordes de la página real (sigue a la miniatura, no a la celda)
+            local box_x, box_y, box_w, box_h = getPageBox(rect, slot)
+            if slot.tile_bb or not is_fixed then
+                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+            end
 
             -- Pastilla con número de página (SIEMPRE VISIBLE: cargada, cargando o con error)
             if not scrubber._tw_gsix_page then
@@ -193,8 +261,8 @@ function GridSixView.paint(scrubber, bb)
             local tsz = scrubber._tw_gsix_page:getSize()
             local badge_h = tsz.h + S(4)
             local badge_w = math.max(tsz.w + S(10), badge_h)
-            local bx = rect.x + math.floor((rect.w - badge_w) / 2)
-            local by = rect.y + rect.h - badge_h
+            local bx = box_x + math.floor((box_w - badge_w) / 2)
+            local by = box_y + box_h - badge_h
 
             paintRoundRect(bb, bx, by, badge_w, badge_h, math.floor(badge_h / 2), Blitbuffer.COLOR_BLACK)
             scrubber._tw_gsix_page:paintTo(bb, bx + math.floor((badge_w - tsz.w) / 2), by + math.floor((badge_h - tsz.h) / 2))
@@ -204,8 +272,9 @@ end
 
 function GridSixView.onTap(scrubber, ges)
     local slots = GridSixView.getSlotDimens(scrubber)
+    local _, _, total = GridSixView.getLayout()
     local S = scrubber.S
-    for idx = 1, 6 do
+    for idx = 1, total do
         local rect = slots[idx]
         if ges.pos:intersectWith(rect) then
             local slot = scrubber._grid_tiles[idx]
@@ -213,9 +282,10 @@ function GridSixView.onTap(scrubber, ges)
                 local rw, rh = S(20), S(34)
                 local bm_w = math.max(S(36), rw + S(16))
                 local bm_h = math.max(S(42), rh + S(10))
+                local box_x, box_y, box_w = getPageBox(rect, slot)
                 local bm_touch_rect = Geom:new{
-                    x = rect.x + rect.w - bm_w,
-                    y = rect.y,
+                    x = box_x + box_w - bm_w,
+                    y = box_y,
                     w = bm_w,
                     h = bm_h
                 }
