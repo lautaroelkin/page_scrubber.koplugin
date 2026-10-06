@@ -11,7 +11,9 @@ This plugin allows you to quickly flip back and forth through the book, with the
 *   **Split-View Annotations:** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
 *   **Redesigned Reading Pop-Ups :** Features a modern, pill-shaped floating dictionary and multi-word selection menu. It intelligently anchors away from your finger so it never blocks your text. Fully compatible with the AI Assistant, X-Ray, and other external plugins.
 *   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large) and even choose your own optional custom wallpaper.
-* **Mini Menu:** Quick-access overlay for device controls (toggle front light, day/night mode), custom shortcut execution (scrubber actions), and settings navigation.
+* **Quick Menu:** A quick-access overlay featuring two dedicated tabs for seamless reading management:
+  * **Quick Actions:** Instantly access device controls (toggle front light, day/night mode), execute custom shortcuts (scrubber actions), and navigate settings.
+  * **Typography (Aa):** Personalize your reading experience on the fly by selecting your favorite fonts, adjusting text size, and modifying line spacing.
 *   **Markdown Export:** Export your highlights and notes directly to a `.md` file on your device.
 *   **Native Integration:** Launch all widgets and access settings directly from KOReader's native top menu, or bind them to your own custom gestures.
 
@@ -33,8 +35,6 @@ Basically, it takes the native features, removes the friction, and puts them int
 > ⚠️¡! **Compatibility Note:** Page Scrubber is *not* compatible with the `2-reader-header.lua` user patch (it will cause blank thumbnails). If you want a reading header, please use the official **Bookend** plugin instead, which is 100% compatible.
 
 ---
-
-## 📱 Screenshots
 
 <table align="center" width="100%">
   <tr>
