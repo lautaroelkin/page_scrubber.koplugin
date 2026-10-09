@@ -235,6 +235,15 @@ function SplitLandscapeView.paint(scrubber, bb)
         local is_act = (scrubber._active_tab == id)
         local isz_t = icon and icon:getSize() or { w = S(18), h = S(18) }
 
+        -- Con un color elegido, la pestaña muestra el círculo de ese color y su cantidad
+        local sel_key, sel_count = nil, nil
+        if is_act then sel_key, sel_count = scrubber:_getSelectedColorInfo(id) end
+        if sel_key then
+            count = sel_count
+            local dot_d = math.min(isz_t.w, isz_t.h)
+            isz_t = { w = dot_d, h = dot_d }
+        end
+
         if not scrubber._tw_tab_count_normal then
             scrubber._tw_tab_count_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
             scrubber._tw_tab_count_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
@@ -243,7 +252,13 @@ function SplitLandscapeView.paint(scrubber, bb)
         tw_cnt.fgcolor = is_act and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
         tw_cnt:setText("(" .. tostring(count) .. ")")
         local csz = tw_cnt:getSize()
-        local w = isz_t.w + S(4) + csz.w + S(16)
+
+        -- Flechita para elegir color (solo en la pestaña activa y con más de un color)
+        local show_arrow = is_act and (id == "highlights" or id == "notes") and scrubber:_hasMultiColor(id)
+        local arrow_w, arrow_h, arrow_gap = S(10), S(6), S(7)
+        local arrow_extra = show_arrow and (arrow_w + arrow_gap) or 0
+
+        local w = arrow_extra + isz_t.w + S(4) + csz.w + S(16)
 
         if is_act then
             paintRoundRect(bb, cur_tab_x, tab_draw_y, w, tab_h, r_tab, Blitbuffer.COLOR_BLACK)
@@ -252,9 +267,26 @@ function SplitLandscapeView.paint(scrubber, bb)
             paintRoundRect(bb, cur_tab_x + S(1), tab_draw_y + S(1), w - S(2), tab_h - S(2), math.max(1, r_tab - S(1)), Blitbuffer.COLOR_WHITE)
         end
 
-        local tix = cur_tab_x + S(6)
+        local lead_x = cur_tab_x + S(8)
+        local tix = cur_tab_x + S(6) + arrow_extra
         local tiy = tab_draw_y + math.floor((tab_h - isz_t.h)/2)
-        if icon then
+
+        if show_arrow then
+            local ay = tab_draw_y + math.floor((tab_h - arrow_h) / 2)
+            if scrubber._color_menu_is_open then
+                scrubber:_paintChevronUp(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+            else
+                scrubber:_paintChevronDown(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+            end
+            scrubber._tab_arrow_dimen = Geom:new{
+                x = cur_tab_x, y = tab_draw_y,
+                w = math.max(S(30), tix - cur_tab_x - S(2)), h = tab_h,
+            }
+            scrubber._tab_arrow_tab_dimen = Geom:new{ x = cur_tab_x, y = tab_draw_y, w = w, h = tab_h }
+        end
+        if sel_key then
+            scrubber:_paintColorDot(bb, tix, tiy, isz_t.w, sel_key, Blitbuffer.COLOR_WHITE)
+        elseif icon then
             if is_act then
                 bb:paintRect(tix, tiy, isz_t.w, isz_t.h, Blitbuffer.COLOR_WHITE)
                 icon:paintTo(bb, tix, tiy)
@@ -270,6 +302,8 @@ function SplitLandscapeView.paint(scrubber, bb)
         return dim
     end
 
+    scrubber._tab_arrow_dimen = nil
+    scrubber._tab_arrow_tab_dimen = nil
     scrubber._tab_bm_dimen = drawTab("bookmarks", scrubber.icon_tab_bm, #(scrubber:_getAllBookmarks() or {}))
     scrubber._tab_hl_dimen = drawTab("highlights", scrubber.icon_tab_hl, #(scrubber._cached_hl or {}))
     scrubber._tab_note_dimen = drawTab("notes", scrubber.icon_tab_note, #(scrubber._cached_notes or {}))
@@ -386,7 +420,7 @@ function SplitLandscapeView.paint(scrubber, bb)
                 if type(src) == "table" then
                     for k, v in pairs(src) do
                         if type(v) == "table" then
-                            local p = tonumber(v.pageno) or tonumber(v.page) or tonumber(v.pos0)
+                            local p = scrubber:_getNumericalPage(v) or tonumber(v.page) or tonumber(v.pos0)
                             if not p and type(v.page) == "string" and scrubber.ui.document and scrubber.ui.document.getPageFromXPointer then
                                 pcall(function() p = scrubber.ui.document:getPageFromXPointer(v.page) end)
                             end
@@ -539,7 +573,7 @@ function SplitLandscapeView.paint(scrubber, bb)
             local is_del_pressed = (scrubber._pressed_btn == "confirm_del")
             paintRoundRect(bb, popup_x, popup_y, popup_w, confirm_h, S(12), Blitbuffer.COLOR_BLACK)
             if is_del_pressed then
-                paintRoundRect(bb, popup_x + S(3), popup_y + S(3), popup_w - S(6), confirm_h - S(6), S(9), Blitbuffer.COLOR_WHITE)
+                paintRoundRect(bb, popup_x + S(2), popup_y + S(2), popup_w - S(4), confirm_h - S(4), S(10), Blitbuffer.COLOR_WHITE)
             end
 
             local fg_col = is_del_pressed and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
@@ -552,9 +586,7 @@ function SplitLandscapeView.paint(scrubber, bb)
         end
 
         if scrubber._show_type_picker then
-            local b_thick_c = S(3)
-            paintRoundRect(bb, popup_x, popup_y, popup_w, confirm_h, S(12), Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, popup_x + b_thick_c, popup_y + b_thick_c, popup_w - b_thick_c*2, confirm_h - b_thick_c*2, math.max(1, S(12) - b_thick_c), Blitbuffer.COLOR_WHITE)
+            local b_thick_c = S(2)
 
             local current_drawer = "lighten"
             if scrubber._split_selected_item and scrubber._split_selected_item.annotation then
@@ -580,7 +612,23 @@ function SplitLandscapeView.paint(scrubber, bb)
                 { key = "strikeout",  icon = scrubber.icon_picker_st },
                 { key = "invert",     icon = scrubber.icon_picker_inv },
             }
-            local slot_w = math.floor((popup_w - S(8)) / #type_defs)
+            -- Círculo con el color del highlight (no aparece en "invert")
+            local color_key = scrubber:_getPickerColor(current_drawer)
+
+            -- Una fila, dos cajas separadas: [ los 4 tipos ]  [ círculo de color ]
+            local color_gap = S(6)
+            local color_sz  = math.floor(confirm_h * 0.68)   -- el circulo de color pesa menos que los 4 tipos
+            local types_w = popup_w - (color_key and (color_gap + color_sz) or 0)
+            local slot_w = math.floor((types_w - S(8)) / #type_defs)
+
+            paintRoundRect(bb, popup_x, popup_y, types_w, confirm_h, S(12), Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, popup_x + b_thick_c, popup_y + b_thick_c, types_w - b_thick_c*2, confirm_h - b_thick_c*2, math.max(1, S(12) - b_thick_c), Blitbuffer.COLOR_WHITE)
+
+            -- Zona donde se centra el menú de colores: la tarjeta, sin pisar los 3 botones de la izquierda
+            local free_x = card_x + S(12) + S(38) + S(12)
+            local free_r = card_x + card_w - S(12)
+            scrubber._color_menu_region = Geom:new{ x = free_x, y = card_y, w = math.max(1, free_r - free_x), h = card_h }
+            scrubber._color_menu_bottom = nil  -- en horizontal no se alinea con la papelera
             scrubber._type_picker_dimens = {}
 
             for idx, td in ipairs(type_defs) do
@@ -608,6 +656,16 @@ function SplitLandscapeView.paint(scrubber, bb)
                 table.insert(scrubber._type_picker_dimens, {
                     key = td.key,
                     dimen = Geom:new{ x = slot_x, y = popup_y, w = slot_w, h = confirm_h }
+                })
+            end
+
+            if color_key then
+                local box_x = popup_x + types_w + color_gap
+                local box_y = popup_y + math.floor((confirm_h - color_sz) / 2)
+                scrubber:_paintPickerColorBox(bb, box_x, box_y, color_sz, color_sz, color_key, S(12), (scrubber._pressed_btn == "type___color"))
+                table.insert(scrubber._type_picker_dimens, {
+                    key = "__color",
+                    dimen = Geom:new{ x = box_x, y = box_y, w = color_sz, h = color_sz }
                 })
             end
         end
@@ -648,7 +706,7 @@ function SplitLandscapeView.paint(scrubber, bb)
         { key = "strikethrough", icon_on = scrubber.icon_filter_st_on,  icon_off = scrubber.icon_filter_st_off },
     }
     local present_filters = {}
-    local types_source = (scrubber._active_tab == "notes") and scrubber._note_types_present or scrubber._hl_types_present
+    local types_source = scrubber:_getTypesPresent()
     if scrubber._active_tab == "highlights" or scrubber._active_tab == "notes" then
         for _, fd in ipairs(filter_defs) do
             if types_source and types_source[fd.key] then table.insert(present_filters, fd) end
@@ -766,7 +824,7 @@ function SplitLandscapeView.paint(scrubber, bb)
             local row_fill_h = (i == start_i and is_sel) and (row_h + S(1)) or row_h
 
             if is_sel then
-                local is_touching_bottom = (not needs_pag) and (i == end_i)
+                local is_touching_bottom = (not needs_pag) and (i - start_i + 1 == num_rows)
                 if is_touching_bottom then
                     paintTopSquareBottomRounded(bb, menu_x + b_thick, row_fill_y, col_right_w - b_thick*2, row_fill_h - b_thick, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_BLACK)
                 else

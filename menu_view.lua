@@ -255,7 +255,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
                 if type(src) == "table" then
                     for k, v in pairs(src) do
                         if type(v) == "table" then
-                            local p = tonumber(v.pageno) or tonumber(v.page) or tonumber(v.pos0)
+                            local p = scrubber:_getNumericalPage(v) or tonumber(v.page) or tonumber(v.pos0)
                             if not p and type(v.page) == "string" and scrubber.ui.document and scrubber.ui.document.getPageFromXPointer then
                                 pcall(function() p = scrubber.ui.document:getPageFromXPointer(v.page) end)
                             end

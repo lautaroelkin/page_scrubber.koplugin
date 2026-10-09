@@ -567,6 +567,8 @@ function TocLandscapeView.paint(toc, bb)
     -- 3. BARRA INFERIOR DE 2 NIVELES (Nivel 1: Botones | Nivel 2: Slider)
     -- =========================================================================
     if not toc._is_expanded then
+        -- Linea blanca (mismo grosor que la negra) justo encima del borde: separa la barra del fondo
+        bb:paintRect(0, bd.y - S(2), sw, S(2), Blitbuffer.COLOR_WHITE)
         bb:paintRect(0, bd.y, sw, bd.h, Blitbuffer.COLOR_WHITE)
         bb:paintRect(0, bd.y, sw, S(2), Blitbuffer.COLOR_BLACK)
 

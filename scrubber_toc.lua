@@ -1067,6 +1067,7 @@ function ScrubberToc:paintTo(bb, x, y)
         -- fondo blanco y el borde para que no "desaparezca".
         local bd = self._bar_dimen
         if bd and not self._is_expanded and not (self._sw and self._sh and self._sw > self._sh) then
+            bb:paintRect(bd.x, bd.y - self.S(3), bd.w, self.S(3), Blitbuffer.COLOR_WHITE)
             bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
             bb:paintRect(bd.x, bd.y, bd.w, self.S(3), Blitbuffer.COLOR_BLACK)
         end
@@ -1395,6 +1396,8 @@ function ScrubberToc:_paintToImpl(bb, x, y)
     -- 2. BARRA INFERIOR Y PREVIEW (Solo visibles cuando la persiana está arriba)
     -- =========================================================================
     if not self._is_expanded then
+        -- Linea blanca (mismo grosor que la negra) justo encima del borde: separa la barra del fondo
+        bb:paintRect(bd.x, bd.y - S(3), bd.w, S(3), Blitbuffer.COLOR_WHITE)
         bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
         bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK)
 

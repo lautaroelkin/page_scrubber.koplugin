@@ -50,6 +50,25 @@ local function _(text)
     return _dict[text] or text
 end
 
+-- Colores de resaltado de KOReader, en el mismo orden que su menú
+local HL_COLOR_ORDER = { "red", "orange", "yellow", "green", "olive", "cyan", "blue", "purple", "gray" }
+local _gt = (function()
+    local ok, g = pcall(require, "gettext")
+    if ok and g then return g end
+    return function(s) return s end
+end)()
+local HL_COLOR_NAMES = {
+    red    = _gt("Red"),
+    orange = _gt("Orange"),
+    yellow = _gt("Yellow"),
+    green  = _gt("Green"),
+    olive  = _gt("Olive"),
+    cyan   = _gt("Cyan"),
+    blue   = _gt("Blue"),
+    purple = _gt("Purple"),
+    gray   = _gt("Gray"),
+}
+
 local GridSimpleView    = require("grid_simple_view")
 local ProgressSlider    = require("progress_slider")
 local ScrubberWallpaper = require("scrubber_wallpaper")
@@ -343,6 +362,30 @@ function PageScrubber:init()
     self._origin_page = self.initial_origin or (ui.view and ui.view.state and ui.view.state.page) or 1
     self._cur_page    = self.initial_page or self._origin_page
     self._total_pages = (doc and doc.getPageCount and doc:getPageCount()) or 1
+
+    -- Si cambio el layout (screen DPI / nro de paginas / tamano de pantalla), las miniaturas
+    -- que ReaderThumbnail tiene en cache por nro de pagina ya no corresponden: se descartan.
+    do
+        local sig = table.concat({ tostring(Screen:getDPI()), tostring(self._total_pages),
+                                   tostring(Screen:getWidth()), tostring(Screen:getHeight()) }, "|")
+        -- Igual que el listado nativo de marcadores: refrescar pageno/pageref de TODAS las anotaciones
+        -- desde su xpointer (ReaderAnnotation:updatePageNumbers). Sin esto, tras un cambio de
+        -- orientacion/DPI/fuente KOReader las deja desactualizadas hasta que se abre ese listado.
+        if ui and ui.annotation and type(ui.annotation.updatePageNumbers) == "function" then
+            local changed = (ui._page_scrubber_layout_sig ~= sig)
+            pcall(function() ui.annotation:updatePageNumbers(changed) end)
+        end
+        if ui and ui._page_scrubber_layout_sig ~= sig then
+            if ui._page_scrubber_layout_sig ~= nil and ui.thumbnail then
+                if ui.thumbnail.removeFromCache then
+                    pcall(function() ui.thumbnail:removeFromCache(nil, true) end)
+                elseif ui.thumbnail.tidyCache then
+                    pcall(function() ui.thumbnail:tidyCache() end)
+                end
+            end
+            ui._page_scrubber_layout_sig = sig
+        end
+    end
     self._pressed_btn = nil
     self._closing     = false
     self._hold_token  = 0
@@ -358,6 +401,11 @@ function PageScrubber:init()
     self._split_fixed_page = self.initial_fixed_page or ((self._view_mode == "split") and self._cur_page or nil) 
     self._split_divider_x = nil
     self._hl_filter = self.initial_hl_filter or nil 
+    self._hl_color_filter = self.initial_hl_color_filter or nil
+    self._hl_color_counts = {}
+    self._note_color_counts = {}
+    self._tab_arrow_dimen = nil
+    self._tab_arrow_tab_dimen = nil
     self._target_hl_order = self.initial_hl_order or self.hl_order or self.target_order or nil
     self._hl_types_present = { normal = false, invert = false, underline = false }
     self._hl_filter_dimens = {}
@@ -750,6 +798,7 @@ end
 
 function PageScrubber:_cacheTile(page, bb, is_scaled, w, h)
     if not page or not bb then return end
+    if self._failed_pages then self._failed_pages[page] = nil end
     self._tile_cache[page] = {
         bb = bb,
         is_scaled = is_scaled,
@@ -779,7 +828,15 @@ function PageScrubber:_cacheTile(page, bb, is_scaled, w, h)
 
 end
 
+-- Precarga inmediata de las paginas vecinas (asi el siguiente tap ya la encuentra en cache).
+-- Lo que evita el tildado es que cada navegacion nueva cancela las precargas viejas
+-- (ver _updateGridPages), no demorar la precarga.
 function PageScrubber:_preloadNeighborPages()
+    if self._closing or self._grid_disabled then return end
+    self:_doPreloadNeighborPages()
+end
+
+function PageScrubber:_doPreloadNeighborPages()
     if self._closing or self._grid_disabled then return end
     local thumbnail = self.ui and self.ui.thumbnail
     if not thumbnail or not thumbnail.getPageThumbnail then return end
@@ -792,6 +849,20 @@ function PageScrubber:_preloadNeighborPages()
     local offsets = (self._view_mode == "grid") and { 2, -2, 3, -3 } or { 1, -1, 2, -2 }
     if self.is_rtl then
         for i = 1, #offsets do offsets[i] = -offsets[i] end
+    end
+    -- Primero las paginas en la direccion en la que se esta navegando.
+    if self._nav_dir and self._nav_dir ~= 0 then
+        local first, rest = {}, {}
+        for _, off in ipairs(offsets) do
+            if (off > 0 and self._nav_dir > 0) or (off < 0 and self._nav_dir < 0) then
+                first[#first + 1] = off
+            else
+                rest[#rest + 1] = off
+            end
+        end
+        offsets = {}
+        for _, off in ipairs(first) do offsets[#offsets + 1] = off end
+        for _, off in ipairs(rest) do offsets[#offsets + 1] = off end
     end
 
     local preload_batch = "page_scrubber_preload_" .. tostring(self._grid_instance_id)
@@ -856,6 +927,18 @@ end
 
 function PageScrubber:_getNumericalPage(v)
     if type(v) ~= "table" then return nil end
+    -- Documentos reflowables (EPUB/CRE): el xpointer es la fuente de verdad.
+    -- `pageno` se guarda al crear la anotacion y queda desactualizado cuando cambia
+    -- el layout (screen DPI, fuente, margenes...), mostrando una pagina equivocada.
+    local doc = self.ui and self.ui.document
+    if doc and type(doc.getPageFromXPointer) == "function" then
+        for _, xp in ipairs({ v.page, v.pos0, v.xpointer }) do
+            if type(xp) == "string" and not tonumber(xp) then
+                local ok, res = pcall(function() return doc:getPageFromXPointer(xp) end)
+                if ok and type(res) == "number" then return res end
+            end
+        end
+    end
     if v.pageno and tonumber(v.pageno) then return tonumber(v.pageno) end
     local function try_convert(xp)
         if not xp then return nil end
@@ -910,6 +993,8 @@ function PageScrubber:_extractAnnotations()
     self._page_data = {}
     self._hl_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
     self._note_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
+    self._hl_color_counts = {}
+    self._note_color_counts = {}
     local tp = self._total_pages or 1
 
     local function drawer_to_filter(drawer)
@@ -965,6 +1050,7 @@ function PageScrubber:_extractAnnotations()
             local item = entry.item
             local p = entry.p
             local filt = drawer_to_filter(item.drawer)
+            local col = self:_getAnnColor(item)
             local date_val = item.datetime or item.time or item.date or item.timestamp
 
             self._page_data[p] = self._page_data[p] or {}
@@ -988,6 +1074,7 @@ function PageScrubber:_extractAnnotations()
                 order = order,
                 total_on_page = total_on_page,
                 type = filt,
+                color = col,
                 text = item.text or "",
                 note = item.note or "",
                 date = date_val,
@@ -999,12 +1086,14 @@ function PageScrubber:_extractAnnotations()
             if (item.text and item.text ~= "") or item.drawer then
                 table.insert(self._cached_hl, data_entry)
                 self._hl_types_present[filt] = true
+                if col then self._hl_color_counts[col] = (self._hl_color_counts[col] or 0) + 1 end
             end
 
             -- Notas
             if item.note and item.note ~= "" then
                 table.insert(self._cached_notes, data_entry)
                 self._note_types_present[filt] = true
+                if col then self._note_color_counts[col] = (self._note_color_counts[col] or 0) + 1 end
             end
         end
     end
@@ -1028,10 +1117,154 @@ function PageScrubber:_extractAnnotations()
     extract_dates(self.ui.bookmark and self.ui.bookmark._bookmarks)
     extract_dates(self.ui.bookmark and self.ui.bookmark.bookmarks)
 
-    -- Validar que el filtro activo siga existiendo
-    local types_present = (self._active_tab == "notes") and self._note_types_present or self._hl_types_present
+    -- Validar que el filtro de color siga existiendo
+    if self._hl_color_filter then
+        local counts = (self._active_tab == "notes") and self._note_color_counts or self._hl_color_counts
+        if (self._active_tab ~= "highlights" and self._active_tab ~= "notes")
+           or not counts or (counts[self._hl_color_filter] or 0) <= 0 then
+            self._hl_color_filter = nil
+        end
+    end
+
+    -- Validar que el filtro de tipo activo siga existiendo (dentro del color elegido, si hay)
+    local types_present = self:_getTypesPresent()
     if self._hl_filter and not types_present[self._hl_filter] then
         self._hl_filter = nil
+    end
+end
+
+-- Color efectivo de una anotación. El estilo "invert" no admite color, así que no cuenta.
+function PageScrubber:_getAnnColor(item)
+    if not item or item.drawer == "invert" then return nil end
+    return item.color or "gray"
+end
+
+-- Colores presentes en la pestaña (en el orden del menú de KOReader), con su cantidad
+function PageScrubber:_getColorList(tab)
+    tab = tab or self._active_tab
+    local counts = (tab == "notes") and self._note_color_counts or self._hl_color_counts
+    local list, seen = {}, {}
+    if not counts then return list end
+    for _, key in ipairs(HL_COLOR_ORDER) do
+        if (counts[key] or 0) > 0 then
+            table.insert(list, { key = key, count = counts[key], name = HL_COLOR_NAMES[key] })
+            seen[key] = true
+        end
+    end
+    local extras = {}
+    for key, n in pairs(counts) do
+        if not seen[key] and n > 0 then table.insert(extras, key) end
+    end
+    table.sort(extras)
+    for _, key in ipairs(extras) do
+        table.insert(list, { key = key, count = counts[key], name = key:sub(1, 1):upper() .. key:sub(2) })
+    end
+    return list
+end
+
+-- Color elegido en el filtro y su cantidad dentro de la pestaña (o nil si no hay filtro)
+function PageScrubber:_getSelectedColorInfo(tab)
+    tab = tab or self._active_tab
+    if not self._hl_color_filter or (tab ~= "highlights" and tab ~= "notes") then return nil end
+    for _, c in ipairs(self:_getColorList(tab)) do
+        if c.key == self._hl_color_filter then return c.key, c.count end
+    end
+    return nil
+end
+
+-- Círculo con el color de resaltado (aro + relleno)
+function PageScrubber:_paintColorDot(bb, x, y, d, key, ring_color)
+    local ok, CFM = pcall(require, "color_filter_menu")
+    if ok and CFM and CFM.paintDot then
+        CFM.paintDot(bb, x, y, d, key, ring_color or Blitbuffer.COLOR_BLACK)
+    end
+end
+
+function PageScrubber:_hasMultiColor(tab)
+    tab = tab or self._active_tab
+    if tab ~= "highlights" and tab ~= "notes" then return false end
+    return #self:_getColorList(tab) >= 2
+end
+
+-- Tipos de estilo presentes en la pestaña activa (respetando el filtro de color)
+function PageScrubber:_getTypesPresent()
+    local tab = self._active_tab
+    local base = (tab == "notes") and self._note_types_present or self._hl_types_present
+    if not self._hl_color_filter then return base end
+    local list = (tab == "notes") and self._cached_notes or self._cached_hl
+    local present = { normal = false, invert = false, underline = false, strikethrough = false }
+    for _, it in ipairs(list or {}) do
+        if it.color == self._hl_color_filter then present[it.type] = true end
+    end
+    return present
+end
+
+function PageScrubber:_setColorFilter(key)
+    if key == self._hl_color_filter then key = nil end
+    self._hl_color_filter = key
+    local types_present = self:_getTypesPresent()
+    if self._hl_filter and not types_present[self._hl_filter] then
+        self._hl_filter = nil
+    end
+    self._split_bm_page = 1
+    self._split_selected_item = nil
+    UIManager:setDirty(self, "ui", self.dimen)
+end
+
+function PageScrubber:_openColorMenu(anchor)
+    local list = self:_getColorList()
+    if #list < 2 then return end
+    local ok, ColorFilterMenu = pcall(require, "color_filter_menu")
+    if not ok or not ColorFilterMenu then return end
+
+    self._color_menu_is_open = true
+    if self._tab_arrow_tab_dimen then
+        UIManager:setDirty(self, "ui", self._tab_arrow_tab_dimen)
+    end
+
+    -- Retrasamos 50ms la apertura para que el Kindle refresque primero
+    -- el cambio del triángulo y no "recorte" el menú de E-ink.
+    UIManager:scheduleIn(0.05, function()
+        UIManager:show(ColorFilterMenu:new{
+            scrubber_ui = self,
+            anchor = anchor,
+            items = list,
+            selected = self._hl_color_filter,
+            on_select = function(key)
+                self._color_menu_is_open = false
+                self:_setColorFilter(key)
+            end,
+            on_close = function()
+                self._color_menu_is_open = false
+                if self._tab_arrow_tab_dimen then
+                    UIManager:setDirty(self, "ui", self._tab_arrow_tab_dimen)
+                end
+            end,
+            on_cancel = function()
+                self._color_menu_is_open = false
+                if self._tab_arrow_tab_dimen then
+                    UIManager:setDirty(self, "ui", self._tab_arrow_tab_dimen)
+                end
+            end
+        })
+    end)
+end
+
+-- Flechita hacia abajo (triángulo) para las pestañas con selector de color
+function PageScrubber:_paintChevronDown(bb, x, y, w, h, color)
+    for row = 0, h - 1 do
+        local rw = w - math.floor(row * (w - 2) / math.max(1, h - 1))
+        rw = math.max(2, rw)
+        bb:paintRect(x + math.floor((w - rw) / 2), y + row, rw, 1, color)
+    end
+end
+
+-- Flechita hacia arriba cuando el menú está abierto
+function PageScrubber:_paintChevronUp(bb, x, y, w, h, color)
+    for row = 0, h - 1 do
+        local rw = w - math.floor((h - 1 - row) * (w - 2) / math.max(1, h - 1))
+        rw = math.max(2, rw)
+        bb:paintRect(x + math.floor((w - rw) / 2), y + row, rw, 1, color)
     end
 end
 
@@ -1053,6 +1286,9 @@ function PageScrubber:_getFilteredActiveList()
             local passes_filter = true
             if self._hl_filter then
                 passes_filter = (it.type == self._hl_filter)
+            end
+            if passes_filter and self._hl_color_filter then
+                passes_filter = (it.color == self._hl_color_filter)
             end
             if passes_filter then
                 table.insert(other_items, it)
@@ -1154,13 +1390,14 @@ function PageScrubber:onPrevPage()
         if self._active_tab == "notes" then self._active_tab = "highlights"
         elseif self._active_tab == "highlights" then self._active_tab = "bookmarks"
         else self._active_tab = "notes" end
+        self._hl_color_filter = nil
         self._split_bm_page = self.initial_bm_page or 1
         self:_extractAnnotations()
         UIManager:setDirty(self, "ui", self.dimen)
         return true
     else
         local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
-        self:_previewPage(self._cur_page - jump, false) 
+        self:_stepPreview(self._cur_page - jump) 
     end
     return true 
 end
@@ -1172,13 +1409,14 @@ function PageScrubber:onNextPage()
         if self._active_tab == "bookmarks" then self._active_tab = "highlights"
         elseif self._active_tab == "highlights" then self._active_tab = "notes"
         else self._active_tab = "bookmarks" end
+        self._hl_color_filter = nil
         self._split_bm_page = self.initial_bm_page or 1
         self:_extractAnnotations()
         UIManager:setDirty(self, "ui", self.dimen)
         return true
     else
         local jump = (self._view_mode == "grid_six") and self:_g6Count() or 1
-        self:_previewPage(self._cur_page + jump, false) 
+        self:_stepPreview(self._cur_page + jump) 
     end
     return true 
 end
@@ -1552,6 +1790,9 @@ end
 function PageScrubber:_updateGridPages()
     if self._grid_disabled or self._closing then return end
     self._pending_grid_update = false
+    -- Una navegacion nueva invalida cualquier precarga que estuviera esperando su turno.
+    self._preload_token = (self._preload_token or 0) + 1
+    self._gate_pending = {}
     local thumbnail = self.ui.thumbnail
     local S = self.S
     local sw, sh = Screen:getWidth(), Screen:getHeight()
@@ -1662,7 +1903,11 @@ function PageScrubber:_updateGridPages()
     -- Cancelación nativa de lotes de secuencias anteriores
     if thumbnail and thumbnail.cancelPageThumbnailRequests and type(thumbnail.thumbnails_requests) == "table" then
         for b_id in pairs(thumbnail.thumbnails_requests) do
-            if type(b_id) == "string" and b_id:find("^page_scrubber_grid_") and not b_id:find("_" .. tostring(current_seq) .. "_") then
+            if type(b_id) == "string" and (
+                    (b_id:find("^page_scrubber_grid_") and not b_id:find("_" .. tostring(current_seq) .. "_"))
+                    -- Las precargas viejas ya no sirven y, si quedan en cola, la pagina que SI se
+                    -- necesita espera detras de ellas (era la causa del "tildado" al tapear rapido).
+                    or b_id:find("^page_scrubber_preload_")) then
                 thumbnail:cancelPageThumbnailRequests(b_id)
             end
         end
@@ -1854,6 +2099,8 @@ function PageScrubber:_updateGridPages()
             if slot.loading then
                 slot.loading = false
                 slot.error = true
+                self._failed_pages = self._failed_pages or {}
+                self._failed_pages[req_page] = true
                 refreshSlotIndividually(idx)
                 self._tasks_in_flight = self._tasks_in_flight - 1
                 checkFinished()
@@ -1876,6 +2123,8 @@ function PageScrubber:_updateGridPages()
                 elseif self._grid_tiles[idx] then
                     self._grid_tiles[idx].loading = false
                     self._grid_tiles[idx].error = true
+                    self._failed_pages = self._failed_pages or {}
+                    self._failed_pages[req_page] = true
                 end
 
                 refreshSlotIndividually(idx)
@@ -2226,15 +2475,45 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 self._tw_tab_count_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
             end
             
+            -- Con un color elegido, la pestaña muestra el círculo de ese color y su cantidad
+            local sel_key, sel_count = nil, nil
+            if is_active then sel_key, sel_count = self:_getSelectedColorInfo(id) end
+            if sel_key then count_num = sel_count end
+
             local tw_cnt = is_active and self._tw_tab_count_bold or self._tw_tab_count_normal
             tw_cnt.text = nil
             tw_cnt.fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
             tw_cnt:setText("(" .. tostring(count_num) .. ")")
             
             local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
+            local nsz = { w = 0, h = 0 }
+            local sel_name_str = nil
+
+            if sel_key then
+                local dot_d = math.min(isz.w, isz.h)
+                isz = { w = dot_d, h = dot_d }
+
+                -- Preparar el nombre del color
+                sel_name_str = HL_COLOR_NAMES[sel_key] or (sel_key:sub(1,1):upper() .. sel_key:sub(2))
+                if not self._tw_tab_color_name then
+                    self._tw_tab_color_name = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
+                end
+                self._tw_tab_color_name.text = nil
+                self._tw_tab_color_name:setText(sel_name_str)
+                nsz = self._tw_tab_color_name:getSize()
+            end
+
             local csz = tw_cnt:getSize()
             local gap = S(4)
-            local content_w = isz.w + gap + csz.w
+
+            -- Flechita para elegir color (solo en la pestaña activa y con más de un color)
+            local show_arrow = is_active and (id == "highlights" or id == "notes") and self:_hasMultiColor(id)
+            local arrow_w, arrow_h, arrow_gap = S(10), S(6), S(7)
+            local arrow_extra = show_arrow and (arrow_w + arrow_gap) or 0
+
+            -- Si hay nombre de color sumamos su ancho y un gap adicional
+            local name_extra_w = sel_key and (nsz.w + gap) or 0
+            local content_w = arrow_extra + isz.w + gap + name_extra_w + csz.w
             local tab_w = content_w + S(16)
 
             if is_active then
@@ -2247,12 +2526,33 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 paintRoundRect(bb, current_tab_x + thin_b, tab_draw_y + thin_b, tab_w - thin_b*2, tab_h - thin_b*2, math.max(1, r - thin_b), Blitbuffer.COLOR_WHITE)
             end
 
-            local ix = current_tab_x + math.floor((tab_w - content_w) / 2)
-            local cx = ix + isz.w + gap
+            local lead_x = current_tab_x + math.floor((tab_w - content_w) / 2)
+            local ix = lead_x + arrow_extra
+            local nx = ix + isz.w + gap
+            local cx = nx + name_extra_w
+            
             local iy = tab_draw_y + math.floor((tab_h - isz.h) / 2)
+            local ny = tab_draw_y + math.floor((tab_h - nsz.h) / 2) - S(1)
             local cy = tab_draw_y + math.floor((tab_h - csz.h) / 2) - S(1)
 
-            if icon_widget then
+            if show_arrow then
+                local ay = tab_draw_y + math.floor((tab_h - arrow_h) / 2)
+                if self._color_menu_is_open then
+                    self:_paintChevronUp(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+                else
+                    self:_paintChevronDown(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+                end
+                self._tab_arrow_dimen = Geom:new{
+                    x = current_tab_x, y = tab_draw_y,
+                    w = math.max(S(30), ix - current_tab_x - S(2)), h = tab_h,
+                }
+                self._tab_arrow_tab_dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
+            end
+
+            if sel_key then
+                self:_paintColorDot(bb, ix, iy, isz.w, sel_key, Blitbuffer.COLOR_WHITE)
+                self._tw_tab_color_name:paintTo(bb, nx, ny)
+            elseif icon_widget then
                 if is_active then
                     -- Inversión del icono sobre fondo negro sólido para que quede blanco puro
                     bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
@@ -2270,6 +2570,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             return dimen
         end        
     
+    self._tab_arrow_dimen = nil
+    self._tab_arrow_tab_dimen = nil
     self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
     self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)
     self._tab_note_dimen = drawTabWithSVG("notes", self.icon_tab_note, note_count)
@@ -2391,7 +2693,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 if type(src) == "table" then
                     for k, v in pairs(src) do
                         if type(v) == "table" then
-                            local p = tonumber(v.pageno) or tonumber(v.page) or tonumber(v.pos0)
+                            local p = self:_getNumericalPage(v) or tonumber(v.page) or tonumber(v.pos0)
                             if not p and type(v.page) == "string" and self.ui.document and self.ui.document.getPageFromXPointer then
                                 pcall(function() p = self.ui.document:getPageFromXPointer(v.page) end)
                             end
@@ -2497,7 +2799,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local bw, bh = S(56), S(56)
         local btn_x = card_x + S(20)
         local btn_y = card_y + pr_h - bh - S(76)
-        local btn_thick = S(3)
+        local btn_thick = S(2)
         local btn_radius = S(16)
 
         -- Trash Button (Blanco por defecto, Activo Negro)
@@ -2577,7 +2879,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local ch = S(56)
             local cx = card_x + S(20)
             local cy = card_y + pr_h - ch - S(10)
-            local b_thick = S(3)
+            local b_thick = S(2)
 
             local is_del_pressed = (self._pressed_btn == "confirm_del")
             
@@ -2603,11 +2905,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local ch = S(56)
             local cx = card_x + S(20)
             local cy = card_y + pr_h - ch - S(10)
-            local b_thick = S(3)
-
-            -- Diseño completamente plano sin sombreado
-            paintRoundRect(bb, cx, cy, cw, ch, S(14), Blitbuffer.COLOR_BLACK)
-            paintRoundRect(bb, cx + b_thick, cy + b_thick, cw - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
+            local b_thick = S(2)
 
             local current_drawer = "lighten"
             if self._split_selected_item and self._split_selected_item.annotation then
@@ -2635,7 +2933,25 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 { key = "strikeout",  icon = self.icon_picker_st },
                 { key = "invert",     icon = self.icon_picker_inv },
             }
-            local slot_w = math.floor((cw - S(8)) / #type_defs)
+            -- Círculo con el color del highlight (no aparece en "invert")
+            local color_key = self:_getPickerColor(current_drawer)
+
+            -- Una fila, dos cajas separadas: [ los 4 tipos ]  [ círculo de color ]
+            local color_gap = S(6)
+            local color_sz  = math.floor(ch * 0.68)   -- el circulo de color pesa menos que los 4 tipos
+            local types_w = cw - (color_key and (color_gap + color_sz) or 0)
+            local slot_w = math.floor((types_w - S(8)) / #type_defs)
+
+            -- Diseño completamente plano sin sombreado
+            paintRoundRect(bb, cx, cy, types_w, ch, S(14), Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, cx + b_thick, cy + b_thick, types_w - b_thick*2, ch - b_thick*2, math.max(1, S(14) - b_thick), Blitbuffer.COLOR_WHITE)
+
+            -- Zona donde se centra el menú de colores: la tarjeta, sin pisar los 3 botones de la izquierda
+            local free_x = card_x + S(20) + S(56) + S(12)
+            local free_r = card_x + card_w - S(12)
+            self._color_menu_region = Geom:new{ x = free_x, y = card_y, w = math.max(1, free_r - free_x), h = pr_h }
+            -- El borde inferior del menú coincide con el borde inferior del botón de la papelera
+            self._color_menu_bottom = card_y + pr_h - S(76)
 
             self._type_picker_dimens = {}
             for idx, td in ipairs(type_defs) do
@@ -2663,6 +2979,16 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 table.insert(self._type_picker_dimens, {
                     key = td.key,
                     dimen = Geom:new{ x = slot_x, y = cy, w = slot_w, h = ch }
+                })
+            end
+
+            if color_key then
+                local box_x = cx + types_w + color_gap
+                local box_y = cy + math.floor((ch - color_sz) / 2)
+                self:_paintPickerColorBox(bb, box_x, box_y, color_sz, color_sz, color_key, S(14), (self._pressed_btn == "type___color"))
+                table.insert(self._type_picker_dimens, {
+                    key = "__color",
+                    dimen = Geom:new{ x = box_x, y = box_y, w = color_sz, h = color_sz }
                 })
             end
         end
@@ -2729,7 +3055,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         { key = "strikethrough", icon_on = self.icon_filter_st_on,  icon_off = self.icon_filter_st_off },
     }
     local present_filters = {}
-    local types_source = (self._active_tab == "notes") and self._note_types_present or self._hl_types_present
+    local types_source = self:_getTypesPresent()
     if self._active_tab == "highlights" or self._active_tab == "notes" then
         for _, fd in ipairs(filter_defs) do
             if types_source and types_source[fd.key] then table.insert(present_filters, fd) end
@@ -3247,9 +3573,101 @@ function PageScrubber:_gotoPage(page)
     UIManager:setDirty(self, "ui", self.dimen)
 end
 
+-- ============================================================================
+-- SEMAFORO DE NAVEGACION
+-- En grid y simple grid, un paso de pagina (flechas, saltos, tap en miniatura) solo se acepta si
+-- la pagina destino ya esta cargada: si esta en blanco en el costado, no se entra a ella (no queda
+-- una pagina en blanco en el centro). Solo se mira el destino, no el resto de la ventana.
+-- No aplica en split ni en grid six. Valvulas de seguridad: paginas que fallaron/expiraron
+-- cuentan como listas, y a los 4 s se deja pasar igual.
+-- ============================================================================
+function PageScrubber:_expectedTileDims()
+    if self._view_mode == "grid" then return self._grid_item_w, self._grid_item_h end
+    return self._thumb_req_split_w, self._thumb_req_split_h
+end
+
+function PageScrubber:_pagesNeededFor(target)
+    local list = {}
+    if self._view_mode == "grid" then
+        for off = -1, 1 do list[#list + 1] = target + off end
+    elseif self._view_mode == "grid_six" then
+        local o = self:_g6Origin()
+        for idx = 1, self:_g6Count() do list[#list + 1] = target + (idx - o) end
+    else
+        list[1] = target
+    end
+    return list
+end
+
+function PageScrubber:_isTileReady(p)
+    local w, h = self:_expectedTileDims()
+    if not w or not h then return true end
+    local c = self._tile_cache and self._tile_cache[p]
+    if c and c.bb and c.w == w and c.h == h then return true end
+    return (self._failed_pages and self._failed_pages[p]) and true or false
+end
+
+function PageScrubber:_requestTileFor(page)
+    local thumbnail = self.ui and self.ui.thumbnail
+    local w, h = self:_expectedTileDims()
+    if not (thumbnail and thumbnail.getPageThumbnail and w and h) then return end
+    self._gate_pending = self._gate_pending or {}
+    local now = os.time()
+    if self._gate_pending[page] and now - self._gate_pending[page] < 2 then return end
+    self._gate_pending[page] = now
+    thumbnail:getPageThumbnail(page, w, h, "page_scrubber_preload_" .. tostring(self._grid_instance_id),
+        function(tile)
+            if self._gate_pending then self._gate_pending[page] = nil end
+            if self._closing then return end
+            if not tile or not tile.bb then
+                self._failed_pages = self._failed_pages or {}
+                self._failed_pages[page] = true
+                return
+            end
+            local processed = processTile(tile, w, h)
+            if processed and processed.bb then
+                self:_cacheTile(page, processed.bb, processed.is_scaled, w, h)
+            end
+        end)
+end
+
+function PageScrubber:_canStepTo(target)
+    -- Sin semaforo en split ni en grid six (multi grid).
+    if self._grid_disabled or self._closing or self._view_mode == "split" or self._view_mode == "grid_six" then
+        return true
+    end
+    if target < 1 or target > self._total_pages or target == self._cur_page then return true end
+    -- Solo se avanza a una pagina que YA esta cargada: si la vecina (costado) sigue en blanco,
+    -- el paso se ignora, asi nunca queda una pagina en blanco en el centro al pasar rapido.
+    if self:_isTileReady(target) then
+        self._gate_since = nil
+        return true
+    end
+    local now = os.time()
+    self._gate_since = self._gate_since or {}
+    self._gate_since[target] = self._gate_since[target] or now
+    if now - self._gate_since[target] >= 4 then  -- valvula de seguridad
+        self._gate_since[target] = nil
+        return true
+    end
+    self:_requestTileFor(target)
+    return false
+end
+
+-- Paso de pagina protegido por el semaforo. Devuelve true si se hizo el paso.
+function PageScrubber:_stepPreview(target)
+    if not self:_canStepTo(target) then return false end
+    self:_previewPage(target, false)
+    return true
+end
+
 function PageScrubber:_previewPage(page, is_dragging)
     if self._closing then return end
+    local prev_page = self._cur_page
     self._cur_page = math.max(1, math.min(self._total_pages, page))
+    if prev_page and self._cur_page ~= prev_page then
+        self._nav_dir = (self._cur_page > prev_page) and 1 or -1
+    end
     self._hide_action_buttons = true
     self._slider.value = self._cur_page
     self:_updateTexts()
@@ -3429,48 +3847,178 @@ end
 function PageScrubber:_openNoteTextEditor()
     local target_page = self._cur_page
     local target_item = nil
+    local target_index = nil
+
     if self._split_selected_item and self._split_selected_item.annotation then
         target_item = self._split_selected_item.annotation
-    elseif self.ui.annotation and self.ui.annotation.annotations then
-        for _, item in ipairs(self.ui.annotation.annotations) do
-            if math.floor(self:_getNumericalPage(item) or 0) == target_page then
-                target_item = item; break
+    end
+
+    -- Buscar el índice exacto de la anotación en la lista nativa
+    if self.ui.annotation and self.ui.annotation.annotations then
+        for i, item in ipairs(self.ui.annotation.annotations) do
+            if target_item then
+                if item == target_item then
+                    target_index = i
+                    break
+                end
+            else
+                -- Fallback si no hay selección específica: agarra la primera de la página actual
+                if math.floor(self:_getNumericalPage(item) or 0) == target_page then
+                    target_index = i
+                    break
+                end
             end
         end
     end
 
-    if not target_item then return end
+    if not target_index then return end
 
-    local dialog
-    dialog = InputDialog:new{
-        title = _("Edit note"),
-        input = target_item.note or "",
-        buttons = {
-            {
-                {
-                    text = _("Cancel"),
-                    id = "close",
-                    callback = function() UIManager:close(dialog) end
-                },
-                {
-                    text = _("Save"),
-                    is_enter_default = true,
-                    callback = function()
-                        target_item.note = dialog:getInputText()
-                        pcall(function()
-                            if self.ui.annotation and self.ui.annotation.saveAnnotations then
-                                self.ui.annotation:saveAnnotations()
-                            end
-                        end)
-                        self:_extractAnnotations()
-                        UIManager:setDirty(self, "ui", self._grid_dimen)
-                        UIManager:close(dialog)
-                    end
-                }
-            }
-        }
-    }
-    UIManager:show(dialog)
+    -- Invocar el editor de notas nativo de KOReader (ReaderBookmark:setBookmarkNote)
+    if self.ui.bookmark and type(self.ui.bookmark.setBookmarkNote) == "function" then
+        self.ui.bookmark:setBookmarkNote(target_index, nil, nil, function()
+            -- Este callback se ejecuta automáticamente cuando el usuario presiona "Save"
+            self:_extractAnnotations()
+            UIManager:setDirty(self, "ui", self._grid_dimen)
+        end)
+    end
+end
+
+-- Highlight que se está editando desde el split (el seleccionado, o el de la página actual)
+function PageScrubber:_getTargetHighlight()
+    local target_page = self._cur_page
+    local current_filter = self._hl_filter
+
+    if self._split_selected_item and self._split_selected_item.annotation then
+        return self._split_selected_item.annotation
+    end
+
+    if self.ui.annotation and self.ui.annotation.annotations then
+        for _, item in ipairs(self.ui.annotation.annotations) do
+            local p = self:_getNumericalPage(item)
+            local is_real_hl = item.pos0 and item.pos1
+            if p and math.floor(p) == target_page and is_real_hl and item.text and item.text ~= "" then
+                local d = item.drawer or "lighten"
+                local item_filt = "normal"
+                if d == "invert" then item_filt = "invert"
+                elseif d == "underscore" then item_filt = "underline"
+                elseif d == "strikeout" then item_filt = "strikethrough" end
+
+                if not current_filter or item_filt == current_filter then
+                    return item
+                end
+            end
+        end
+
+        for _, item in ipairs(self.ui.annotation.annotations) do
+            local p = self:_getNumericalPage(item)
+            local is_real_hl = item.pos0 and item.pos1
+            if p and math.floor(p) == target_page and is_real_hl and item.text and item.text ~= "" then
+                return item
+            end
+        end
+    end
+    return nil
+end
+
+-- Color del highlight que se está editando (nil si es "invert", que no admite color)
+function PageScrubber:_getPickerColor(current_drawer)
+    if current_drawer == "invert" then return nil end
+    local tgt = self:_getTargetHighlight()
+    if not tgt or (tgt.drawer or "lighten") == "invert" then return nil end
+    return tgt.color or "gray"
+end
+
+-- Caja propia (separada de los 4 tipos) con el círculo del color del highlight
+function PageScrubber:_paintPickerColorBox(bb, x, y, w, h, color_key, _radius, pressed)
+    local S = self.S
+    local b = S(2)
+    -- Contenedor circular (el radio es la mitad del lado)
+    local radius = math.floor(math.min(w, h) / 2)
+    paintRoundRect(bb, x, y, w, h, radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, x + b, y + b, w - b * 2, h - b * 2, math.max(1, radius - b),
+        pressed and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_WHITE)
+    local d = math.floor(math.min(w, h) * 0.5)
+    self:_paintColorDot(bb, x + math.floor((w - d) / 2), y + math.floor((h - d) / 2), d, color_key, Blitbuffer.COLOR_BLACK)
+end
+
+-- Menú con todos los colores para cambiar el color del highlight seleccionado
+function PageScrubber:_openColorChangeMenu(anchor)
+    local target = self:_getTargetHighlight()
+    if not target or (target.drawer or "lighten") == "invert" then return end
+    local ok, ColorFilterMenu = pcall(require, "color_filter_menu")
+    local Swatch = ok and ColorFilterMenu and ColorFilterMenu.Swatch
+    if not Swatch then return end
+
+    -- Todos los colores de KOReader (sin cantidades), más cualquier color no estándar que ya exista
+    local items, seen = {}, {}
+    for _, key in ipairs(HL_COLOR_ORDER) do
+        table.insert(items, { key = key, name = HL_COLOR_NAMES[key] })
+        seen[key] = true
+    end
+    for _, c in ipairs(self:_getColorList()) do
+        if not seen[c.key] then table.insert(items, { key = c.key, name = c.name }) end
+    end
+
+    -- Forzamos la separación del renderizado para pantallas E-ink
+    UIManager:scheduleIn(0.05, function()
+        UIManager:show(Swatch:new{
+            scrubber_ui = self,
+            center_rect = self._color_menu_region,
+            align_bottom = self._color_menu_bottom,
+            -- En horizontal el menu se ancla arriba del circulo de color, extendido hacia la izquierda
+            anchor_above = (Screen:getWidth() > Screen:getHeight()) and anchor or nil,
+            items = items,
+            selected = target.color or "gray",
+            on_select = function(key) self:_setHighlightColor(key) end,
+        })
+    end)
+end
+
+-- Cambia el color del highlight (misma técnica que _setHighlightType)
+function PageScrubber:_setHighlightColor(new_color)
+    local target_item = self:_getTargetHighlight()
+    if not target_item then return end
+    if (target_item.drawer or "lighten") == "invert" then return end
+    if (target_item.color or "gray") == new_color then return end
+
+    local target_page = self._cur_page
+
+    -- 1. Actualizar el color y guardar en el libro
+    target_item.color = new_color
+    pcall(function()
+        if self.ui.annotation and self.ui.annotation.saveAnnotations then
+            self.ui.annotation:saveAnnotations()
+        end
+    end)
+
+    -- 2. Notificar al sistema de lectura de KOReader que la anotación cambió
+    pcall(function()
+        local Event = require("ui/event")
+        if self.ui and self.ui.handleEvent then
+            self.ui:handleEvent(Event:new("AnnotationsModified", { target_item }))
+            self.ui:handleEvent(Event:new("RedrawCurrentPage"))
+        end
+    end)
+
+    -- 3. Si hay un color filtrado y el highlight sale de ese filtro, ya no queda seleccionado
+    if self._hl_color_filter and self._hl_color_filter ~= new_color then
+        self._split_selected_item = nil
+    end
+
+    -- 4. Ocultar el selector de forma instantánea
+    self._show_type_picker = false
+    self._show_delete_confirm = false
+
+    -- 5. Invalidar las miniaturas de esta página
+    self:_invalidateGridTilesForPage(target_page)
+
+    -- 6. Actualizar las listas en memoria y repintar
+    UIManager:scheduleIn(0.08, function()
+        if self._closing then return end
+        self:_extractAnnotations()
+        self:_updateGridPages()
+        UIManager:setDirty(self, "ui", self.dimen)
+    end)
 end
 
 function PageScrubber:_setHighlightType(new_drawer)
@@ -3535,7 +4083,17 @@ function PageScrubber:_setHighlightType(new_drawer)
     elseif new_drawer == "underscore" then new_filt = "underline"
     elseif new_drawer == "strikeout" then new_filt = "strikethrough" end
     if self._hl_filter then
-        self._hl_filter = new_filt
+        -- Con un color filtrado, "invert" (que no tiene color) sacaría todo de la lista: se quita el filtro de tipo
+        if self._hl_color_filter and new_filt == "invert" then
+            self._hl_filter = nil
+        else
+            self._hl_filter = new_filt
+        end
+    end
+
+    -- Con un color filtrado, un highlight que pasa a invert sale de esa lista: ya no queda seleccionado
+    if self._hl_color_filter and new_drawer == "invert" then
+        self._split_selected_item = nil
     end
 
     -- 4. Ocultar el selector de tipos de forma instantánea
@@ -4288,7 +4846,7 @@ function PageScrubber:_startHold(action)
         if action == "prev" then 
             if target_page > 1 then 
                 self._force_menu_sync = true
-                self:_previewPage(self._cur_page - jump, false) 
+                self:_stepPreview(self._cur_page - jump) 
             else 
                 self:_cancelHold()
                 return 
@@ -4296,7 +4854,7 @@ function PageScrubber:_startHold(action)
         elseif action == "next" then 
             if target_page < self._total_pages then 
                 self._force_menu_sync = true
-                self:_previewPage(self._cur_page + jump, false) 
+                self:_stepPreview(self._cur_page + jump) 
             else 
                 self:_cancelHold()
                 return 
@@ -4416,7 +4974,7 @@ function PageScrubber:onTap(_, ges)
             self:_flashAndDo("gsix_prev", self._gsix_prev_dimen, function()
                 self._force_menu_sync = true
                 local delta = self.is_rtl and self:_g6Count() or -self:_g6Count()
-                self:_previewPage(self._cur_page + delta, false)
+                self:_stepPreview(self._cur_page + delta)
             end)
             return true
         end
@@ -4424,7 +4982,7 @@ function PageScrubber:onTap(_, ges)
             self:_flashAndDo("gsix_next", self._gsix_next_dimen, function()
                 self._force_menu_sync = true
                 local delta = self.is_rtl and -self:_g6Count() or self:_g6Count()
-                self:_previewPage(self._cur_page + delta, false)
+                self:_stepPreview(self._cur_page + delta)
             end)
             return true
         end
@@ -4457,14 +5015,14 @@ function PageScrubber:onTap(_, ges)
             self:_gsSetPressed("prev", 0.25)
             self._force_menu_sync = true
             local delta = self.is_rtl and 1 or -1
-            self:_previewPage(self._cur_page + delta, false)
+            self:_stepPreview(self._cur_page + delta)
             return true
         end
         if self._gs_next_dimen and ges.pos:intersectWith(self._gs_next_dimen) then
             self:_gsSetPressed("next", 0.25)
             self._force_menu_sync = true
             local delta = self.is_rtl and -1 or 1
-            self:_previewPage(self._cur_page + delta, false)
+            self:_stepPreview(self._cur_page + delta)
             return true
         end
         if self._gs_page_dimen and ges.pos:intersectWith(self._gs_page_dimen) then
@@ -4591,6 +5149,12 @@ function PageScrubber:onTap(_, ges)
         if self._type_picker_dimens then
             for _, t in ipairs(self._type_picker_dimens) do
                 if ges.pos:intersectWith(t.dimen) then
+                    if t.key == "__color" then
+                        self:_flashAndDo("type___color", t.dimen, function()
+                            self:_openColorChangeMenu(t.dimen)
+                        end)
+                        return true
+                    end
                     self:_flashAndDo("type_" .. t.key, t.dimen, function()
                         self:_setHighlightType(t.key)
                     end)
@@ -4639,9 +5203,16 @@ function PageScrubber:onTap(_, ges)
             return true
         end
 
+        if self._tab_arrow_dimen and (self._active_tab == "highlights" or self._active_tab == "notes")
+           and ges.pos:intersectWith(self._tab_arrow_dimen) then
+            self:_openColorMenu(self._tab_arrow_tab_dimen)
+            return true
+        end
+
         if self._tab_hl_dimen and ges.pos:intersectWith(self._tab_hl_dimen) then
             self._active_tab = "highlights"
             self._hl_filter = self.initial_hl_filter or nil
+            self._hl_color_filter = nil
             self._split_bm_page = self.initial_bm_page or 1
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
@@ -4649,8 +5220,9 @@ function PageScrubber:onTap(_, ges)
         end
 
         if (self._active_tab == "highlights" or self._active_tab == "notes") and self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) then
-            if self._hl_filter ~= nil then
+            if self._hl_filter ~= nil or self._hl_color_filter ~= nil then
                 self._hl_filter = nil
+                self._hl_color_filter = nil
                 self._split_bm_page = 1
                 self._split_selected_item = nil
                 UIManager:setDirty(self, "ui", self.dimen)
@@ -4677,6 +5249,7 @@ function PageScrubber:onTap(_, ges)
         if self._tab_bm_dimen and ges.pos:intersectWith(self._tab_bm_dimen) then
             self._active_tab = "bookmarks"
             self._hl_filter = nil
+            self._hl_color_filter = nil
             self._split_bm_page = 1
             self._split_selected_item = nil
             self:_extractAnnotations()
@@ -4687,6 +5260,7 @@ function PageScrubber:onTap(_, ges)
         if self._tab_note_dimen and ges.pos:intersectWith(self._tab_note_dimen) then
             self._active_tab = "notes"
             self._hl_filter = nil
+            self._hl_color_filter = nil
             self._split_bm_page = 1
             self._split_selected_item = nil
             self:_extractAnnotations()
@@ -4973,7 +5547,7 @@ function PageScrubber:onTap(_, ges)
                         self._thumb_req_w = (self._thumb_req_w == self._grid_item_w) and (self._grid_item_w + 1) or self._grid_item_w
                         self:_updateGridPages()
                     else
-                        self:_previewPage(slot.page, false)
+                        self:_stepPreview(slot.page)
                     end
                 end
                 return true
@@ -4995,9 +5569,9 @@ function PageScrubber:onTap(_, ges)
 
     if self._grid_disabled and self._grid_dimen and ges.pos:intersectWith(self._grid_dimen) then
         if ges.pos.intersectWith and ges.pos:intersectWith(self._fallback_prev_dimen) then
-            self:_previewPage(self._cur_page - 1, false)
+            self:_stepPreview(self._cur_page - 1)
         elseif ges.pos.intersectWith and ges.pos:intersectWith(self._fallback_next_dimen) then
-            self:_previewPage(self._cur_page + 1, false)
+            self:_stepPreview(self._cur_page + 1)
         else
             self:_gotoPage(self._cur_page)
             self:_closeStay()
@@ -5134,7 +5708,7 @@ function PageScrubber:onSwipe(_, ges)
 
             if step ~= 0 then
                 self._force_menu_sync = false
-                self:_previewPage(self._cur_page + step, false)
+                self:_stepPreview(self._cur_page + step)
                 return true
             end
         end
@@ -5150,11 +5724,11 @@ function PageScrubber:onSwipe(_, ges)
 
     if swipe_forward then
         self._force_menu_sync = true
-        self:_previewPage(self._cur_page + jump, false) 
+        self:_stepPreview(self._cur_page + jump) 
         return true
     elseif swipe_backward then
         self._force_menu_sync = true
-        self:_previewPage(self._cur_page - jump, false) 
+        self:_stepPreview(self._cur_page - jump) 
         return true
     elseif ges.direction == "south" then
         self:_closeReturn()
@@ -5192,6 +5766,7 @@ function PageScrubber:onHold(_, ges)
             self._view_mode = "split"
             self._active_tab = "highlights"
             self._hl_filter = nil
+            self._hl_color_filter = nil
             self._split_fixed_page = self._cur_page
             self._split_bm_page = 1
             self._split_selected_item = nil
@@ -5409,7 +5984,7 @@ function PageScrubber:onCloseWidget()
     local widgets_to_free = {
         self._tw_row_normal, self._tw_row_bold,
         self._tw_row_super_normal, self._tw_row_super_bold,
-        self._tw_tab_count_normal, self._tw_tab_count_bold, 
+        self._tw_tab_count_normal, self._tw_tab_count_bold, self._tw_tab_color_name,
         self._tw_preview_text, self._tw_header_page, self._tw_empty_list, self._tw_pagination,
         self._tw_tab_sort, self._tw_tab_bm, self._tw_tab_hl, self._tw_tab_note,
         self.tw_booktitle, self.tw_chapter, self.tw_info,

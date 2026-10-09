@@ -633,23 +633,40 @@ function PreviewButton:init()
     btn_content[1] = VerticalGroup:new(content_elements)
     
     self.frame = FrameContainer:new({ show_parent = self.show_parent, bordersize = 0, padding_left = 0, padding_right = 0 })
-    self.frame[1] = btn_content
-    self.dimen = self.frame:getSize()
-    self[1] = self.frame
-    self.ges_events = { TapSelectButton = { GestureRange:new({ ges = "tap", range = self.dimen }) } }
+        self.frame[1] = btn_content
+        self.dimen = self.frame:getSize()
+        self[1] = self.frame
+        self.ges_events = { 
+            TapSelectButton = { GestureRange:new({ ges = "tap", range = self.dimen }) },
+            HoldSelectButton = { GestureRange:new({ ges = "hold", range = self.dimen }) },
+            -- El dedo puede haberse corrido del botón al soltar: el release se escucha en toda la pantalla
+            HoldReleaseSelectButton = { GestureRange:new({
+                ges = "hold_release",
+                range = Geom:new({ x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() }),
+            }) },
+        }
+    end
+
+function PreviewButton:onHoldSelectButton(arg1, ges)
+    if not self.hold_callback then return false end
+    -- La acción salta apenas se detecta el hold. El menú flotante NO se cierra acá (se cierra al elegir
+    -- un color o al cancelar), así el hold_release lo sigue recibiendo este botón y no llega al lector.
+    self._hold_active = true
+    local anchor_pos = ges and ges.pos
+    local UIManager = require("ui/uimanager")
+    -- Aislar la acción del hilo de gestos táctiles para evitar bloqueos
+    UIManager:scheduleIn(0, function()
+        if self.hold_callback then self.hold_callback(self, anchor_pos) end
+    end)
+    return true
 end
 
-function PreviewButton:setText(new_text)
-    self.text = new_text
-    if self._text_widget then
-        self._text_widget:setText(new_text)
-        if self.show_parent then
-            UIManager:setDirty(self.show_parent, "ui")
-        else
-            UIManager:setDirty(self, "ui")
-        end
+    function PreviewButton:onHoldReleaseSelectButton()
+        if not self._hold_active then return false end
+        self._hold_active = false
+        -- Consumir la liberación del dedo para que no llegue al lector de KOReader
+        return true
     end
-end
 
 function PreviewButton:onTapSelectButton()
     if self.callback then self.callback(); return true end
@@ -1730,6 +1747,7 @@ function FloatingActionMenu:init()
         end
 
         local cb
+        local hold_cb
         if spec.is_plus then
             self._plus_btn_index = idx
             cb = function() self:toggleMore() end
@@ -1737,6 +1755,7 @@ function FloatingActionMenu:init()
             cb = function() pcall(spec.external_callback) end
         else
             cb = function() self:invokeNative(spec.action) end
+            hold_cb = function(btn_obj, anchor_pos) self:invokeNativeHold(spec.action, anchor_pos) end
         end
 
         local btn = PreviewButton:new({
@@ -1750,6 +1769,7 @@ function FloatingActionMenu:init()
             always_show_text = false,
             show_parent = self,
             callback = cb,
+            hold_callback = hold_cb,
         })
 
         if spec.fake_popup and spec.id then
@@ -2143,7 +2163,11 @@ function FloatingActionMenu:buildMoreCard()
                 callback = function()
                     UIManager:close(self)
                     if type(u_btn.callback) == "function" then
-                        pcall(u_btn.callback, hl, self.annotation_index)
+                        -- Igual que en el diccionario: si al cerrar el menu KOReader limpio
+                        -- hl.selected_text, se la restauramos al plugin mientras corre su callback.
+                        FloatingDictionaryPopup.withRestoredSelection(self, function()
+                            u_btn.callback(hl, self.annotation_index)
+                        end)
                     end
                 end,
             })
@@ -2543,8 +2567,389 @@ local function invokeAction(self_obj, action_name)
     end)
 end
 
+-- LÓGICA DE PULSACIÓN LARGA (Selector de colores de KOReader)
+-- Mantener apretado Resaltar / Subrayar / Tachar abre el selector de colores. Primero se intenta el
+-- ButtonSelector nativo; en algunas versiones de KOReader falla al crearse ("bad argument #1 to 'unpack'"),
+-- así que si eso pasa se usa un selector propio (3x3) con los mismos colores de KOReader.
+-- Al elegir un color se guarda con el guardado nativo (ReaderHighlight:saveHighlight), con ese estilo y color,
+-- sin tocar el color por defecto de KOReader.
+local HOLD_STYLE = { highlight = "lighten", underline = "underscore", strikethrough = "strikeout" }
+
+-- Relleno redondeado a todo color. En pantallas a color el relleno hay que pintarlo con blendRectRGB32
+-- (paintRect pierde el color y lo deja en gris); en pantallas B/N se usa el pintado normal.
+local function paintColorFill(bb, x, y, w, h, r, color)
+    if w <= 0 or h <= 0 then return end
+    if not (bb.blendRectRGB32 or bb.paintRectRGB32) then
+        paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
+        return
+    end
+    r = math.min(r, math.floor(w / 2), math.floor(h / 2))
+    local function paint(px, py, pw, ph)
+        if bb.blendRectRGB32 then bb:blendRectRGB32(px, py, pw, ph, color)
+        else bb:paintRectRGB32(px, py, pw, ph, color) end
+    end
+    if r <= 0 then paint(x, y, w, h); return end
+    paint(x + r, y, w - 2 * r, h)
+    paint(x, y + r, r, math.max(1, h - 2 * r))
+    paint(x + w - r, y + r, r, math.max(1, h - 2 * r))
+    for j = 0, r - 1 do
+        local arc = math.ceil(math.sqrt(r * r - (r - j - 0.5) * (r - j - 0.5)))
+        if arc > 0 then
+            paint(x + r - arc, y + j, arc, 1)
+            paint(x + w - r,   y + j, arc, 1)
+            paint(x + r - arc, y + h - 1 - j, arc, 1)
+            paint(x + w - r,   y + h - 1 - j, arc, 1)
+        end
+    end
+end
+
+local ColorSwatchPopup = InputContainer:extend({
+    values = nil,      -- { { nombre, clave, color }, ... } (formato de ReaderHighlight:getHighlightColorList)
+    current = nil,     -- clave del color actual (se remarca)
+    on_select = nil,   -- function(clave)
+    on_cancel = nil,   -- function()
+    anchor_fn = nil,   -- function() -> { y = ... }, pop_down  (posición nativa de diálogos, opcional)
+})
+
+function ColorSwatchPopup:init()
+    self.modal = true
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    self.dimen = Geom:new({ x = 0, y = 0, w = sw, h = sh })
+
+    local cols = 3
+    -- Solo entradas válidas: { nombre, clave, color }
+    local clean = {}
+    for _, v in ipairs(self.values or {}) do
+        if type(v) == "table" and type(v[2]) == "string" then table.insert(clean, v) end
+    end
+    self.values = clean
+    local n = #clean
+    local rows = math.max(1, math.ceil(n / cols))
+    self.cols = cols
+    -- POPUP_K achica todo el menu de colores (tamanos y fuente) en bloque; 1.0 = tamano anterior.
+    -- El contorno (border / anillos) no se toca para conservar el grosor de linea.
+    local POPUP_K = 0.75
+    local function sk(v) return math.max(1, math.floor(scale(v) * POPUP_K + 0.5)) end
+    self.pad = sk(14)
+    self.cell_w = sk(104)
+    self.cell_h = sk(98)
+    self.circle_d = sk(54)
+    self.border = scale(2)
+    self.radius = sk(16)
+    self.face = Font:getFace("cfont", math.max(8, math.floor(scaleText(17) * POPUP_K + 0.5)))
+
+    local w = cols * self.cell_w + self.pad * 2
+    local h = rows * self.cell_h + self.pad * 2
+    self._content_w, self._content_h = w, h
+    local x = math.floor((sw - w) / 2)
+    local y = math.floor((sh - h) / 2)
+
+    -- Misma posición que usan los diálogos nativos de resaltado (arriba / centro / abajo / junto al texto)
+    if self.anchor_fn then
+        local ok, anchor, pop_down = pcall(self.anchor_fn, self)
+        if ok and type(anchor) == "table" then
+            if anchor.is_vertical and anchor.menu_rect then
+                y = anchor.y - math.floor(h / 2)
+                if anchor.pos_pref == "left_v" then
+                    x = anchor.menu_rect.x + anchor.menu_rect.w + scale(6)
+                else
+                    x = anchor.menu_rect.x - w - scale(6)
+                end
+            elseif anchor.x and anchor.y then
+                x = anchor.x - math.floor(w / 2)
+                if pop_down == true then
+                    y = anchor.y                 -- el diálogo se despliega hacia abajo desde y
+                elseif pop_down == false then
+                    y = anchor.y - h             -- el diálogo se despliega hacia arriba hasta y
+                else
+                    y = anchor.y                 -- "arriba" / "abajo" de la pantalla (se acota más abajo)
+                end
+            elseif anchor.y then
+                if pop_down == true then
+                    y = anchor.y
+                elseif pop_down == false then
+                    y = anchor.y - h
+                else
+                    y = anchor.y
+                end
+            end
+        end
+    end
+    
+    x = math.max(scale(8), math.min(x, sw - w - scale(8)))
+    y = math.max(scale(8), math.min(y, sh - h - scale(8)))
+
+    self.card_rect = Geom:new({ x = x, y = y, w = w, h = h })
+
+    self.cells = {}
+    for i, v in ipairs(self.values or {}) do
+        local col = (i - 1) % cols
+        local row = math.floor((i - 1) / cols)
+        self.cells[i] = {
+            name = tostring(v[1] or v[2] or ""),
+            key = v[2],
+            color = v[3],
+            dimen = Geom:new({
+                x = x + self.pad + col * self.cell_w,
+                y = y + self.pad + row * self.cell_h,
+                w = self.cell_w, h = self.cell_h,
+            }),
+        }
+    end
+
+    if Device:isTouchDevice() then
+        self.ges_events = {
+            Tap   = { GestureRange:new({ ges = "tap",   range = self.dimen }) },
+            Hold  = { GestureRange:new({ ges = "hold",  range = self.dimen }) },
+            HoldRelease = { GestureRange:new({ ges = "hold_release", range = self.dimen }) },
+            Swipe = { GestureRange:new({ ges = "swipe", range = self.dimen }) },
+        }
+    end
+end
+
+-- Algunas posiciones nativas (junto al texto) necesitan conocer el alto del diálogo
+function ColorSwatchPopup:getContentSize()
+    return Geom:new({ w = self._content_w or 0, h = self._content_h or 0 })
+end
+
+function ColorSwatchPopup:onHold() return true end
+function ColorSwatchPopup:onHoldRelease() return true end
+function ColorSwatchPopup:onSwipe() return true end
+
+function ColorSwatchPopup:onShow()
+    UIManager:setDirty(self, function() return "ui", self.card_rect end)
+end
+
+function ColorSwatchPopup:paintTo(bb, x, y)
+    -- Un error de pintado dentro del bucle de UI tumba KOReader: lo atajamos y cerramos el selector
+    local ok, err = pcall(function()
+        local r = self.card_rect
+        paintCornerRect(bb, r.x, r.y, r.w, r.h, self.radius, Blitbuffer.COLOR_BLACK, true, true, true, true)
+        paintCornerRect(bb, r.x + self.border, r.y + self.border, r.w - self.border * 2, r.h - self.border * 2,
+            math.max(1, self.radius - self.border), Blitbuffer.COLOR_WHITE, true, true, true, true)
+
+        for _, cell in ipairs(self.cells) do
+            local d = self.circle_d
+            local cx = cell.dimen.x + math.floor((cell.dimen.w - d) / 2)
+            local cy = cell.dimen.y + scale(4)
+            local is_current = (self.current ~= nil and cell.key == self.current)
+            local ring = is_current and scale(5) or scale(2)
+
+            paintCornerRect(bb, cx, cy, d, d, math.floor(d / 2), Blitbuffer.COLOR_BLACK, true, true, true, true)
+            local inner = d - ring * 2
+            local fill = cell.color or Blitbuffer.COLOR_GRAY
+            local ok_fill = pcall(function()
+                paintColorFill(bb, cx + ring, cy + ring, inner, inner, math.floor(inner / 2), fill)
+            end)
+            if not ok_fill then
+                paintCornerRect(bb, cx + ring, cy + ring, inner, inner, math.floor(inner / 2), Blitbuffer.COLOR_GRAY, true, true, true, true)
+            end
+
+            local tw = TextWidget:new({ text = cell.name, face = self.face, fgcolor = Blitbuffer.COLOR_BLACK, bold = is_current })
+            local tsz = tw:getSize()
+            tw:paintTo(bb, cell.dimen.x + math.floor((cell.dimen.w - tsz.w) / 2), cy + d + scale(6))
+            tw:free()
+        end
+    end)
+    if not ok and not self._paint_failed then
+        self._paint_failed = true
+        local ok_log, logger = pcall(require, "logger")
+        if ok_log and logger then logger.warn("floating_dict: error pintando el selector de colores:", err) end
+        UIManager:scheduleIn(0, function()
+            UIManager:close(self)
+            if self.on_cancel then pcall(self.on_cancel) end
+        end)
+    end
+end
+
+function ColorSwatchPopup:onTap(_arg, ges)
+    if not (ges and ges.pos) then return true end
+    if not ges.pos:intersectWith(self.card_rect) then
+        UIManager:close(self)
+        if self.on_cancel then self.on_cancel() end
+        return true
+    end
+    for _, cell in ipairs(self.cells) do
+        if ges.pos:intersectWith(cell.dimen) then
+            UIManager:close(self)
+            if self.on_select then self.on_select(cell.key) end
+            return true
+        end
+    end
+    return true
+end
+
+function ColorSwatchPopup:onCloseWidget()
+    UIManager:setDirty(nil, function() return "ui", self.card_rect end)
+end
+
+-- Lista { { nombre, clave, color }, ... } armada a partir de la paleta de KOReader.
+-- No usamos hl:getHighlightColorList(): en algunas versiones devuelve entradas que no son tablas
+-- (ButtonSelector falla con "bad argument #1 to 'unpack' (table expected, got cdata)").
+local function buildColorValues(hl)
+    local gt = require("gettext")
+    local base = hl.highlight_colors
+    if type(base) ~= "table" or #base == 0 then
+        base = {
+            { gt("Red"), "red" }, { gt("Orange"), "orange" }, { gt("Yellow"), "yellow" },
+            { gt("Green"), "green" }, { gt("Olive"), "olive" }, { gt("Cyan"), "cyan" },
+            { gt("Blue"), "blue" }, { gt("Purple"), "purple" }, { gt("Gray"), "gray" },
+        }
+    end
+    local list = {}
+    for _, c in ipairs(base) do
+        if type(c) == "table" and type(c[2]) == "string" then
+            local key = c[2]
+            local color
+            if type(hl.getHighlightColor) == "function" then
+                local ok, col = pcall(hl.getHighlightColor, hl, key, nil, true)
+                if ok then color = col end
+            end
+            local custom = type(hl.custom_colors) == "table" and hl.custom_colors[key]
+            local name = (type(custom) == "table" and custom.name) or c[1] or key
+            table.insert(list, { tostring(name), key, color })
+        end
+    end
+    return list
+end
+
+local function invokeHoldAction(self_obj, action_name, anchor_pos)
+    local hl = self_obj.highlight_obj
+    if not hl then return end
+
+    -- Solo para acciones de resaltado/dibujado (invert no admite color)
+    local style = HOLD_STYLE[action_name]
+    if not style then return end
+
+    local UIManager = require("ui/uimanager")
+    local ok_log, logger = pcall(require, "logger")
+    local function warn(...) if ok_log and logger then logger.warn(...) end end
+    local function info(...) if ok_log and logger then logger.info(...) end end
+
+    info("floating_dict: hold en", action_name)
+
+    if type(hl.saveHighlight) ~= "function" then
+        -- Esta versión de KOReader no tiene el guardado nativo: se comporta como un toque normal
+        warn("floating_dict: no existe saveHighlight, se guarda con el color por defecto")
+        self_obj:invokeNative(action_name)
+        return
+    end
+
+    -- Selección a guardar (si KOReader ya la limpió, usamos la copia que guardó el menú al abrirse)
+    local sel = hl.selected_text or self_obj.selected_text
+    if not (sel and sel.pos0 and sel.pos1) then
+        warn("floating_dict: no hay selección para resaltar")
+        return
+    end
+    hl.selected_text = sel
+
+    local values_ok, values = pcall(buildColorValues, hl)
+    if not values_ok or type(values) ~= "table" or #values == 0 then
+        warn("floating_dict: no se pudo armar la paleta de colores:", values)
+        self_obj:invokeNative(action_name)
+        return
+    end
+    info("floating_dict: paleta con", #values, "colores")
+
+    local current = hl.view and hl.view.highlight and hl.view.highlight.saved_color
+
+    -- El menú flotante se cierra recién al elegir un color o al cancelar
+    local function closeMenu()
+        pcall(function() UIManager:close(self_obj) end)
+    end
+
+    local function finish(color_name)
+        closeMenu()
+        local ok, err = pcall(function()
+            if not hl.selected_text then hl.selected_text = sel end
+            hl.selected_text.drawer = style
+            if color_name then hl.selected_text.color = color_name end
+            hl:saveHighlight(true)
+            hl:clear()
+        end)
+        if not ok then
+            warn("floating_dict: no se pudo guardar el highlight con color:", err)
+            pcall(function() hl:clear() end)
+        end
+    end
+
+    local function cancel()
+        -- Al cancelar el menú de colores, NO cerramos el menú flotante principal
+        -- ni limpiamos la selección, para que el texto siga marcado y el menú abierto.
+    end
+
+    local color_selector
+
+    local function anchor_for(widget)
+        if anchor_pos and self_obj.popup_rect then
+            local rect = self_obj.popup_rect
+            if self_obj._is_horizontal then
+                if self_obj._pos_pref == "bottom_h" then
+                    return { x = anchor_pos.x, y = rect.y - scale(6) }, false
+                else
+                    return { x = anchor_pos.x, y = rect.y + rect.h + scale(6) }, true
+                end
+            else
+                return { x = anchor_pos.x, y = anchor_pos.y, is_vertical = true, menu_rect = rect, pos_pref = self_obj._pos_pref }, false
+            end
+        end
+
+        if type(hl._getDialogAnchor) ~= "function" then return nil end
+        local ok_a, anchor, pop_down = pcall(function() return hl:_getDialogAnchor(widget) end)
+        if ok_a then return anchor, pop_down end
+        return nil
+    end
+
+    -- 1) Selector con círculos de colores
+    local shown = false
+    do
+        local ok, err = pcall(function()
+            local popup = ColorSwatchPopup:new{
+                values = values,
+                current = current,
+                on_select = finish,
+                on_cancel = cancel,
+                anchor_fn = anchor_for,
+            }
+            UIManager:show(popup)
+        end)
+        shown = ok
+        if ok then
+            info("floating_dict: selector de círculos abierto")
+        else
+            warn("floating_dict: el selector de círculos falló, se prueba el nativo:", err)
+        end
+    end
+
+    -- 2) Respaldo: selector nativo de KOReader (ButtonSelector)
+    if not shown then
+        local ok_bs, ButtonSelector = pcall(require, "ui/widget/buttonselector")
+        if ok_bs and ButtonSelector then
+            local ok, err = pcall(function()
+                color_selector = ButtonSelector:new{
+                    current_value = current,
+                    values = values,
+                    callback = function(selected_color_name) finish(selected_color_name) end,
+                    -- Tocar afuera cancela: se deselecciona el texto sin guardar nada
+                    tap_close_callback = cancel,
+                    anchor = function() return anchor_for(color_selector) end,
+                }
+                UIManager:show(color_selector)
+            end)
+            if ok then
+                info("floating_dict: selector nativo abierto")
+            else
+                -- Si no hay forma de mostrar un selector, el menú flotante queda como estaba
+                warn("floating_dict: no se pudo abrir ningún selector de colores:", err)
+                if color_selector then pcall(function() UIManager:close(color_selector) end) end
+            end
+        end
+    end
+end
+
 function FloatingDictionaryPopup:invokeNative(a) invokeAction(self, a) end
 function FloatingActionMenu:invokeNative(a) invokeAction(self, a) end
+function FloatingActionMenu:invokeNativeHold(a, anchor_pos) invokeHoldAction(self, a, anchor_pos) end
 
 local function checkClose(self_obj, ges)
     if ges and ges.pos then
@@ -2669,6 +3074,7 @@ local function showCustomActionMenu(hl_self, plugin, index)
         pos1 = sel.pos1,
         highlight_obj = hl_self,
         plugin = plugin,
+        selected_text = sel, -- copia de la selección, por si KOReader la limpia al cerrar el menú
         annotation_index = index -- ACÁ SE LO PASAMOS
     })
     UIManager:show(popup)
