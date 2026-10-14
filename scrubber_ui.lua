@@ -16,6 +16,7 @@ local InfoMessage     = require("ui/widget/infomessage")
 local InputDialog     = require("ui/widget/inputdialog")
 local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
+local TextBoxWidget   = require("ui/widget/textboxwidget")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
 
@@ -109,6 +110,35 @@ end
 
 local function paintRoundRect(bb, x, y, w, h, r, color)
     paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
+end
+
+-- Redibuja el contorno de un recuadro redondeado POR ENCIMA de lo que haya adentro (una imagen a
+-- pantalla completa queda "detras" del borde). Las esquinas de afuera del contorno quedan blancas.
+local function paintFrameOver(bb, x, y, w, h, r, thick)
+    r = math.max(0, math.min(r, math.floor(w / 2), math.floor(h / 2)))
+    local ri = math.max(0, r - thick)
+    local function inset(j, rad)
+        if rad <= 0 or j >= rad then return 0 end
+        local d = rad - j - 0.5
+        return rad - math.ceil(math.sqrt(rad * rad - d * d))
+    end
+    for row = 0, h - 1 do
+        local edge = math.min(row, h - 1 - row)
+        local o = inset(edge, r)
+        if o > 0 then
+            bb:paintRect(x, y + row, o, 1, Blitbuffer.COLOR_WHITE)
+            bb:paintRect(x + w - o, y + row, o, 1, Blitbuffer.COLOR_WHITE)
+        end
+        if edge < thick then
+            bb:paintRect(x + o, y + row, w - o * 2, 1, Blitbuffer.COLOR_BLACK)
+        else
+            local ii = thick + inset(edge - thick, ri)
+            if ii > o then
+                bb:paintRect(x + o, y + row, ii - o, 1, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(x + w - ii, y + row, ii - o, 1, Blitbuffer.COLOR_BLACK)
+            end
+        end
+    end
 end
 
 -- Algoritmo de división en franjas horizontales exactas estilo Bookshelf
@@ -331,6 +361,14 @@ function PageScrubber:init()
         end
     end
     self._is_comic = is_comic
+    -- Tab de imagenes: solo en formatos soportados (EPUB); en comics/PDF el tab directamente no aparece
+    if self._imgTabEnabled and self._imgSupported and not self:_imgSupported() then
+        self._imgTabEnabled = false
+    end
+    -- Opcion de Ajustes > Layout: "Disable Images tab"
+    if self._imgTabEnabled and G_reader_settings and G_reader_settings:isTrue("page_scrubber_hide_images_tab") then
+        self._imgTabEnabled = false
+    end
     local manual_rtl = nil
     if ui and ui.doc_settings then
         manual_rtl = ui.doc_settings:readSetting("page_scrubber_rtl")
@@ -393,7 +431,8 @@ function PageScrubber:init()
     
     self._view_mode = self.initial_view_mode or "grid" 
     self._base_grid_mode = self.base_mode or ((self.initial_view_mode == "grid_simple") and "grid_simple" or "grid")
-    self._active_tab = self.initial_tab or "bookmarks" 
+    self._active_tab = self.initial_tab or "bookmarks"
+    if self._active_tab == "images" and not self._imgTabEnabled then self._active_tab = "bookmarks" end 
     self._sort_order = self.initial_sort_order or "desc" 
     self._split_bm_page = self.initial_bm_page or 1  
     self._force_menu_sync = true 
@@ -551,6 +590,7 @@ function PageScrubber:init()
     self.icon_tab_bm   = createSafeIcon("\u{E7B9}", "majesticons--book.svg", tab_icon_sz)
     self.icon_tab_hl   = createSafeIcon("\u{E931}", "majesticons--filter.svg", tab_icon_sz)
     self.icon_tab_note = createSafeIcon("\u{F075}", "majesticons--chat-2-text.svg", tab_icon_sz)
+    self.icon_tab_img  = createSafeIcon("\u{F03E}", "image-svgrepo-com.svg", tab_icon_sz)
 
     self.icon_sort_asc  = createSafeIcon("\u{EBBB}", "arrow-up-wide-narrow.svg", tab_icon_sz)
     self.icon_sort_desc = createSafeIcon("\u{EBBC}", "arrow-down-wide-narrow.svg", tab_icon_sz)
@@ -559,10 +599,25 @@ function PageScrubber:init()
     self.icon_pol_note = createSafeIcon("\u{F448}", "gravity-ui--pencil-to-square.svg", pol_icon_sz)
     self.icon_pol_hl   = createSafeIcon("\u{ED51}", "boxicons--highlight-filled.svg", pol_icon_sz)
     self.icon_pol_bm   = createSafeIcon("\u{F02E}", "gravity-ui--bookmark-fill.svg", pol_icon_sz)
+    self.icon_pol_pencil = createSafeIcon("\u{F040}", "pencil-line.svg", pol_icon_sz)
+    self.icon_pol_img  = createSafeIcon("\u{F03E}", "image.svg", pol_icon_sz)
+    self.icon_pol_img_fav  = createSafeIcon("*", "img-folder-fav.svg",     pol_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_pol_img_gen  = createSafeIcon("=", "img-folder-general.svg", pol_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_pol_img_junk = createSafeIcon("x", "trash-2.svg",            pol_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_details_close = createSafeIcon("\u{21BA}", "undo.svg", S(22))      -- solo para salir del zoom
+    self.icon_details_expand = createSafeIcon("\u{2922}", "expand.svg", S(22))   -- panel normal -> expandido
+    self.icon_details_shrink = createSafeIcon("\u{2921}", "shrink.svg", S(22))   -- panel expandido -> normal
 
     local filter_icon_sz = S(14)
     self.icon_filter_hl_on  = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
     self.icon_filter_hl_off = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    -- Carpetas del tab de imagenes: favoritas / generales / basura (encendido = negro, apagado = gris)
+    self.icon_img_fav_on   = createSafeIcon("*", "img-folder-fav.svg",     filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_img_fav_off  = createSafeIcon("*", "img-folder-fav.svg",     filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    self.icon_img_gen_on   = createSafeIcon("=", "img-folder-general.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_img_gen_off  = createSafeIcon("=", "img-folder-general.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    self.icon_img_junk_on  = createSafeIcon("x", "trash-2.svg",            filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_img_junk_off = createSafeIcon("x", "trash-2.svg",            filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
     
     self.icon_filter_inv_on  = createSafeIcon("\u{F043}", "contrast.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
     self.icon_filter_inv_off = createSafeIcon("\u{F043}", "contrast.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
@@ -578,6 +633,10 @@ function PageScrubber:init()
     self.icon_picker_inv = createSafeIcon("\u{F043}", "contrast.svg", picker_icon_sz, Blitbuffer.COLOR_BLACK)
     self.icon_picker_ul  = createSafeIcon("\u{E932}", "underline.svg", picker_icon_sz, Blitbuffer.COLOR_BLACK)
     self.icon_picker_st  = createSafeIcon("\u{F0CC}", "strikethrough.svg", picker_icon_sz, Blitbuffer.COLOR_BLACK)
+    -- Iconos de carpeta de imagenes para el panel de detalles (mismo tamano que los de tipo de highlight)
+    self.icon_det_img_fav  = createSafeIcon("*", "img-folder-fav.svg",     picker_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_det_img_gen  = createSafeIcon("=", "img-folder-general.svg", picker_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_det_img_junk = createSafeIcon("x", "trash-2.svg",            picker_icon_sz, Blitbuffer.COLOR_BLACK)
 
     self.icon_btn_trash     = createSafeIcon("\u{F014}", "trash-2.svg", S(22), Blitbuffer.COLOR_BLACK)
     self.icon_btn_edit      = createSafeIcon("\u{F040}", "pencil-sparkles.svg", S(22), Blitbuffer.COLOR_BLACK)
@@ -587,6 +646,8 @@ function PageScrubber:init()
     self.icon_box_plus       = createSafeIcon("\u{002B}", "square-plus.svg", box_icon_sz)
     self.icon_box_minus_fill = createSafeIcon("\u{2212}", "square-minus-filled.svg", box_icon_sz)
     self.icon_box_minus      = createSafeIcon("\u{2212}", "square-minus.svg", box_icon_sz)
+    self.icon_img_plus       = createSafeIcon("\u{002B}", "image-plus.svg", box_icon_sz)
+    self.icon_img_minus      = createSafeIcon("\u{2212}", "image-minus.svg", box_icon_sz)
     self.icon_box_arrow      = createSafeIcon("\u{003E}", "square-arrow-right-enter.svg", box_icon_sz)
     
     self.icon_chevron_left   = createSafeIcon("‹", "chevron-left.svg", box_icon_sz)
@@ -814,15 +875,16 @@ function PageScrubber:_cacheTile(page, bb, is_scaled, w, h)
 
     for p, item in pairs(self._tile_cache) do
         count = count + 1
-        -- Proteger las páginas actualmente en pantalla o adyacentes inmediatas
-        local is_protected = (math.abs(p - self._cur_page) <= 1)
+        -- Proteger las páginas actualmente en pantalla o adyacentes inmediatas (y las que se precargaron
+        -- para el siguiente / anterior bookmark del panel de detalles)
+        local is_protected = (math.abs(p - self._cur_page) <= 1) or (self._prefetch_keep and self._prefetch_keep[p])
         if not is_protected and item.last_used < oldest_time then
             oldest_time = item.last_used
             oldest_page = p
         end
     end
 
-            if count > (self._max_cached_tiles or 8) and oldest_page then
+            if count > ((self._max_cached_tiles or 8) + (self._details_open and 3 or 0)) and oldest_page then
                 self._tile_cache[oldest_page] = nil
             end
 
@@ -833,7 +895,58 @@ end
 -- (ver _updateGridPages), no demorar la precarga.
 function PageScrubber:_preloadNeighborPages()
     if self._closing or self._grid_disabled then return end
+    -- Panel de bookmark abierto: las paginas fisicas vecinas no sirven y harian esperar (en cola) a las
+    -- de los bookmarks vecinos, que son las que se van a pedir al pasar
+    if self:_preloadDetailsNeighborPages() then return end
     self:_doPreloadNeighborPages()
+end
+
+-- Panel de detalles de un BOOKMARK: muestra la pagina entera, y al pasar al siguiente / anterior bookmark esa
+-- pagina suele estar lejos (la precarga normal solo cubre las paginas fisicas vecinas). Aca se precargan las
+-- paginas de los bookmarks vecinos de la lista para que, al pasar, la miniatura ya este en cache.
+function PageScrubber:_preloadDetailsNeighborPages()
+    if self._closing or self._grid_disabled or self._view_mode ~= "split" or not self._details_open then return end
+    local thumbnail = self.ui and self.ui.thumbnail
+    if not (thumbnail and thumbnail.getPageThumbnail) then return end
+    local w, h = self._thumb_req_split_w, self._thumb_req_split_h
+    if not (w and h) then return end
+    local ctx = self:_getDetailsContext()
+    if not ctx or type(ctx.entry) == "table" or type(ctx.items) ~= "table" then
+        self._prefetch_keep = nil   -- highlights / notas / imagenes no usan la miniatura de la pagina
+        return
+    end
+
+    local dir = self._details_step_dir or 1
+    local batch = "page_scrubber_preload_" .. tostring(self._grid_instance_id)
+    self._details_prefetch_t = self._details_prefetch_t or {}
+    local now = os.time()
+    local keep = {}
+    -- Orden de la cola: el siguiente en el sentido en que se pasa, el opuesto, y el segundo siguiente
+    for _, off in ipairs({ dir, -dir, 2 * dir }) do
+        local item = ctx.items[ctx.idx + off]
+        local p = tonumber(type(item) == "table" and item.page or item)
+        if p and p >= 1 and p <= self._total_pages then
+            keep[p] = true
+            if p ~= self._cur_page then
+                local c = self._tile_cache[p]
+                local ready = c and c.bb and c.w == w and c.h == h
+                local t = self._details_prefetch_t[p]
+                if not ready and not (self._failed_pages and self._failed_pages[p]) and not (t and now - t < 2) then
+                    self._details_prefetch_t[p] = now
+                    thumbnail:getPageThumbnail(p, w, h, batch, function(tile)
+                        if self._details_prefetch_t then self._details_prefetch_t[p] = nil end
+                        if self._closing or not tile or not tile.bb then return end
+                        local processed = processTile(tile, w, h)
+                        if processed and processed.bb then
+                            self:_cacheTile(p, processed.bb, processed.is_scaled, w, h)
+                        end
+                    end)
+                end
+            end
+        end
+    end
+    self._prefetch_keep = keep
+    return true
 end
 
 function PageScrubber:_doPreloadNeighborPages()
@@ -1208,6 +1321,7 @@ function PageScrubber:_setColorFilter(key)
     end
     self._split_bm_page = 1
     self._split_selected_item = nil
+    self:_scheduleDetailsResync()
     UIManager:setDirty(self, "ui", self.dimen)
 end
 
@@ -1268,18 +1382,42 @@ function PageScrubber:_paintChevronUp(bb, x, y, w, h, color)
     end
 end
 
+-- Dentro de un mismo frame de pintado la lista filtrada se pide varias veces (menu, panel de detalles,
+-- sincronizacion de seleccion...): se arma y ordena una sola vez mientras no cambie nada que la afecte.
+-- Fuera del pintado (gestos, teclas) siempre se recalcula.
 function PageScrubber:_getFilteredActiveList()
+    if not self._in_paint then return self:_getFilteredActiveListUncached() end
+    local fixed = self._split_fixed_page or self._origin_page
+    local m = self._fal_memo
+    if m and m.seq == self._paint_seq and m.tab == self._active_tab and m.hlf == self._hl_filter
+        and m.hlcf == self._hl_color_filter and m.imgf == self._img_folder and m.sort == self._sort_order
+        and m.fixed == fixed and m.hl == self._cached_hl and m.notes == self._cached_notes
+        and m.bms == self._cached_bms then
+        return m.list
+    end
+    local list = self:_getFilteredActiveListUncached()
+    self._fal_memo = {
+        seq = self._paint_seq, tab = self._active_tab, hlf = self._hl_filter, hlcf = self._hl_color_filter,
+        imgf = self._img_folder, sort = self._sort_order, fixed = fixed,
+        hl = self._cached_hl, notes = self._cached_notes, bms = self._cached_bms, list = list,
+    }
+    return list
+end
+
+function PageScrubber:_getFilteredActiveListUncached()
     local fixed_page = self._split_fixed_page or self._origin_page
     local active_list = {}
     if self._active_tab == "bookmarks" then active_list = self:_getAllBookmarks()
     elseif self._active_tab == "highlights" then active_list = self._cached_hl or {}
-    elseif self._active_tab == "notes" then active_list = self._cached_notes or {} end
+    elseif self._active_tab == "notes" then active_list = self._cached_notes or {}
+    elseif self._active_tab == "images" and self._imgList then active_list = self:_imgList() end
 
     local other_items = {}
     for _, it in ipairs(active_list) do
         if self._active_tab == "bookmarks" then
+            -- La pagina fijada tambien aparece en la lista si tiene bookmark (ademas de la fila fija de abajo)
             local p = tonumber(it)
-            if p ~= tonumber(fixed_page) then
+            if p then
                 table.insert(other_items, p)
             end
         else
@@ -1387,9 +1525,13 @@ end
 function PageScrubber:onPrevPage() 
     if self._closing then return true end
     if self._view_mode == "split" then
-        if self._active_tab == "notes" then self._active_tab = "highlights"
+        if self._active_tab == "images" then self._active_tab = "notes"
+        elseif self._active_tab == "notes" then self._active_tab = "highlights"
         elseif self._active_tab == "highlights" then self._active_tab = "bookmarks"
-        else self._active_tab = "notes" end
+        else self._active_tab = self._imgTabEnabled and "images" or "notes" end
+        self._img_folder = nil
+        self._split_selected_item = nil
+        if self._active_tab == "images" then self:_imgEnsureScan() end
         self._hl_color_filter = nil
         self._split_bm_page = self.initial_bm_page or 1
         self:_extractAnnotations()
@@ -1408,7 +1550,11 @@ function PageScrubber:onNextPage()
     if self._view_mode == "split" then
         if self._active_tab == "bookmarks" then self._active_tab = "highlights"
         elseif self._active_tab == "highlights" then self._active_tab = "notes"
+        elseif self._active_tab == "notes" and self._imgTabEnabled then self._active_tab = "images"
         else self._active_tab = "bookmarks" end
+        self._img_folder = nil
+        self._split_selected_item = nil
+        if self._active_tab == "images" then self:_imgEnsureScan() end
         self._hl_color_filter = nil
         self._split_bm_page = self.initial_bm_page or 1
         self:_extractAnnotations()
@@ -1793,6 +1939,7 @@ function PageScrubber:_updateGridPages()
     -- Una navegacion nueva invalida cualquier precarga que estuviera esperando su turno.
     self._preload_token = (self._preload_token or 0) + 1
     self._gate_pending = {}
+    self._details_prefetch_t = {}   -- las precargas del panel de bookmark tambien se cancelan: hay que poder pedirlas de nuevo
     local thumbnail = self.ui.thumbnail
     local S = self.S
     local sw, sh = Screen:getWidth(), Screen:getHeight()
@@ -2347,6 +2494,1235 @@ function PageScrubber:_paintGrid(bb)
     end
 end
 
+-- ============================================================================
+-- PANEL DE DETALLES DE LA ANOTACION
+-- Ventana que cubre toda la polaroid del split menu (pagina + linea de texto) y muestra
+-- fecha, capitulo/pagina, tipo/color, cita y nota de la anotacion seleccionada.
+-- El contenido sale SIEMPRE de la anotacion seleccionada en la lista de la derecha, asi que
+-- las flechas del panel, los taps en la lista y los botones de edicion quedan sincronizados.
+-- ============================================================================
+local DETAILS_MONTHS = nil  -- se arma una sola vez (los nombres pasan por el traductor)
+
+local function paintTriangle(bb, x, y, w, h, pointing_left, color)
+    for c = 0, w - 1 do
+        local frac = pointing_left and ((c + 1) / w) or ((w - c) / w)
+        local hc = math.max(1, math.floor(h * frac + 0.5))
+        bb:paintRect(x + c, y + math.floor((h - hc) / 2), 1, hc, color)
+    end
+end
+
+local function paintCross(bb, x, y, size, thick, color)
+    for i = 0, size - 1 do
+        bb:paintRect(x + i, y + i, thick, thick, color)
+        bb:paintRect(x + size - 1 - i, y + i, thick, thick, color)
+    end
+end
+
+-- Cara italica de la fuente de la interfaz (si existe); si no, la normal
+local function italic_face(size)
+    local cands = {}
+    local base = Font.fontmap and Font.fontmap["cfont"]
+    if type(base) == "string" then
+        local c = base:gsub("Regular", "Italic")
+        if c ~= base then cands[#cands + 1] = c end
+    end
+    cands[#cands + 1] = "NotoSerif-Italic.ttf"
+    cands[#cands + 1] = "NotoSans-Italic.ttf"
+    for _, name in ipairs(cands) do
+        local ok, face = pcall(function() return Font:getFace(name, size) end)
+        if ok and face then return face end
+    end
+    return Font:getFace("cfont", size)
+end
+
+-- Rectangulo de color real (RGB32) cuando la pantalla lo soporta
+local function paint_color_rect(bb, x, y, w, h, color)
+    if w <= 0 or h <= 0 then return end
+    if bb.blendRectRGB32 then bb:blendRectRGB32(x, y, w, h, color)
+    elseif bb.paintRectRGB32 then bb:paintRectRGB32(x, y, w, h, color)
+    else bb:paintRect(x, y, w, h, color) end
+end
+
+-- Corte de lineas por palabras; measure(str) devuelve el ancho en pixeles
+local function wrap_text(measure, text, max_w)
+    local lines = {}
+    for para in (text .. "\n"):gmatch("(.-)\n") do
+        if para == "" then
+            lines[#lines + 1] = ""
+        else
+            local cur = ""
+            for word in para:gmatch("%S+") do
+                local cand = (cur == "") and word or (cur .. " " .. word)
+                if measure(cand) <= max_w then
+                    cur = cand
+                else
+                    if cur ~= "" then lines[#lines + 1] = cur; cur = "" end
+                    if measure(word) <= max_w then
+                        cur = word
+                    else
+                        -- palabra mas ancha que la columna: se parte por caracteres
+                        local piece = ""
+                        for ch in word:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+                            if piece == "" or measure(piece .. ch) <= max_w then
+                                piece = piece .. ch
+                            else
+                                lines[#lines + 1] = piece
+                                piece = ch
+                            end
+                        end
+                        cur = piece
+                    end
+                end
+            end
+            lines[#lines + 1] = cur
+        end
+    end
+    return lines
+end
+
+function PageScrubber:_formatDetailsDate(raw)
+    if raw == nil or raw == "" then return nil end
+    if not DETAILS_MONTHS then
+        DETAILS_MONTHS = { _("January"), _("February"), _("March"), _("April"), _("May"), _("June"),
+                           _("July"), _("August"), _("September"), _("October"), _("November"), _("December") }
+    end
+    local y, m, d, hh, mm
+    if type(raw) == "number" then
+        local t = os.date("*t", raw)
+        if t then y, m, d, hh, mm = t.year, t.month, t.day, t.hour, t.min end
+    else
+        local s = tostring(raw)
+        y, m, d = s:match("(%d%d%d%d)[%-%/%.](%d%d)[%-%/%.](%d%d)")
+        if not y then
+            d, m, y = s:match("(%d%d)[%-%/%.](%d%d)[%-%/%.](%d%d%d%d)")
+        end
+        hh, mm = s:match("[%sT_](%d%d):(%d%d)")
+    end
+    y, m, d = tonumber(y), tonumber(m), tonumber(d)
+    if not (y and m and d and DETAILS_MONTHS[m]) then return tostring(raw) end
+    local out = string.format("%s %d, %d", DETAILS_MONTHS[m], d, y)
+    if hh and mm then out = out .. string.format(" · %02d:%02d", tonumber(hh), tonumber(mm)) end
+    return out
+end
+
+-- Lista visible, posicion de la anotacion actual dentro de ella y la anotacion en si.
+-- Fecha de un bookmark (busca en las anotaciones/bookmarks de KOReader la pagina indicada)
+function PageScrubber:_findBookmarkDate(target_p)
+    target_p = tonumber(target_p)
+    local possible_sources = {
+        self.ui.annotation and self.ui.annotation.annotations,
+        self.ui.doc_props and self.ui.doc_props.bookmarks,
+        self.ui.bookmark and self.ui.bookmark._bookmarks,
+        self.ui.bookmark and self.ui.bookmark.bookmarks,
+    }
+    for _, src in ipairs(possible_sources) do
+        if type(src) == "table" then
+            for k, v in pairs(src) do
+                if type(v) == "table" then
+                    local p = self:_getNumericalPage(v) or tonumber(v.page) or tonumber(v.pos0)
+                    if p == target_p then
+                        local d = v.datetime or v.time or v.date or v.timestamp
+                        if d then return d end
+                    end
+                else
+                    if tonumber(k) == target_p and (type(v) == "string" or type(v) == "number") then return v end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Contexto de un bookmark: lista de TODOS los bookmarks (incluye el de la pildora fija, que la
+-- lista activa excluye) y la posicion de la pagina actual dentro de ella.
+function PageScrubber:_getBookmarkDetailsContext()
+    local cur = tonumber(self._cur_page)
+    local list, seen = {}, {}
+    for _, bp in ipairs(self:_getAllBookmarks() or {}) do
+        local p = tonumber(bp)
+        if p and not seen[p] then seen[p] = true; list[#list + 1] = p end
+    end
+    local is_asc = (self._sort_order == "asc")
+    table.sort(list, function(a, b) if is_asc then return a < b else return a > b end end)
+    for i, p in ipairs(list) do
+        if p == cur then return { items = list, idx = i, n = #list, entry = p, bm = true } end
+    end
+    return nil
+end
+
+-- Tras cambiar de tab / filtro o borrar una anotacion, el panel (si esta abierto) NO se cierra:
+-- pasa a mostrar la anotacion de la nueva lista mas cercana a la pagina actual.
+function PageScrubber:_scheduleDetailsResync()
+    if not self._details_open then return end
+    self._details_bm_mode = false
+    self._details_resync_pending = true
+    UIManager:nextTick(function()
+        if self._closing then return end
+        self:_syncDetailsAfterListChange()
+    end)
+end
+
+function PageScrubber:_syncDetailsAfterListChange()
+    self._details_resync_pending = false
+    if not self._details_open or self._closing then return end
+    if self:_getDetailsContext(true) then
+        self._force_menu_sync = true
+        UIManager:setDirty(self, "ui", self.dimen)
+        return
+    end
+    local items = self:_getFilteredActiveList() or {}
+    local cur = tonumber(self._cur_page) or 0
+    local best, best_d
+    for _, it in ipairs(items) do
+        local p = tonumber((type(it) == "table") and it.page or it)
+        if p then
+            local d = math.abs(p - cur)
+            if not best_d or d < best_d then best, best_d = it, d end
+        end
+    end
+    if not best then
+        self:_closeDetailsPanel(false)   -- la nueva lista esta vacia: no hay nada que mostrar
+        return
+    end
+    self._split_selected_item = (type(best) == "table") and best or nil
+    local page = (type(best) == "table") and best.page or best
+    self._hide_action_buttons = true
+    self._force_menu_sync = true
+    self:_previewPage(page, false)
+    UIManager:setDirty(self, "ui", self.dimen)
+end
+
+-- Lista visible, posicion de la anotacion actual dentro de ella y la anotacion en si.
+-- no_bm = true: solo mira la lista activa (sin el modo/fallback de bookmark).
+function PageScrubber:_getDetailsContext(no_bm)
+    -- Modo bookmark: se mantiene mientras no se elija otra anotacion en la lista
+    if self._details_bm_mode and not no_bm then
+        if self._split_selected_item == nil then
+            local c = self:_getBookmarkDetailsContext()
+            if c then return c end
+        end
+        self._details_bm_mode = false
+    end
+
+    local items = self:_getFilteredActiveList() or {}
+    local idx = nil
+    local sel = self._split_selected_item
+    if sel then
+        for i, it in ipairs(items) do
+            if it == sel then idx = i; break end
+        end
+    end
+    if not idx then
+        for i, it in ipairs(items) do
+            local p = (type(it) == "table") and it.page or it
+            if tonumber(p) == tonumber(self._cur_page) then idx = i; break end
+        end
+    end
+    if idx then
+        return { items = items, idx = idx, n = #items, entry = items[idx] }
+    end
+
+    if no_bm then return nil end
+    if self._active_tab == "images" then return nil end   -- el fallback de bookmark no aplica a imagenes
+
+    -- Sin anotacion en la lista activa: puede ser un bookmark (p.ej. el de la pildora fija)
+    local c = self:_getBookmarkDetailsContext()
+    if c then
+        self._details_bm_mode = true
+        return c
+    end
+    return nil
+end
+
+function PageScrubber:_buildDetailsData(ctx)
+    local e = ctx.entry
+    local is_tbl = (type(e) == "table")
+    local page = is_tbl and tonumber(e.page) or tonumber(e) or self._cur_page
+    local a = is_tbl and e.annotation or nil
+    local data = {}
+    data.is_bookmark = not is_tbl
+    data.page = page
+
+    -- Titulo (tipo + color) e icono segun el tipo de anotacion
+    if not is_tbl then
+        data.title = _("Bookmark")
+        data.icon = self.icon_pol_bm
+    elseif e.img then
+        -- Titulo = capitulo; icono = carpeta de la imagen (favorita / general / basura)
+        data.title = self:_getChapter(page)
+        data.title_icon = e.is_fav and self.icon_det_img_fav
+            or (e.cls == "junk" and self.icon_det_img_junk or self.icon_det_img_gen)
+        data.image_entry = e
+    elseif a and a.drawer == nil and e.note and e.note ~= "" then
+        data.title = _("Note")
+        data.icon = self.icon_pol_note
+    else
+        local type_names = {
+            normal = _("Highlight"), invert = _("Invert"),
+            underline = _("Underline"), strikethrough = _("Strikethrough"),
+        }
+        data.title = type_names[e.type] or _("Highlight")
+        if e.type ~= "invert" and type(e.color) == "string" and e.color ~= "" then
+            local cname = HL_COLOR_NAMES[e.color] or (e.color:sub(1, 1):upper() .. e.color:sub(2))
+            data.title = data.title .. " (" .. cname .. ")"
+        end
+        if e.type == "invert" then data.icon = self.icon_picker_inv
+        elseif e.type == "underline" then data.icon = self.icon_picker_ul
+        elseif e.type == "strikethrough" then data.icon = self.icon_picker_st
+        else data.icon = self.icon_picker_hl or self.icon_pol_hl end
+    end
+
+    local raw_date
+    if is_tbl then
+        raw_date = e.date or (a and (a.datetime or a.time or a.date or a.timestamp))
+    else
+        raw_date = self:_findBookmarkDate(page)
+        if not raw_date then
+            local pd = self._page_data and self._page_data[page]
+            raw_date = pd and pd.date
+        end
+    end
+    data.date = self:_formatDetailsDate(raw_date)
+
+    local chapter = a and a.chapter
+    if type(chapter) ~= "string" or chapter == "" then chapter = self:_getChapter(page) end
+    if type(chapter) == "string" and chapter ~= "" and not data.image_entry then data.chapter = chapter end
+    local label = self:_getDisplayPageInfo(page)
+    data.page_line = _("Page") .. " " .. tostring(label)
+
+    if is_tbl and type(e.text) == "string" and e.text ~= "" then
+        data.quote = e.text
+        data.quote_type = e.type or "normal"
+        data.quote_color = (type(e.color) == "string" and e.color ~= "") and e.color or "yellow"
+    end
+    if is_tbl and type(e.note) == "string" and e.note ~= "" then
+        data.note = e.note
+    end
+    return data
+end
+
+function PageScrubber:_freeDetailsWidgets()
+    if self._details_tbw then
+        for _, ent in pairs(self._details_tbw) do
+            if ent and ent.w then pcall(function() ent.w:free() end) end
+        end
+    end
+    self._details_tbw = nil
+    self._details_qcache = nil
+    if self._details_img and self._details_img.bb then pcall(function() self._details_img.bb:free() end) end
+    self._details_img = nil
+    if self._img_zoom_src and self._img_zoom_src.bb then pcall(function() self._img_zoom_src.bb:free() end) end
+    self._img_zoom_src, self._img_zoom, self._img_zoom_cur_key = nil, nil, nil
+    self._prefetch_keep, self._details_prefetch_t, self._details_step_dir = nil, nil, nil
+    self:_freeZoomRender()
+    self._zoom_pan_last, self._img_tap_last = nil, nil
+    for _, k in ipairs({ "_tw_details_title", "_tw_details_date", "_tw_details_page", "_tw_details_counter",
+                   "_tw_details_qline", "_tw_details_qline_inv", "_tw_details_measure", "_tw_details_link" }) do
+        local wdg = self[k]
+        if wdg then pcall(function() wdg:free() end) end
+        self[k] = nil
+    end
+end
+
+-- Imagen de una pagina (para el panel de un bookmark). La busqueda vive en image_scanner.lua;
+-- aca solo se guarda en cache el resultado (y se libera el anterior).
+-- Pagina entera (la miniatura que ya esta en la vista previa) reducida para entrar en max_w x max_h.
+-- Devuelve una copia propia (el panel la libera al cerrarse); nil si la pagina todavia no cargo.
+function PageScrubber:_getPageTileBB(page, max_w, max_h)
+    local slot = self._grid_tiles and self._grid_tiles[2]
+    if not (slot and slot.page == page and slot.tile_bb) then return nil end
+    if max_w < 1 or max_h < 1 then return nil end
+    local src = slot.tile_bb
+    local sw, sh = src:getWidth(), src:getHeight()
+    if sw < 1 or sh < 1 then return nil end
+    local scale = math.min(max_w / sw, max_h / sh)
+    local nw, nh = math.max(1, math.floor(sw * scale)), math.max(1, math.floor(sh * scale))
+    local key = "tile|" .. tostring(page) .. "|" .. nw .. "x" .. nh
+    local cached = self._details_img
+    if cached and cached.key == key then return cached.bb end
+
+    local ok, bb = pcall(function()
+        if nw == sw and nh == sh then return src:copy() end
+        return src:scale(nw, nh)
+    end)
+    if not ok then bb = nil end
+    if cached and cached.bb then pcall(function() cached.bb:free() end) end
+    self._details_img = { key = key, bb = bb }
+    return bb
+end
+
+function PageScrubber:_getPageImageBB(page, max_w, max_h)
+    local key = tostring(page) .. "|" .. tostring(max_w) .. "x" .. tostring(max_h)
+    local cached = self._details_img
+    if cached and cached.key == key then return cached.bb end
+
+    local bb = nil
+    local okm, Scanner = pcall(require, "image_scanner")
+    if okm and Scanner and Scanner.isSupported(self.ui) then
+        local ok, res = pcall(Scanner.getPageImageBB, self.ui, page, max_w, max_h, self._total_pages)
+        if ok then bb = res end
+    end
+    if cached and cached.bb then pcall(function() cached.bb:free() end) end
+    self._details_img = { key = key, bb = bb }
+    return bb
+end
+
+-- ---------------------------------------------------------------------------
+-- Zoom de la imagen en el panel de detalles: pinch / spread, arrastre y doble tap para volver
+-- ---------------------------------------------------------------------------
+local IMG_ZOOM_MAX = 6
+local IMG_ZOOM_SRC_MAX = 2048   -- lado maximo (px) de la imagen decodificada para hacer zoom
+
+local function monoNow()
+    local ok, socket = pcall(require, "socket")
+    if ok and socket and socket.gettime then return socket.gettime() end
+    return os.time()
+end
+
+-- Lado maximo de la imagen "fuente" (la que se decodifica una vez y alimenta panel y zoom): como mucho el
+-- doble del lado mayor de la pantalla (mas que eso no se nota ni con zoom y solo gasta memoria)
+local function imgSrcMax()
+    local m = math.max(Screen:getWidth(), Screen:getHeight())
+    return math.max(1024, math.min(IMG_ZOOM_SRC_MAX, m * 2))
+end
+
+-- Libera el ultimo cuadro con zoom guardado
+function PageScrubber:_freeZoomRender()
+    local rc = self._zoom_render
+    if rc and rc.bb then pcall(function() rc.bb:free() end) end
+    self._zoom_render = nil
+end
+
+-- Imagen "fuente" de una entrada del tab de imagenes: se lee y decodifica UNA vez y se reutiliza para el
+-- panel (normal / expandido) y para el zoom. Vive en _img_zoom_src (se libera al cambiar de imagen).
+function PageScrubber:_getImageSource(entry)
+    local key = tostring(entry.path) .. "|" .. tostring(entry.page)
+    local zs = self._img_zoom_src
+    if zs and zs.key == key then return zs.bb end
+    if zs and zs.bb then pcall(function() zs.bb:free() end) end
+    local src = nil
+    local okm, Scanner = pcall(require, "image_scanner")
+    if okm and Scanner and Scanner.decodeSource then
+        local ok, res = pcall(Scanner.decodeSource, self.ui, entry.img, imgSrcMax())
+        if ok then src = res end
+    end
+    self._img_zoom_src = { key = key, bb = src }
+    return src
+end
+
+-- Escala un blitbuffer (libera el original si lo logra); nil si falla
+local function scaleBB(bb, w, h)
+    local okR, RenderImage = pcall(require, "ui/renderimage")
+    if okR and RenderImage and RenderImage.scaleBlitBuffer then
+        local ok, res = pcall(RenderImage.scaleBlitBuffer, RenderImage, bb, w, h, true)
+        if ok and res then return res end
+    end
+    local ok, res = pcall(function() return bb:scale(w, h) end)
+    if ok and res then
+        pcall(function() bb:free() end)
+        return res
+    end
+    return nil
+end
+
+function PageScrubber:_imgZoomActive(ges)
+    return self._view_mode == "split" and self._details_open and self._img_zoom_cur_key ~= nil
+        and self._details_panel_dimen ~= nil
+        and (not (ges and ges.pos) or ges.pos:intersectWith(self._details_panel_dimen))
+end
+
+-- Pantalla e-ink (Kindle/Kobo...): ahi cada refresco "ui" deja ghosting, asi que se pinta menos y con "partial"
+function PageScrubber:_zoomEink()
+    if self._zoom_is_eink == nil then
+        self._zoom_is_eink = (Device.hasEinkScreen and Device:hasEinkScreen()) and true or false
+    end
+    return self._zoom_is_eink
+end
+
+-- Refresco de los cambios de zoom / expandido: "partial" en e-ink (limpia ghosting), "ui" en pantallas fluidas
+function PageScrubber:_zoomDirty(region)
+    UIManager:setDirty(self, self:_zoomEink() and "partial" or "ui", region or self._details_panel_dimen or self.dimen)
+end
+
+-- true si el panel muestra una imagen CON zoom aplicado y el gesto cae dentro del panel
+function PageScrubber:_imgZoomed(ges)
+    return self._img_zoom ~= nil and self:_imgZoomActive(ges)
+end
+
+-- Estado de zoom de la imagen que se esta mostrando (nil si esta sin zoom)
+function PageScrubber:_imgZoomState(entry)
+    local key = tostring(entry.path) .. "|" .. tostring(entry.page)
+    self._img_zoom_cur_key = key
+    local zs = self._img_zoom_src
+    if zs and zs.key ~= key then
+        if zs.bb then pcall(function() zs.bb:free() end) end
+        self._img_zoom_src = nil
+    end
+    local st = self._img_zoom
+    if st and st.key ~= key then self._img_zoom = nil; st = nil end
+    if st and st.z > 1 then return st end
+    self:_freeZoomRender()
+    return nil
+end
+
+-- Pinch (zoom_in = false) / spread (zoom_in = true) sobre el panel de una imagen
+function PageScrubber:_imgZoomApply(ges, zoom_in)
+    if not self:_imgZoomActive(ges) then return false end
+    local f = 1.6
+    local span = ges and tonumber(ges.span)
+    if span and span > 0 then
+        f = math.max(1.25, 1 + math.min(2, 2 * span / Screen:getWidth()))
+    end
+    local st = self._img_zoom
+    if not st or st.key ~= self._img_zoom_cur_key then
+        st = { key = self._img_zoom_cur_key, z = 1, cx = 0.5, cy = 0.5 }
+    end
+    local z = zoom_in and (st.z * f) or (st.z / f)
+    z = math.min(IMG_ZOOM_MAX, z)
+    if z <= 1.05 then
+        self._img_zoom = nil
+    else
+        st.z = z
+        self._img_zoom = st
+    end
+    self:_zoomDirty()
+    return true
+end
+
+-- Arrastre con un dedo mientras hay zoom
+function PageScrubber:_imgZoomPan(ges)
+    local st = self._img_zoom
+    if not (st and st.s and ges and ges.pos) then return false end
+    local now = monoNow()
+    local last = self._zoom_pan_last
+    -- un arrastre nuevo: si el anterior termino en un swipe, no queda "last" viejo
+    if last and now - (self._zoom_pan_tlast or 0) > 0.6 then last = nil end
+    if not last and not self:_imgZoomActive(ges) then return false end
+    self._zoom_pan_last = { x = ges.pos.x, y = ges.pos.y }
+    self._zoom_pan_tlast = now
+    if not last then return true end
+    self._zoom_pan_seen = true
+    st.cx = st.cx - (ges.pos.x - last.x) / (st.sw * st.s)
+    st.cy = st.cy - (ges.pos.y - last.y) / (st.sh * st.s)
+    if not self:_zoomEink() and (not self._zoom_pan_t or now - self._zoom_pan_t > 0.08) then
+        self._zoom_pan_t = now
+        UIManager:setDirty(self, "ui", self._details_panel_dimen)
+    end
+    return true
+end
+
+-- Un arrastre rapido termina en "swipe" (en vez de pan_release): cierra el arrastre y repinta
+function PageScrubber:_imgZoomSwipe(ges)
+    local st = self._img_zoom
+    if not (st and self._img_zoom_cur_key) then return false end
+    if st.s and not self._zoom_pan_seen and ges and ges.direction then
+        -- Flick sin eventos de pan: mueve segun la direccion y la distancia del swipe
+        local d = tonumber(ges.distance) or 0
+        local dir = ges.direction
+        local dx = (dir:find("east") and d or 0) - (dir:find("west") and d or 0)
+        local dy = (dir:find("south") and d or 0) - (dir:find("north") and d or 0)
+        st.cx = st.cx - dx / (st.sw * st.s)
+        st.cy = st.cy - dy / (st.sh * st.s)
+    end
+    self._zoom_pan_last, self._zoom_pan_seen, self._zoom_pan_t = nil, nil, nil
+    self:_zoomDirty()
+    return true
+end
+
+-- Dibuja la imagen con zoom dentro del recuadro (zx, zy, zw, zh). false si no se pudo.
+function PageScrubber:_paintZoomedImage(bb, entry, base_bb, st, zx, zy, zw, zh)
+    -- La fuente ya se decodifico al mostrar la imagen: aca solo se reutiliza (sin leer ni decodificar de nuevo)
+    local src = self:_getImageSource(entry)
+    if not src then return false end
+    local sw, sh = src:getWidth(), src:getHeight()
+    if sw < 1 or sh < 1 or zw < 1 or zh < 1 then return false end
+
+    local s = (base_bb:getWidth() / sw) * st.z            -- px de pantalla por px de imagen
+    local vis_w, vis_h = math.min(sw, zw / s), math.min(sh, zh / s)
+    local sx = math.max(0, math.min(sw - vis_w, st.cx * sw - vis_w / 2))
+    local sy = math.max(0, math.min(sh - vis_h, st.cy * sh - vis_h / 2))
+    st.cx, st.cy = (sx + vis_w / 2) / sw, (sy + vis_h / 2) / sh
+    st.s, st.sw, st.sh = s, sw, sh
+
+    local sxi, syi = math.floor(sx), math.floor(sy)
+    local cw = math.max(1, math.min(sw - sxi, math.ceil(vis_w)))
+    local ch = math.max(1, math.min(sh - syi, math.ceil(vis_h)))
+    local dw = math.min(zw, math.max(1, math.floor(cw * s + 0.5)))
+    local dh = math.min(zh, math.max(1, math.floor(ch * s + 0.5)))
+
+    -- Si es exactamente el mismo cuadro que la vez anterior (repintados por otros motivos, refrescos
+    -- de limpieza...) se reutiliza: recortar + escalar es lo mas caro del zoom.
+    local sig = table.concat({ st.key, sxi, syi, cw, ch, dw, dh }, "|")
+    local rc = self._zoom_render
+    local scaled = (rc and rc.sig == sig and rc.bb) or nil
+    if not scaled then
+        local okc, crop = pcall(function()
+            local c = Blitbuffer.new(cw, ch, src:getType())
+            c:blitFrom(src, 0, 0, sxi, syi, cw, ch)
+            return c
+        end)
+        if not (okc and crop) then return false end
+        scaled = scaleBB(crop, dw, dh)
+        if not scaled then
+            pcall(function() crop:free() end)
+            return false
+        end
+        self:_freeZoomRender()
+        self._zoom_render = { sig = sig, bb = scaled }
+    end
+    -- fondo blanco: tapa el titulo y lo que haya debajo
+    bb:paintRect(zx, zy, zw, zh, Blitbuffer.COLOR_WHITE)
+    bb:blitFrom(scaled, zx + math.floor((zw - dw) / 2), zy + math.floor((zh - dh) / 2), 0, 0, dw, dh)
+    return true
+end
+
+-- Imagen de una entrada del tab de imagenes (para su panel de detalles), ajustada al recuadro.
+function PageScrubber:_getEntryImageBB(entry, max_w, max_h)
+    if not (entry and entry.img) or max_w < 1 or max_h < 1 then return nil end
+    local key = "img|" .. tostring(entry.path) .. "|" .. tostring(entry.page) .. "|" .. tostring(max_w) .. "x" .. tostring(max_h)
+    local cached = self._details_img
+    if cached and cached.key == key then return cached.bb end
+
+    local bb = nil
+    local okm, Scanner = pcall(require, "image_scanner")
+    if okm and Scanner then
+        if Scanner.decodeSource and Scanner.fitFrom then
+            -- La fuente se decodifica una vez; expandir/reducir y el zoom la reutilizan
+            local src = self:_getImageSource(entry)
+            if src then
+                local ok, res = pcall(Scanner.fitFrom, src, max_w, max_h, 1.5)
+                if ok then bb = res end
+            end
+        else
+            local ok, res = pcall(Scanner.decodeFit, self.ui, entry.img, max_w, max_h)
+            if ok then bb = res end
+        end
+    end
+    if cached and cached.bb then pcall(function() cached.bb:free() end) end
+    self._details_img = { key = key, bb = bb }
+    return bb
+end
+
+-- full_w: ancho que toma el panel en modo expandido (desde x hasta el contorno derecho del menu derecho)
+function PageScrubber:_paintDetailsPanel(bb, x, y, w, h, radius, thick, full_w)
+    self._details_panel_dimen = nil
+    self._details_close_dimen = nil
+    self._details_nav_dimens = nil
+    self._details_quote_dimen = nil
+    self._details_note_dimen = nil
+    self._details_filter_dimens = nil
+    self._details_link_dimen = nil
+    self._details_back_dimen = nil
+    if not self._details_open then
+        self._details_expanded = false
+        return
+    end
+    if self._details_expanded and full_w and full_w > w then
+        w = full_w   -- todo lo de abajo (textos, puntitos, imagenes, zoom) se calcula con el nuevo ancho
+    end
+
+    local ctx = self:_getDetailsContext()
+    if not ctx then
+        if self._details_resync_pending then return end   -- cambio de tab/filtro en curso
+        self._details_open = false
+        self:_freeDetailsWidgets()
+        return
+    end
+    local data = self:_buildDetailsData(ctx)
+    self._img_zoom_cur_key = nil   -- se vuelve a fijar abajo si el panel muestra una imagen
+
+    local S = self.S
+    local BLACK, WHITE, GRAY = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE, Blitbuffer.COLOR_GRAY
+    local line = S(2)
+    local thin = math.max(1, S(1))
+    local pad = S(14)
+    -- Tamanos: chico = el de "Page" del encabezado; mediano = el de los numeros de la lista
+    local small = self.S_BOTTOM_GRAY and (self.S_BOTTOM_GRAY - S(4)) or S(10)
+    local medium = self.S_BOTTOM_GRAY or S(14)
+
+    self._details_panel_dimen = Geom:new{ x = x, y = y, w = w, h = h }
+
+    -- Contorno y fondo: mismo estilo que la polaroid
+    paintRoundRect(bb, x, y, w, h, radius, BLACK)
+    paintRoundRect(bb, x + thick, y + thick, w - thick * 2, h - thick * 2, math.max(1, radius - thick), WHITE)
+
+    local ix, iw = x + thick, w - thick * 2
+    local top_y = y + thick
+    local top_h = S(38)
+    local nav_h = S(40)
+    local nav_y = y + h - thick - nav_h
+    local link_h = S(30)                     -- fila "Show in book", justo arriba de los puntitos
+    local content_bottom = nav_y - link_h    -- el contenido (imagen / texto) termina antes de esa fila
+    local text_w = iw - pad * 2
+
+    local function small_tw(slot, max_w)
+        if not self[slot] then
+            self[slot] = TextWidget:new{ text = "", face = Font:getFace("cfont", small), bold = true, fgcolor = BLACK, truncate_with_ellipsis = true }
+        end
+        self[slot].max_width = max_w
+        return self[slot]
+    end
+
+    -- Cache de TextBoxWidgets por "slot" (se recrean solo si cambia el texto / ancho / alto)
+    local function get_tbw(slot, text, width, height, fsz, bold)
+        local key = table.concat({ text, tostring(width), tostring(height or 0), tostring(fsz), bold and "1" or "0" }, "\1")
+        self._details_tbw = self._details_tbw or {}
+        local ent = self._details_tbw[slot]
+        if not ent or ent.key ~= key then
+            if ent and ent.w then pcall(function() ent.w:free() end) end
+            local args = { text = text, face = Font:getFace("cfont", fsz), width = width,
+                           alignment = "left", fgcolor = BLACK, bold = bold and true or false }
+            if height then
+                args.height = height
+                args.height_adjust = true
+                args.height_overflow_show_ellipsis = true
+            end
+            ent = { key = key, w = TextBoxWidget:new(args) }
+            self._details_tbw[slot] = ent
+        end
+        return ent.w
+    end
+
+    local function scroll_marks(wdg, bx, by, bw, bh)
+        local okv, vis, all, vtop = pcall(function()
+            return wdg:getVisLineCount(), wdg:getAllLineCount(), wdg.virtual_line_num
+        end)
+        if okv and vis and all and vtop and all > vis then
+            local gw, gh = S(10), S(6)
+            local gx = bx + bw - pad + math.floor((pad - gw) / 2)
+            if vtop > 1 then
+                for row = 0, gh - 1 do
+                    local rw = math.max(1, math.floor(gw * (row + 1) / gh + 0.5))
+                    bb:paintRect(gx + math.floor((gw - rw) / 2), by + row, rw, 1, BLACK)
+                end
+            end
+            if vtop + vis - 1 < all then
+                self:_paintChevronDown(bb, gx, by + bh - gh, gw, gh, BLACK)
+            end
+        end
+        return okv and vtop or 1
+    end
+
+    -- ---- Titulo (tipo + color, tamano de la lista) + X ----
+    if not self._tw_details_title then
+        self._tw_details_title = TextWidget:new{ text = "", face = Font:getFace("cfont", medium), bold = true, fgcolor = BLACK, truncate_with_ellipsis = true }
+    end
+    local close_sz = S(40)
+    local title = self._tw_details_title
+    -- A la izquierda de la primera linea va el boton "atras" (undo.svg): vuelve al split menu en esta pagina.
+    -- Reemplaza al icono de carpeta que tenian las imagenes y se suma a las anotaciones/bookmarks (sin icono).
+    local back_sz = S(40)
+    local is_img = (data.image_entry ~= nil)
+    -- Filtros del menu derecho (estilos de highlight / carpetas de imagenes): solo en modo expandido,
+    -- arriba a la derecha, a la izquierda del boton shrink
+    local filt_list = {}
+    local filt_cell_w = S(30)
+    if self._details_expanded then
+        local defs = nil
+        if self._active_tab == "images" and self._imgTabEnabled then
+            defs = self:_imgFilterDefs()
+        elseif self._active_tab == "highlights" or self._active_tab == "notes" then
+            local all_defs = {
+                { key = "normal",        icon_on = self.icon_filter_hl_on,  icon_off = self.icon_filter_hl_off },
+                { key = "underline",     icon_on = self.icon_filter_ul_on,  icon_off = self.icon_filter_ul_off },
+                { key = "invert",        icon_on = self.icon_filter_inv_on, icon_off = self.icon_filter_inv_off },
+                { key = "strikethrough", icon_on = self.icon_filter_st_on,  icon_off = self.icon_filter_st_off },
+            }
+            local types_source = self:_getTypesPresent()
+            defs = {}
+            for _, fd in ipairs(all_defs) do
+                if types_source and types_source[fd.key] then defs[#defs + 1] = fd end
+            end
+        end
+        if defs and #defs >= 2 then filt_list = defs end
+    end
+    local filt_total_w = #filt_list * filt_cell_w
+    title.max_width = iw - back_sz - close_sz - (filt_total_w > 0 and (filt_total_w + S(8)) or 0)
+    title.text = nil
+    title:setText(data.title)
+    local title_h = title:getSize().h
+    local title_y = top_y + S(8)
+    title:paintTo(bb, ix + back_sz, title_y)
+    self._details_back_dimen = Geom:new{ x = ix, y = top_y, w = back_sz, h = title_h + S(16) }
+    do
+        local back_icon = self.icon_details_close
+        if back_icon then
+            local bsz2 = back_icon:getSize()
+            back_icon:paintTo(bb, ix + math.floor((back_sz - bsz2.w) / 2) + S(2),
+                title_y + math.floor((title_h - bsz2.h) / 2))
+        else
+            paintCross(bb, ix + math.floor((back_sz - S(12)) / 2), title_y + math.floor((title_h - S(12)) / 2), S(12), S(2), BLACK)
+        end
+        if self._pressed_btn == "details_back" then
+            bb:invertRect(ix + S(6), top_y + S(4), back_sz - S(12), title_h + S(8))
+        end
+    end
+
+    local cross = S(12)
+    self._details_close_dimen = Geom:new{ x = ix + iw - close_sz, y = top_y, w = close_sz, h = title_h + S(16) }
+    local close_icon = self.icon_details_close   -- undo.svg: solo se usa mas abajo, en modo zoom
+    local toggle_icon = self._details_expanded and self.icon_details_shrink or self.icon_details_expand
+    if toggle_icon then
+        local csz = toggle_icon:getSize()
+        toggle_icon:paintTo(bb, self._details_close_dimen.x + math.floor((close_sz - csz.w) / 2),
+            title_y + math.floor((title_h - csz.h) / 2))
+    else
+        paintCross(bb, self._details_close_dimen.x + math.floor((close_sz - cross) / 2),
+            title_y + math.floor((title_h - cross) / 2), cross, S(2), BLACK)
+    end
+    if self._pressed_btn == "details_close" then
+        bb:invertRect(self._details_close_dimen.x + S(6), top_y + S(4), close_sz - S(12), title_h + S(8))
+    end
+
+    if #filt_list > 0 then
+        local cell_h = title_h + S(16)
+        local fx0 = self._details_close_dimen.x - filt_total_w
+        local active_key = (self._active_tab == "images") and self._img_folder or self._hl_filter
+        self._details_filter_dimens = {}
+        for i, fd in ipairs(filt_list) do
+            local cx0 = fx0 + (i - 1) * filt_cell_w
+            local is_active = (active_key == fd.key)
+            local ficon = is_active and fd.icon_on or fd.icon_off
+            if ficon then
+                local fsz = ficon:getSize()
+                local fix = cx0 + math.floor((filt_cell_w - fsz.w) / 2)
+                local fiy = top_y + math.floor((cell_h - fsz.h) / 2)
+                ficon:paintTo(bb, fix, fiy)
+                if is_active then
+                    bb:paintRect(fix + S(2), fiy + fsz.h + S(2), math.max(1, fsz.w - S(4)), S(3), BLACK)
+                end
+            end
+            self._details_filter_dimens[#self._details_filter_dimens + 1] = {
+                key = fd.key,
+                dimen = Geom:new{ x = cx0, y = top_y, w = filt_cell_w, h = cell_h },
+            }
+        end
+    end
+
+    -- ---- Fecha (italica), pegada al titulo ----
+    local cy = title_y + title_h + S(2)
+    local date_h = S(14)
+    if data.date then
+        if not self._tw_details_date then
+            self._tw_details_date = TextWidget:new{ text = "", face = italic_face(small), fgcolor = BLACK, truncate_with_ellipsis = true }
+        end
+        local dtw = self._tw_details_date
+        dtw.max_width = text_w
+        dtw.text = nil
+        dtw:setText(data.date)
+        dtw:paintTo(bb, ix + pad, cy)
+        date_h = dtw:getSize().h
+    end
+    if is_img then
+        cy = title_y + title_h + S(10)
+    else
+        cy = cy + date_h + date_h   -- una linea entera de separacion
+    end
+
+    -- ---- Icono + capitulo (fuente de la lista). "Page N" ahora va en la fila de "Show in book" ----
+    local icon = data.icon
+    local icon_w, icon_h = S(20), S(20)
+    if icon then
+        local isz = icon:getSize()
+        icon_w, icon_h = isz.w, isz.h
+    end
+    local indent = icon_w + S(10)     -- columna de texto: capitulo, page, cita y nota
+    local col_x = ix + pad + indent
+    local col_w = text_w - indent
+
+    -- Alto de una linea con la fuente mediana (la de la lista derecha)
+    local med_lh = get_tbw("med_probe", "Ag", col_w, nil, medium, false):getSize().h
+
+    local chap_h = 0
+    if data.chapter then
+        local chap = get_tbw("chapter", data.chapter, col_w, nil, medium, false)
+        chap:paintTo(bb, col_x, cy)
+        chap_h = chap:getSize().h
+    end
+    if not is_img then
+        local row_h = math.max(icon_h, chap_h)
+        if icon then
+            local first_line_h = (data.chapter and med_lh) or icon_h
+            icon:paintTo(bb, ix + pad, cy + math.floor((first_line_h - icon_h) / 2))
+        end
+        cy = cy + row_h + S(12)
+    end
+
+    -- ---- Bookmark: la pagina entera donde se hizo el bookmark, en el espacio libre ----
+    if data.is_bookmark then
+        local img_h = content_bottom - S(4) - cy
+        local img = self:_getPageTileBB(data.page, text_w, img_h)
+        if img then
+            local iw2, ih2 = img:getWidth(), img:getHeight()
+            -- Centrada en horizontal; en vertical un poco por encima del centro:
+            -- IMG_V_BIAS = 0 (pegada arriba) ... 0.5 (centrada del todo)
+            local IMG_V_BIAS = 0.3
+            local px = ix + pad + math.floor((text_w - iw2) / 2)
+            local py = cy + math.max(0, math.floor((img_h - ih2) * IMG_V_BIAS))
+            bb:blitFrom(img, px, py, 0, 0, iw2, ih2)
+            pcall(function() bb:paintBorder(px, py, iw2, ih2, 1, Blitbuffer.COLOR_DARK_GRAY, 0) end)
+        end
+    end
+
+    -- ---- Tab de imagenes: la imagen ocupa el espacio libre, centrada ----
+    if data.image_entry then
+        local img_h = content_bottom - S(4) - cy
+        local img = self:_getEntryImageBB(data.image_entry, text_w, img_h)
+        local zst = self:_imgZoomState(data.image_entry)
+        local zoomed = false
+        if img and zst then
+            -- Con zoom la imagen ocupa TODO el interior del panel (tapa titulo y puntitos) y queda
+            -- detras del contorno, que se redibuja encima para que no se salga
+            local zy = top_y
+            zoomed = self:_paintZoomedImage(bb, data.image_entry, img, zst, ix, zy, iw, (y + h - thick) - zy)
+            if zoomed then
+                paintFrameOver(bb, x, y, w, h, radius, thick)
+                -- Boton de volver (sale del zoom) encima de la imagen
+                local cd = self._details_close_dimen
+                local bsz = close_sz - S(6)
+                local bx, by = cd.x + S(3), top_y + S(4)
+                paintRoundRect(bb, bx, by, bsz, bsz, S(8), BLACK)
+                paintRoundRect(bb, bx + thin * 2, by + thin * 2, bsz - thin * 4, bsz - thin * 4, S(6), WHITE)
+                if close_icon then
+                    local csz = close_icon:getSize()
+                    close_icon:paintTo(bb, bx + math.floor((bsz - csz.w) / 2), by + math.floor((bsz - csz.h) / 2))
+                else
+                    paintCross(bb, bx + math.floor((bsz - cross) / 2), by + math.floor((bsz - cross) / 2), cross, S(2), BLACK)
+                end
+                self._details_nav_dimens = {}   -- sin puntitos en modo zoom
+                self._details_filter_dimens = nil   -- ni filtros (el zoom tapa el titulo)
+                self._details_link_dimen = nil      -- ni "Show in book"
+                self._details_back_dimen = nil      -- ni el boton atras de la izquierda
+                do return end
+            end
+        end
+        if img and not zoomed then
+            local iw2, ih2 = img:getWidth(), img:getHeight()
+            local px, py = ix + pad + math.floor((text_w - iw2) / 2), cy + math.max(0, math.floor((img_h - ih2) / 2))
+            bb:blitFrom(img, px, py, 0, 0, iw2, ih2)
+            self._img_view_rect = { x = px, y = py, w = iw2, h = ih2 }
+        end
+    end
+
+    -- ---- Texto del highlight (resaltado de verdad) y, si hay, nota ----
+    local avail = content_bottom - S(4) - cy
+    local small_lh = get_tbw("small_probe", "Ag", col_w, nil, small, true):getSize().h
+    local has_note = data.note ~= nil
+    local note_icon = self.icon_pol_pencil
+    local note_icon_h = 0
+    if has_note and note_icon then note_icon_h = note_icon:getSize().h end
+
+    -- Lineas del resaltado (se cortan a mano para poder pintar el fondo de cada linea)
+    local qc, qlh, ql, qinv = nil, 0, nil, nil
+    if data.quote then
+        if not self._tw_details_qline then
+            self._tw_details_qline = TextWidget:new{ text = "Ag", face = Font:getFace("cfont", small), bold = true, fgcolor = BLACK }
+            self._tw_details_qline_inv = TextWidget:new{ text = "Ag", face = Font:getFace("cfont", small), bold = true, fgcolor = WHITE }
+        end
+        ql, qinv = self._tw_details_qline, self._tw_details_qline_inv
+        ql.text = nil; ql:setText("Ag")
+        qlh = ql:getSize().h
+        local qkey = data.quote .. "\1" .. tostring(col_w) .. "\1" .. tostring(small)
+        if not self._details_qcache or self._details_qcache.key ~= qkey then
+            if not self._tw_details_measure then
+                self._tw_details_measure = TextWidget:new{ text = "Ag", face = Font:getFace("cfont", small), bold = true, fgcolor = BLACK }
+            end
+            local m = self._tw_details_measure
+            local function measure(str) m.text = nil; m:setText(str); return m:getSize().w end
+            local lines = wrap_text(measure, data.quote, col_w)
+            local widths = {}
+            for i, ln in ipairs(lines) do widths[i] = (ln == "") and 0 or measure(ln) end
+            self._details_qcache = { key = qkey, lines = lines, widths = widths }
+            self._details_quote_first = 1
+        end
+        qc = self._details_qcache
+    end
+
+    local function draw_marks(first, vis, total, bx, by, bw, bh)
+        if total <= vis then return end
+        local gw, gh = S(10), S(6)
+        local gx = bx + bw - pad + math.floor((pad - gw) / 2)
+        if first > 1 then
+            for row = 0, gh - 1 do
+                local rw = math.max(1, math.floor(gw * (row + 1) / gh + 0.5))
+                bb:paintRect(gx + math.floor((gw - rw) / 2), by + row, rw, 1, BLACK)
+            end
+        end
+        if first + vis - 1 < total then
+            self:_paintChevronDown(bb, gx, by + bh - gh, gw, gh, BLACK)
+        end
+    end
+
+    if (data.quote or has_note) and avail >= small_lh then
+        local div_space = (data.quote and has_note) and S(12) or 0
+        local note_hdr = (has_note and note_icon) and (note_icon_h + S(4)) or 0   -- fila del icono de la nota
+        local space = avail - div_space - note_hdr
+        local total_l = qc and #qc.lines or 0
+        local nat_q = total_l * qlh
+        local nat_n = has_note and get_tbw("note_nat", data.note, col_w, nil, small, true):getSize().h or 0
+
+        local q_h, n_h = nat_q, nat_n
+        local limited = false
+        if nat_q + nat_n > space then
+            limited = true
+            if data.quote and has_note then
+                n_h = math.min(nat_n, math.max(small_lh * 2, math.floor(space * 0.4)))
+                q_h = space - n_h
+                if nat_q < q_h then q_h = nat_q; n_h = math.min(nat_n, space - q_h) end
+            elseif data.quote then
+                q_h = space
+            else
+                n_h = space
+            end
+        end
+
+        if data.quote and qc then
+            local vis = total_l
+            if limited then
+                vis = math.max(1, math.floor(q_h / qlh))
+                q_h = vis * qlh
+            end
+            local first = math.max(1, math.min(self._details_quote_first or 1, math.max(1, total_l - vis + 1)))
+            self._details_quote_first = first
+            self._details_quote_st = { first = first, vis = vis, total = total_l }
+
+            local etype = data.quote_type or "normal"
+            local hl_color = nil
+            if etype ~= "invert" then
+                local okc, CFM = pcall(require, "color_filter_menu")
+                if okc and CFM and CFM.resolveColor then hl_color = CFM.resolveColor(data.quote_color or "yellow") end
+                hl_color = hl_color or GRAY
+            end
+            for i = 0, vis - 1 do
+                local li = first + i
+                local ln = qc.lines[li]
+                if not ln then break end
+                local lw = qc.widths[li]
+                local ly = cy + i * qlh
+                if ln ~= "" then
+                    if etype == "invert" then
+                        bb:paintRect(col_x, ly, lw, qlh, BLACK)
+                        qinv.text = nil; qinv:setText(ln); qinv:paintTo(bb, col_x, ly)
+                    else
+                        if etype == "normal" then paint_color_rect(bb, col_x, ly, lw, qlh, hl_color) end
+                        ql.text = nil; ql:setText(ln); ql:paintTo(bb, col_x, ly)
+                        if etype == "underline" then
+                            paint_color_rect(bb, col_x, ly + qlh - S(3), lw, S(2), hl_color)
+                        elseif etype == "strikethrough" then
+                            paint_color_rect(bb, col_x, ly + math.floor(qlh / 2), lw, S(2), hl_color)
+                        end
+                    end
+                end
+            end
+            self._details_quote_dimen = Geom:new{ x = ix, y = cy, w = iw, h = q_h }
+            if limited then draw_marks(first, vis, total_l, ix, cy, iw, q_h) end
+            cy = cy + q_h
+        end
+
+        if data.quote and has_note then
+            cy = cy + S(12)   -- solo aire entre el highlight y la nota
+        end
+
+        if has_note then
+            -- Icono del lapiz alineado con el capitulo; el texto de la nota va en la linea de abajo
+            if note_icon then
+                note_icon:paintTo(bb, col_x, cy)
+                cy = cy + note_icon_h + S(4)
+            end
+            local nw = limited and get_tbw("note", data.note, col_w, n_h, small, true)
+                       or get_tbw("note_nat", data.note, col_w, nil, small, true)
+            nw:paintTo(bb, col_x, cy)
+            self._details_note_dimen = Geom:new{ x = ix, y = cy, w = iw, h = n_h }
+            self._details_note_tbw = nw
+            if limited then scroll_marks(nw, ix, cy, iw, n_h) end
+        end
+    end
+
+    -- ---- "Show in book - Page N": todo subrayado; toda la fila (incluido el numero) es tocable ----
+    do
+        local ltw = small_tw("_tw_details_link", text_w)
+        ltw.text = nil
+        -- En ingles: "Show in book - Page N". En otros idiomas solo "Page N" (la palabra "Page" ya viene
+        -- traducida de KOReader), asi no hace falta traducir "Show in book".
+        local lang = (G_reader_settings and G_reader_settings:readSetting("language")) or "en"
+        local is_english = (lang == "en") or (tostring(lang):match("^en[_%-]") ~= nil)
+        local link_text
+        if is_english or not data.page_line or data.page_line == "" then
+            link_text = _("Show in book")
+            if data.page_line and data.page_line ~= "" then
+                link_text = link_text .. " - " .. data.page_line
+            end
+        else
+            link_text = data.page_line
+        end
+        ltw:setText(link_text)
+        local lsz = ltw:getSize()
+        local ly = nav_y - link_h
+        local lx = ix + math.floor((iw - lsz.w) / 2)
+        local ty = ly + math.floor((link_h - lsz.h) / 2)
+        ltw:paintTo(bb, lx, ty)
+        bb:paintRect(lx, ty + lsz.h, lsz.w, math.max(1, S(2)), BLACK)   -- subrayado negro (todo el texto)
+        self._details_link_dimen = Geom:new{ x = ix, y = ly, w = iw, h = link_h }   -- toda la fila es tocable
+        if self._pressed_btn == "details_link" then
+            bb:invertRect(lx - S(6), ly + S(2), lsz.w + S(12), link_h - S(4))
+        end
+    end
+
+    -- ---- Fila de navegacion (sin contornos) ----
+    -- Puntitos (los mismos del indice) si entran; si no, el formato anterior: |<  <  1/7  >  >|
+    local ncell_y = nav_y
+    local ncell_h = (y + h - thick) - ncell_y
+    local idx, n = ctx.idx, ctx.n
+    local enabled = { first = idx > 1, prev = idx > 1, next = idx < n, last = idx < n }
+
+    local dot_r = math.max(2, math.floor(S(2.5)))
+    local dot_rmax = math.floor(dot_r * 1.5)
+    local dot_min_pitch = 2 * dot_r + S(3)
+    local dot_pitch = S(11)
+    if n > 1 then
+        dot_pitch = math.floor(math.min(dot_pitch, (text_w - 2 * dot_rmax) / (n - 1)))
+    end
+    local use_dots = (n > 1) and (dot_pitch >= dot_min_pitch)
+
+    self._details_nav_dimens = {}
+    if use_dots then
+        local dots_w = (n - 1) * dot_pitch + 2 * dot_rmax
+        local dots_x = ix + math.floor((iw - dots_w) / 2)
+        local dots_cy = ncell_y + math.floor(ncell_h / 2)
+        local x0 = dots_x + dot_rmax
+        for i = 1, n do
+            local is_cur = (i == idx)
+            local r = is_cur and dot_rmax or dot_r
+            paintRoundRect(bb, x0 + (i - 1) * dot_pitch - r, dots_cy - r, r * 2, r * 2, r,
+                is_cur and BLACK or Blitbuffer.COLOR_DARK_GRAY)
+        end
+        self._details_nav_dimens[1] = {
+            key = "dots", enabled = true, x0 = x0, pitch = dot_pitch,
+            dimen = Geom:new{ x = ix, y = ncell_y, w = iw, h = ncell_h },
+        }
+    end
+
+    local cells = use_dots and {} or {
+        { key = "first", wt = 1 }, { key = "prev", wt = 1 }, { key = "counter", wt = 1.5 },
+        { key = "next", wt = 1 }, { key = "last", wt = 1 },
+    }
+    local total_wt = 0
+    for _, c in ipairs(cells) do total_wt = total_wt + c.wt end
+    local gh, gw, barw, gap = S(16), S(11), S(3), S(3)
+    local cx = ix
+    for i, c in ipairs(cells) do
+        local cw = (i == #cells) and (ix + iw - cx) or math.floor(iw * c.wt / total_wt)
+        local k = c.key
+        if k == "counter" then
+            local ctw = small_tw("_tw_details_counter", cw)
+            ctw.text = nil
+            ctw:setText(string.format("%d/%d", idx, n))
+            local csz = ctw:getSize()
+            ctw:paintTo(bb, cx + math.floor((cw - csz.w) / 2), ncell_y + math.floor((ncell_h - csz.h) / 2))
+        else
+            local en = enabled[k]
+            local col = en and BLACK or GRAY
+            local with_bar = (k == "first" or k == "last")
+            local total_w = with_bar and (gw + gap + barw) or gw
+            local gx = cx + math.floor((cw - total_w) / 2)
+            local gy = ncell_y + math.floor((ncell_h - gh) / 2)
+            if k == "first" then
+                bb:paintRect(gx, gy, barw, gh, col)
+                paintTriangle(bb, gx + barw + gap, gy, gw, gh, true, col)
+            elseif k == "prev" then
+                paintTriangle(bb, gx, gy, gw, gh, true, col)
+            elseif k == "next" then
+                paintTriangle(bb, gx, gy, gw, gh, false, col)
+            else
+                paintTriangle(bb, gx, gy, gw, gh, false, col)
+                bb:paintRect(gx + gw + gap, gy, barw, gh, col)
+            end
+            if self._pressed_btn == "details_" .. k then
+                bb:invertRect(cx + S(4), ncell_y + S(3), cw - S(8), ncell_h - S(10))
+            end
+            self._details_nav_dimens[#self._details_nav_dimens + 1] = {
+                key = k, enabled = en,
+                dimen = Geom:new{ x = cx, y = ncell_y, w = cw, h = ncell_h },
+            }
+        end
+        cx = cx + cw
+    end
+end
+
+function PageScrubber:_openDetailsPanel()
+    if self._details_open then return true end
+    local ctx = self:_getDetailsContext()
+    if not ctx then return false end
+    if type(ctx.entry) == "table" then self._split_selected_item = ctx.entry end
+    self._details_open = true
+    self._details_expanded = false
+    self._hide_action_buttons = true
+    self._show_delete_confirm = false
+    self._show_type_picker = false
+    self._force_menu_sync = true
+    UIManager:setDirty(self, "ui", self.dimen)
+    self:_preloadDetailsNeighborPages()
+    return true
+end
+
+-- go_origin = true: ademas vuelve la previsualizacion a la pagina real del libro
+function PageScrubber:_closeDetailsPanel(go_origin)
+    self._details_open = false
+    self._details_expanded = false
+    self._details_bm_mode = false
+    self:_freeDetailsWidgets()
+    if go_origin then
+        self._split_selected_item = nil
+        self._hide_action_buttons = true
+        self._force_menu_sync = true
+        self:_previewPage(self._origin_page or self._cur_page, false)
+    end
+    UIManager:setDirty(self, "ui", self.dimen)
+end
+
+function PageScrubber:_detailsStep(key, goto_idx)
+    local ctx = self:_getDetailsContext()
+    if not ctx then return end
+    local target = ctx.idx
+    if key == "goto" then target = tonumber(goto_idx) or ctx.idx
+    elseif key == "first" then target = 1
+    elseif key == "prev" then target = ctx.idx - 1
+    elseif key == "next" then target = ctx.idx + 1
+    elseif key == "last" then target = ctx.n end
+    target = math.max(1, math.min(ctx.n, target))
+    if target == ctx.idx then return end
+
+    local entry = ctx.items[target]
+    self._split_selected_item = (type(entry) == "table") and entry or nil
+    local page = (type(entry) == "table") and entry.page or entry
+    self._details_step_dir = (target > ctx.idx) and 1 or -1
+    self._hide_action_buttons = true
+    self._show_delete_confirm = false
+    self._show_type_picker = false
+    self._force_menu_sync = true
+    self:_previewPage(page, false)
+    UIManager:setDirty(self, "ui", self.dimen)
+end
+
+function PageScrubber:_scrollDetails(dir, pos)
+    if pos and self._details_note_dimen and self._details_note_tbw and pos:intersectWith(self._details_note_dimen) then
+        pcall(function()
+            if dir > 0 then self._details_note_tbw:scrollDown() else self._details_note_tbw:scrollUp() end
+        end)
+        UIManager:setDirty(self, "ui", self._details_note_dimen)
+        return
+    end
+    local st = self._details_quote_st
+    if pos and st and self._details_quote_dimen and pos:intersectWith(self._details_quote_dimen) and st.total > st.vis then
+        local step = math.max(1, st.vis - 1)
+        local first = self._details_quote_first or 1
+        if dir > 0 then first = math.min(st.total - st.vis + 1, first + step)
+        else first = math.max(1, first - step) end
+        self._details_quote_first = first
+        UIManager:setDirty(self, "ui", self._details_quote_dimen)
+    end
+end
+
 function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local gd = self._grid_dimen
     local sw, sh = Screen:getWidth(), Screen:getHeight()
@@ -2483,7 +3859,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local tw_cnt = is_active and self._tw_tab_count_bold or self._tw_tab_count_normal
             tw_cnt.text = nil
             tw_cnt.fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-            tw_cnt:setText("(" .. tostring(count_num) .. ")")
+            -- count_num == nil (imagenes sin escanear): solo el icono, sin parentesis
+            local has_count = (count_num ~= nil)
+            tw_cnt:setText(has_count and ("(" .. tostring(count_num) .. ")") or "")
             
             local isz = icon_widget and icon_widget:getSize() or {w = S(18), h = S(18)}
             local nsz = { w = 0, h = 0 }
@@ -2503,8 +3881,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 nsz = self._tw_tab_color_name:getSize()
             end
 
-            local csz = tw_cnt:getSize()
-            local gap = S(4)
+            local csz = has_count and tw_cnt:getSize() or { w = 0, h = 0 }
+            local gap = has_count and S(4) or 0
 
             -- Flechita para elegir color (solo en la pestaña activa y con más de un color)
             local show_arrow = is_active and (id == "highlights" or id == "notes") and self:_hasMultiColor(id)
@@ -2563,7 +3941,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 end
             end
 
-            tw_cnt:paintTo(bb, cx, cy)
+            if has_count then tw_cnt:paintTo(bb, cx, cy) end
 
             local dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
             current_tab_x = current_tab_x + tab_w + tab_sp 
@@ -2575,6 +3953,15 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
     self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)
     self._tab_note_dimen = drawTabWithSVG("notes", self.icon_tab_note, note_count)
+    self._tab_img_dimen = nil
+    if self._imgTabEnabled then
+        if self._active_tab == "images" and not self._img_scan_requested then
+            self._img_scan_requested = true
+            self:_imgEnsureScan()
+        end
+        local img_count = self:_imgCount()
+        self._tab_img_dimen = drawTabWithSVG("images", self.icon_tab_img, img_count)
+    end
 
     local card_x = pr_x
     local card_y = pr_y
@@ -2585,7 +3972,12 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
     local tile = self._grid_tiles[2] or {}
-    if tile.tile_bb then
+    -- Si el panel de detalles esta abierto (se pinto en el frame anterior) cubre toda la tarjeta:
+    -- no se gasta tiempo en dibujar la miniatura de abajo
+    local card_covered = self._details_open and self._details_panel_dimen ~= nil and not self._details_resync_pending
+    if card_covered then
+        -- (nada: lo tapa el panel)
+    elseif tile.tile_bb then
         local target_w = pr_w - b_thick*2
         local target_h = pr_h - b_thick
         local tw, th = tile.tile_bb:getWidth(), tile.tile_bb:getHeight()
@@ -2676,6 +4068,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         elseif pd and pd.note then
             text_str = safe_string(pd.note, 500)
         end
+    elseif self._active_tab == "images" and self._imgTabEnabled then
+        active_pol_icon = self:_imgChinIcon(self._split_selected_item)
+        text_str = self:_imgChinText(self._split_selected_item)
     elseif self._active_tab == "bookmarks" then
         active_pol_icon = self.icon_pol_bm
         local is_bmed = false
@@ -2710,7 +4105,17 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             return nil
         end
         
-        raw_date = find_deep_date()
+        do
+            local ann = self.ui.annotation and self.ui.annotation.annotations
+            local ann_n = type(ann) == "table" and #ann or 0
+            local cm = self._chin_date_memo
+            if cm and cm.page == self._cur_page and cm.n == ann_n and cm.bms == self._cached_bms then
+                raw_date = cm.date
+            else
+                raw_date = find_deep_date()
+                self._chin_date_memo = { page = self._cur_page, n = ann_n, bms = self._cached_bms, date = raw_date }
+            end
+        end
         if raw_date then is_bmed = true end
         if not is_bmed then
             for _, bmp in ipairs(self:_getAllBookmarks()) do
@@ -2766,6 +4171,20 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local ty = card_y + pr_h + math.floor((status_h - tsz.h) / 2)
     
     self._tw_preview_text:paintTo(bb, tx, ty)
+
+    -- Regiones de la polaroid completa y de su linea de texto (chin) + panel de detalles
+    self._split_card_dimen = Geom:new{ x = card_x, y = card_y, w = card_w, h = card_h }
+    self._split_chin_dimen = Geom:new{ x = card_x, y = card_y + pr_h, w = card_w, h = status_h }
+    if not (self._details_open and self._details_expanded) then
+        local okp, errp = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, lm_x + lm_w - card_x)
+        if not okp then
+            logger.warn("page-scrubber details panel error:", errp)
+            self._details_open = false
+        end
+        if card_covered and not self._details_panel_dimen then
+            UIManager:setDirty(self, "ui", self.dimen)   -- la tarjeta se salto y el panel no se pinto: repintar
+        end
+    end
 
     self._btn_delete_dimen = nil
     self._btn_confirm_del_dimen = nil
@@ -3062,6 +4481,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         end
     end
 
+    if self._active_tab == "images" and self._imgTabEnabled then
+        present_filters = self:_imgFilterDefs()
+    end
+
     local other_items = self:_getFilteredActiveList()
     local ITEMS_PER_PAGE
     local needs_pagination = false
@@ -3214,7 +4637,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local curr_f_y = menu_y + math.floor((header_h - f_h) / 2)
 
         for _, fd in ipairs(present_filters) do
-            local is_active = (self._hl_filter == fd.key)
+            local is_active = ((self._active_tab == "images" and self._img_folder or self._hl_filter) == fd.key)
             local touch_w = math.max(S(8), f_w + f_gap)
             local f_dimen = Geom:new{ x = curr_f_x, y = menu_y, w = touch_w, h = header_h }
             table.insert(self._hl_filter_dimens, { key = fd.key, dimen = f_dimen })
@@ -3239,9 +4662,13 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local list_h = exact_menu_h - header_h
 
     if #other_items == 0 then
+        self._tw_empty_list.text = nil
+        self._tw_empty_list:setText((self._active_tab == "images" and self._imgEmptyText) and self:_imgEmptyText() or "—")
         local n_sz = self._tw_empty_list:getSize()
         paintTripleText(self._tw_empty_list, bb, lm_x + math.floor((lm_w - n_sz.w)/2), list_y + math.floor((list_h - n_sz.h)/2))
     else
+        -- Expandido: el menu derecho queda tapado por el panel, no se pintan sus filas
+        if self._details_open and self._details_expanded then end_idx = start_idx - 1 end
         local row_y_float = list_y
         for i = start_idx, end_idx do
             local current_row_y = math.floor(row_y_float)
@@ -3286,7 +4713,15 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 bb:paintRect(lm_x + b_thick, current_row_y + row_h - 1, lm_w - b_thick*2, 1, Blitbuffer.COLOR_LIGHT_GRAY)
             end
             
-            local active_row_icon = (self._active_tab == "bookmarks") and self.icon_box_minus or self.icon_box_arrow
+            local active_row_icon
+            if self._active_tab == "bookmarks" then
+                active_row_icon = self.icon_box_minus
+            elseif self._active_tab == "images" then
+                -- favorita: "-" para quitarla; no favorita: "+" para agregarla
+                active_row_icon = (item_obj and item_obj.is_fav) and self.icon_img_minus or self.icon_img_plus
+            else
+                active_row_icon = self.icon_box_arrow
+            end
             local rm_sz = active_row_icon and active_row_icon:getSize() or {w = S(22), h = S(22)}
             local rm_x = lm_x + lm_w - rm_sz.w - S(12)
             
@@ -3442,6 +4877,34 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                         active_next_icon:paintTo(bb, ix, iy)
                     end
                 end
+            end
+        end
+    end
+
+    -- Panel de detalles EXPANDIDO: se pinta al final, encima del menu derecho, estirando el contorno
+    -- derecho de la tarjeta izquierda hasta el contorno derecho del menu derecho.
+    if self._details_open and self._details_expanded then
+        if self:_getDetailsContext() == nil then
+            -- Ya no hay anotacion que mostrar: se cierra el panel y el menu derecho queda a la vista
+            if not self._details_resync_pending then
+                self._details_open = false
+                self._details_expanded = false
+                self:_freeDetailsWidgets()
+            end
+            UIManager:setDirty(self, "ui", self.dimen)   -- la tarjeta no se pinto: repintar con el menu a la vista
+        else
+            bb:paintRect(card_x + card_w, card_y, (lm_x + lm_w) - (card_x + card_w), card_h, Blitbuffer.COLOR_WHITE)
+            local okx, errx = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, lm_x + lm_w - card_x)
+            if not okx then
+                logger.warn("page-scrubber expanded details panel error:", errx)
+                self._details_open = false
+                self._details_expanded = false
+            elseif self._details_panel_dimen then
+                -- El menu derecho queda tapado: que sus zonas no reciban toques
+                self._split_rows = {}
+                self._split_fixed_row_dimen, self._split_fixed_toggle_dimen = nil, nil
+                self._hl_main_tab_dimen, self._hl_filter_dimens = nil, {}
+                self._split_prev_dimen, self._split_next_dimen = nil, nil
             end
         end
     end
@@ -3661,6 +5124,17 @@ function PageScrubber:_stepPreview(target)
     return true
 end
 
+-- true si en la pagina actual hay algo que mostrar en el panel de detalles (anotacion de la lista activa o bookmark)
+function PageScrubber:_pageHasDetails()
+    local cur = tonumber(self._cur_page)
+    for _, it in ipairs(self:_getFilteredActiveList() or {}) do
+        local p = tonumber((type(it) == "table") and it.page or it)
+        if p and p == cur then return true end
+    end
+    if self._active_tab ~= "images" and self:_getBookmarkDetailsContext() then return true end
+    return false
+end
+
 function PageScrubber:_previewPage(page, is_dragging)
     if self._closing then return end
     local prev_page = self._cur_page
@@ -3671,6 +5145,11 @@ function PageScrubber:_previewPage(page, is_dragging)
     self._hide_action_buttons = true
     self._slider.value = self._cur_page
     self:_updateTexts()
+
+    if self._details_open and self._view_mode == "split" and not self._details_resync_pending
+       and not self:_pageHasDetails() then
+        self:_closeDetailsPanel(false)
+    end
 
     -- Actualizamos los números lógicos de los slots de inmediato
     if self._view_mode == "grid_six" and self._grid_tiles then
@@ -3875,9 +5354,12 @@ function PageScrubber:_openNoteTextEditor()
 
     -- Invocar el editor de notas nativo de KOReader (ReaderBookmark:setBookmarkNote)
     if self.ui.bookmark and type(self.ui.bookmark.setBookmarkNote) == "function" then
+        local edited_ann = self.ui.annotation and self.ui.annotation.annotations
+                           and self.ui.annotation.annotations[target_index]
         self.ui.bookmark:setBookmarkNote(target_index, nil, nil, function()
             -- Este callback se ejecuta automáticamente cuando el usuario presiona "Save"
             self:_extractAnnotations()
+            self:_relinkSelectedAnnotation(edited_ann)
             UIManager:setDirty(self, "ui", self._grid_dimen)
         end)
     end
@@ -3975,6 +5457,20 @@ function PageScrubber:_openColorChangeMenu(anchor)
 end
 
 -- Cambia el color del highlight (misma técnica que _setHighlightType)
+-- Tras _extractAnnotations() los objetos de la lista son nuevos y la seleccion vieja deja de
+-- estar en ella (se caia en "la primera anotacion de la pagina"). Se vuelve a seleccionar la
+-- MISMA anotacion usando su objeto original de KOReader.
+function PageScrubber:_relinkSelectedAnnotation(ann)
+    if not ann or self._active_tab == "bookmarks" then return false end
+    for _, it in ipairs(self:_getFilteredActiveList() or {}) do
+        if type(it) == "table" and it.annotation == ann then
+            self._split_selected_item = it
+            return true
+        end
+    end
+    return false
+end
+
 function PageScrubber:_setHighlightColor(new_color)
     local target_item = self:_getTargetHighlight()
     if not target_item then return end
@@ -4016,6 +5512,7 @@ function PageScrubber:_setHighlightColor(new_color)
     UIManager:scheduleIn(0.08, function()
         if self._closing then return end
         self:_extractAnnotations()
+        self:_relinkSelectedAnnotation(target_item)
         self:_updateGridPages()
         UIManager:setDirty(self, "ui", self.dimen)
     end)
@@ -4107,6 +5604,7 @@ function PageScrubber:_setHighlightType(new_drawer)
     UIManager:scheduleIn(0.08, function()
         if self._closing then return end
         self:_extractAnnotations()
+        self:_relinkSelectedAnnotation(target_item)
         self:_updateGridPages()
         UIManager:setDirty(self, "ui", self.dimen)
     end)
@@ -4114,7 +5612,11 @@ end
 
 function PageScrubber:paintTo(bb, x, y)
     if self._closing then return end
+    -- Durante el pintado, los helpers "puros" pueden memorizar su resultado dentro del mismo frame
+    self._paint_seq = (self._paint_seq or 0) + 1
+    self._in_paint = true
     local ok, err = pcall(function() self:_paintToImpl(bb, x, y) end)
+    self._in_paint = false
     if not ok then logger.warn("page-scrubber paintTo error:", err) end
 end
 
@@ -5036,7 +6538,7 @@ function PageScrubber:onTap(_, ges)
         if self._view_mode ~= "grid_simple" then
             self:_flashAndDo("bm", self._bm_dimen, function() 
                 if self._view_mode == "split" then
-                    self._view_mode = "grid"
+                    self._details_open = false; self._view_mode = "grid"
                     self:_clearGridTiles(true)
                     self._is_busy = false
                     self._tasks_in_flight = 0
@@ -5133,7 +6635,7 @@ function PageScrubber:onTap(_, ges)
                         end
                     end)
                     if not ok then logger.warn("page-scrubber: safe delete failed:", err) end
-                    self._split_selected_item = nil
+                    self._split_selected_item = nil; self:_scheduleDetailsResync()
                     self._hide_action_buttons = true
                     self:_extractAnnotations()
                     self._split_bm_page = self.initial_bm_page or 1
@@ -5194,11 +6696,133 @@ function PageScrubber:onTap(_, ges)
             UIManager:setDirty(self, "ui", self._grid_dimen)
         end
 
+        -- Panel de detalles: absorbe los taps dentro de la polaroid (X, flechas, cuerpo)
+        if self._details_open and self._details_panel_dimen and ges.pos:intersectWith(self._details_panel_dimen) then
+            if self._details_back_dimen and ges.pos:intersectWith(self._details_back_dimen) then
+                -- Misma accion que mantener apretado el panel: volver al split menu en esta pagina
+                self:_flashAndDo("details_back", self._details_back_dimen, function()
+                    self:_closeDetailsPanel(false)
+                    self:_zoomDirty(self.dimen)
+                end)
+                return true
+            end
+            if self._details_close_dimen and ges.pos:intersectWith(self._details_close_dimen) then
+                self:_flashAndDo("details_close", self._details_close_dimen, function()
+                    if self._img_zoom and self._img_zoom_cur_key then
+                        -- Con zoom, "volver" deja la misma imagen sin zoom (no cierra el panel)
+                        self._img_zoom, self._zoom_pan_last, self._img_tap_last = nil, nil, nil
+                        self:_zoomDirty()
+                    else
+                        -- Sin zoom, el boton alterna entre panel normal y expandido
+                        self._details_expanded = not self._details_expanded
+                        self._hide_action_buttons = true
+                        self._show_delete_confirm = false
+                        self._show_type_picker = false
+                        self._force_menu_sync = true
+                        self:_zoomDirty(self.dimen)
+                    end
+                end)
+                return true
+            end
+            for _, f in ipairs(self._details_filter_dimens or {}) do
+                if ges.pos:intersectWith(f.dimen) then
+                    -- Mismo comportamiento que los filtros del menu derecho: tocar el activo lo apaga
+                    if self._active_tab == "images" then
+                        if self._img_folder == f.key then self._img_folder = nil else self._img_folder = f.key end
+                    else
+                        if self._hl_filter == f.key then self._hl_filter = nil else self._hl_filter = f.key end
+                    end
+                    self._split_bm_page = 1
+                    self._split_selected_item = nil; self:_scheduleDetailsResync()
+                    UIManager:setDirty(self, "ui", self.dimen)
+                    return true
+                end
+            end
+            if self._details_link_dimen and ges.pos:intersectWith(self._details_link_dimen) then
+                -- Igual que mantener apretada la tarjeta: ir a esta pagina del libro y cerrar
+                self:_flashAndDo("details_link", self._details_link_dimen, function()
+                    self:_gotoPage(self._cur_page)
+                    self:_closeStay()
+                end)
+                return true
+            end
+            for _, nb in ipairs(self._details_nav_dimens or {}) do
+                if nb.enabled and ges.pos:intersectWith(nb.dimen) then
+                    if nb.key == "dots" then
+                        -- Puntitos: salta al mas cercano al toque (como en el indice)
+                        local t = math.floor((ges.pos.x - nb.x0) / nb.pitch + 0.5) + 1
+                        self:_detailsStep("goto", t)
+                    else
+                        self:_flashAndDo("details_" .. nb.key, nb.dimen, function()
+                            self:_detailsStep(nb.key)
+                        end)
+                    end
+                    return true
+                end
+            end
+            -- Imagen: doble tap hace zoom (centrado donde tocaste); con zoom, doble tap vuelve al tamano original
+            if self._img_zoom_cur_key then
+                local now = monoNow()
+                local last = self._img_tap_last
+                if last and now - last.t < 0.5 and math.abs(ges.pos.x - last.x) < self.S(60)
+                   and math.abs(ges.pos.y - last.y) < self.S(60) then
+                    self._img_tap_last, self._zoom_pan_last = nil, nil
+                    if self._img_zoom then
+                        self._img_zoom = nil
+                    else
+                        local r = self._img_view_rect
+                        local cx, cy = 0.5, 0.5
+                        if r and r.w > 0 and r.h > 0 then
+                            cx = math.max(0, math.min(1, (ges.pos.x - r.x) / r.w))
+                            cy = math.max(0, math.min(1, (ges.pos.y - r.y) / r.h))
+                        end
+                        self._img_zoom = { key = self._img_zoom_cur_key, z = 2.5, cx = cx, cy = cy }
+                    end
+                    self:_zoomDirty()
+                else
+                    self._img_tap_last = { t = now, x = ges.pos.x, y = ges.pos.y }
+                end
+            end
+            return true
+        end
+
         if self._tab_sort_dimen and ges.pos:intersectWith(self._tab_sort_dimen) then
             self._sort_order = (self._sort_order == "asc") and "desc" or "asc"
             self._split_bm_page = 1
             self._force_menu_sync = false
             self._hide_action_buttons = true
+            UIManager:setDirty(self, "ui", self.dimen)
+            return true
+        end
+
+        if self._active_tab == "images" then
+            -- "Page" saca el filtro de carpeta (todas las imagenes); los iconos eligen la carpeta
+            if self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) and self._img_folder ~= nil then
+                self._img_folder = nil
+                self._split_bm_page = 1
+                self._split_selected_item = nil; self:_scheduleDetailsResync()
+                UIManager:setDirty(self, "ui", self.dimen)
+                return true
+            end
+            for _, f in ipairs(self._hl_filter_dimens or {}) do
+                if ges.pos:intersectWith(f.dimen) then
+                    if self._img_folder == f.key then self._img_folder = nil else self._img_folder = f.key end
+                    self._split_bm_page = 1
+                    self._split_selected_item = nil; self:_scheduleDetailsResync()
+                    UIManager:setDirty(self, "ui", self.dimen)
+                    return true
+                end
+            end
+        end
+
+        if self._tab_img_dimen and ges.pos:intersectWith(self._tab_img_dimen) then
+            self._active_tab = "images"
+            self._hl_filter = nil
+            self._hl_color_filter = nil
+            self._img_folder = nil
+            self._split_bm_page = 1
+            self._split_selected_item = nil; self:_scheduleDetailsResync()
+            self:_imgEnsureScan()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
         end
@@ -5214,6 +6838,7 @@ function PageScrubber:onTap(_, ges)
             self._hl_filter = self.initial_hl_filter or nil
             self._hl_color_filter = nil
             self._split_bm_page = self.initial_bm_page or 1
+            self._split_selected_item = nil; self:_scheduleDetailsResync()
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
@@ -5224,7 +6849,7 @@ function PageScrubber:onTap(_, ges)
                 self._hl_filter = nil
                 self._hl_color_filter = nil
                 self._split_bm_page = 1
-                self._split_selected_item = nil
+                self._split_selected_item = nil; self:_scheduleDetailsResync()
                 UIManager:setDirty(self, "ui", self.dimen)
                 return true
             end
@@ -5239,7 +6864,7 @@ function PageScrubber:onTap(_, ges)
                         self._hl_filter = f.key
                     end
                     self._split_bm_page = 1
-                    self._split_selected_item = nil
+                    self._split_selected_item = nil; self:_scheduleDetailsResync()
                     UIManager:setDirty(self, "ui", self.dimen)
                     return true
                 end
@@ -5251,7 +6876,7 @@ function PageScrubber:onTap(_, ges)
             self._hl_filter = nil
             self._hl_color_filter = nil
             self._split_bm_page = 1
-            self._split_selected_item = nil
+            self._split_selected_item = nil; self:_scheduleDetailsResync()
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
@@ -5262,7 +6887,7 @@ function PageScrubber:onTap(_, ges)
             self._hl_filter = nil
             self._hl_color_filter = nil
             self._split_bm_page = 1
-            self._split_selected_item = nil
+            self._split_selected_item = nil; self:_scheduleDetailsResync()
             self:_extractAnnotations()
             UIManager:setDirty(self, "ui", self.dimen)
             return true
@@ -5276,11 +6901,22 @@ function PageScrubber:onTap(_, ges)
         
         if self._split_fixed_row_dimen and ges.pos:intersectWith(self._split_fixed_row_dimen) then
             local tgt_page = self._split_fixed_page or self._origin_page
+            if self._details_open then
+                -- Con el panel de detalles abierto, tocar la fila fijada lo cierra y vuelve a la
+                -- previsualizacion de la pagina fijada (sin reabrir el panel)
+                self:_closeDetailsPanel(false)
+                self._force_menu_sync = true
+                self:_previewPage(tgt_page, false)
+                UIManager:setDirty(self, "ui", self.dimen)
+                return true
+            end
             if self._cur_page == tgt_page then
+                -- Volver a tocar la fila abre el panel de detalles (al grid se entra tocando la pagina)
+                if self:_openDetailsPanel() then return true end
                 if self._base_grid_mode == "grid_simple" then
                     self:_reopenWithMode("grid_simple", tgt_page)
                 else
-                    self._view_mode = "grid"
+                    self._details_open = false; self._view_mode = "grid"
                     self:_clearGridTiles(true)
                     self._is_busy = false
                     self._tasks_in_flight = 0
@@ -5319,6 +6955,9 @@ function PageScrubber:onTap(_, ges)
                     self:_flashAndDo(flash_id, row.toggle_dimen, function()
                         if self._active_tab == "bookmarks" then
                             self:_safeBookmarkToggle(row.page)
+                        elseif self._active_tab == "images" then
+                            self:_imgToggleFavorite(row.item)
+                            UIManager:setDirty(self, "ui", self.dimen)
                         else
                             local was_same = (self._split_selected_item == row.item and self._cur_page == row.page)
                             local new_hide_state = was_same and (not self._hide_action_buttons) or false
@@ -5335,10 +6974,12 @@ function PageScrubber:onTap(_, ges)
                 if ges.pos:intersectWith(row.dimen) then
                     if self._active_tab == "bookmarks" then
                         if self._cur_page == row.page then
+                            if self._details_open then self:_closeDetailsPanel(false); return true end
+                            if self:_openDetailsPanel() then return true end
                             if self._base_grid_mode == "grid_simple" then
                                 self:_reopenWithMode("grid_simple", row.page)
                             else
-                                self._view_mode = "grid"
+                                self._details_open = false; self._view_mode = "grid"
                                 self:_clearGridTiles(true)
                                 self._is_busy = false
                                 self._tasks_in_flight = 0
@@ -5356,10 +6997,12 @@ function PageScrubber:onTap(_, ges)
                         local was_already_selected = (self._split_selected_item == row.item and self._cur_page == row.page)
                         self._split_selected_item = row.item
                         if was_already_selected then
+                            if self._details_open then self:_closeDetailsPanel(false); return true end
+                            if self:_openDetailsPanel() then return true end
                             if self._base_grid_mode == "grid_simple" then
                                 self:_reopenWithMode("grid_simple", row.page)
                             else
-                                self._view_mode = "grid"
+                                self._details_open = false; self._view_mode = "grid"
                                 self:_clearGridTiles(true)
                                 self._is_busy = false
                                 self._tasks_in_flight = 0
@@ -5381,11 +7024,16 @@ function PageScrubber:onTap(_, ges)
             end
         end
         
+        -- Tap en la linea de texto bajo la polaroid: abre el panel de detalles de la anotacion
+        if self._split_chin_dimen and not self._details_open and ges.pos:intersectWith(self._split_chin_dimen) then
+            if self:_openDetailsPanel() then return true end
+        end
+
         if self._split_preview_dimen and ges.pos:intersectWith(self._split_preview_dimen) then
             if self._base_grid_mode == "grid_simple" then
                 self:_reopenWithMode("grid_simple", self._cur_page)
             else
-                self._view_mode = "grid"
+                self._details_open = false; self._view_mode = "grid"
                 self:_clearGridTiles(true)
                 self._is_busy = false
                 self._tasks_in_flight = 0
@@ -5401,7 +7049,7 @@ function PageScrubber:onTap(_, ges)
         if self._grid_toggle_dimen and ges.pos:intersectWith(self._grid_toggle_dimen) then
             self:_flashAndDo("grid_toggle", self._grid_toggle_dimen, function()
                 if self._view_mode == "grid_six" then
-                    self._view_mode = "grid"
+                    self._details_open = false; self._view_mode = "grid"
                 else
                     self._view_mode = "grid_six"
                 end
@@ -5584,6 +7232,7 @@ end
 
 function PageScrubber:onPan(_, ges)
     if self._closing or not self._anti_ghost_ready then return true end
+    if self:_imgZoomPan(ges) then return true end
     local on_bar = self._bar_dimen and ges.pos and (ges.pos.y >= self._bar_dimen.y - self.S(10))
     if on_bar and self._slider and self._slider:handlePan(ges) then
         self._force_menu_sync = true
@@ -5596,6 +7245,17 @@ end
 function PageScrubber:onPanRelease(_, ges)
     self:_cancelHold()
     if self._closing then return end
+    if self:_imgZoomed(ges) then
+        self._zoom_pan_last, self._zoom_pan_seen, self._zoom_pan_t = nil, nil, nil
+        self:_zoomDirty()
+        return true
+    end
+    if self._zoom_pan_last then
+        -- Fin del arrastre con zoom: repinta con la posicion final
+        self._zoom_pan_last, self._zoom_pan_seen, self._zoom_pan_t = nil, nil, nil
+        self:_zoomDirty()
+        return true
+    end
     self._last_drag_time = os.clock()
     self._scrubbing_blank = false
     self._drag_token = (self._drag_token or 0) + 1
@@ -5626,7 +7286,9 @@ function PageScrubber:onRelease(_, ges)
 end
 
 function PageScrubber:onPinch(_, ges)
-    if self._closing or self._grid_disabled then return true end
+    if self._closing then return true end
+    if self:_imgZoomApply(ges, false) then return true end
+    if self._grid_disabled then return true end
     if self._view_mode == "grid" then
         self._view_mode = "grid_six"
         local S = self.S
@@ -5643,7 +7305,9 @@ function PageScrubber:onPinch(_, ges)
 end
 
 function PageScrubber:onSpread(_, ges)
-    if self._closing or self._grid_disabled then return true end
+    if self._closing then return true end
+    if self:_imgZoomApply(ges, true) then return true end
+    if self._grid_disabled then return true end
     if self._view_mode == "grid_six" then
         self._view_mode = "grid"
         local S = self.S
@@ -5664,7 +7328,7 @@ function PageScrubber:onSwipe(_, ges)
 
     -- Bloquea swipes accidentales inmediatamente posteriores al arrastre del slider
     local now = os.clock()
-    if self._last_drag_time and (now - self._last_drag_time) < 0.35 then
+    if self._last_drag_time and (now - self._last_drag_time) < 0.35 and not self:_imgZoomed(ges) then
         return true
     end
 
@@ -5679,6 +7343,21 @@ function PageScrubber:onSwipe(_, ges)
     end
 
     if on_bar then return true end
+
+    if self._view_mode == "split" and self._details_open and self._details_panel_dimen and ges.pos
+       and ges.pos:intersectWith(self._details_panel_dimen) then
+        if self:_imgZoomSwipe(ges) then return true end   -- con zoom el arrastre mueve la imagen, no cambia de imagen
+        if ges.direction == "west" then
+            self:_detailsStep("next")
+        elseif ges.direction == "east" then
+            self:_detailsStep("prev")
+        elseif ges.direction == "north" then
+            self:_scrollDetails(1, ges.pos)
+        elseif ges.direction == "south" then
+            self:_scrollDetails(-1, ges.pos)
+        end
+        return true
+    end
 
     if self._view_mode == "split" and ges.pos then
         local sw = Screen:getWidth()
@@ -5739,6 +7418,12 @@ end
 
 function PageScrubber:onMultiSwipe(_, ges)
     if self._closing then return true end
+    if self:_imgZoomed(ges) then
+        -- Varios swipes rapidos seguidos sobre la imagen con zoom: solo cierra el arrastre y repinta
+        self._zoom_pan_last, self._zoom_pan_seen, self._zoom_pan_t = nil, nil, nil
+        self:_zoomDirty()
+        return true
+    end
     if ges.direction == "south" then
         self:_closeReturn()
         return true
@@ -5748,6 +7433,22 @@ end
 
 function PageScrubber:onHold(_, ges)
     if self._closing then return end
+
+    -- Con zoom, un dedo que se detiene un instante mientras arrastras la imagen NO debe disparar el
+    -- "ir a la pagina y cerrar" de la tarjeta/filas (en modo expandido el panel cubre mucha mas area)
+    if self:_imgZoomed(ges) then
+        return true
+    end
+
+    -- Mantener apretado sobre el panel de detalles: vuelve al split menu en esa misma pagina, con la
+    -- previsualizacion mostrando esa pagina (para ir al libro esta la linea "Show in book")
+    if self._view_mode == "split" and self._details_open and self._details_panel_dimen
+       and ges.pos and ges.pos:intersectWith(self._details_panel_dimen) then
+        self:_cancelHold()
+        self:_closeDetailsPanel(false)
+        self:_zoomDirty(self.dimen)
+        return true
+    end
 
     if self._fn_dimen and ges.pos:intersectWith(self._fn_dimen) then
         self:_cancelHold()
@@ -5938,6 +7639,8 @@ end
 
 function PageScrubber:onCloseWidget()
     self._closing = true
+    if self._imgFree then self:_imgFree() end
+    self:_freeDetailsWidgets()
     self:_cancelHold()
     self._drag_token = (self._drag_token or 0) + 1
     
@@ -6011,4 +7714,13 @@ function PageScrubber:onClose()
     return true
 end
     
+-- Tab de imagenes (images_tab.lua + image_scanner.lua). Si faltan, el tab simplemente no aparece.
+do
+    local okIT, ImagesTab = pcall(require, "images_tab")
+    if okIT and type(ImagesTab) == "table" and ImagesTab.install then
+        local okI, errI = pcall(ImagesTab.install, PageScrubber, _)
+        if not okI then logger.warn("page-scrubber images tab install error:", errI) end
+    end
+end
+
 return PageScrubber

@@ -1657,6 +1657,11 @@ function FloatingActionMenu:init()
         underline     = { svg = "underline.svg", text = "Und", action = "underline", setting = "page_scrubber_sel_show_underline" },
         invert        = { svg = "contrast.svg", text = "Inv", action = "invert", setting = "page_scrubber_sel_show_invert" },
         highlight     = { svg = "droplet.svg", text = "HL", action = "highlight", setting = "page_scrubber_sel_show_highlight" },
+        -- Botones que por defecto viven en la fila de More; si se activan, suben a la barra principal
+        select        = { svg = "crop.svg", text = "Sel", action = "select", setting = "page_scrubber_sel_show_select", default = false, row1 = true },
+        dict          = { svg = "book-marked.svg", text = "Dict", action = "dict", setting = "page_scrubber_sel_show_dict", default = false, row1 = true },
+        wiki          = { svg = "globe.svg", text = "Wiki", action = "wiki", setting = "page_scrubber_sel_show_wiki", default = false, row1 = true },
+        translate     = { svg = "languages.svg", text = "Trans", action = "translate", setting = "page_scrubber_sel_show_translate", default = false, row1 = true },
     }
 
     local more_svg = getValidSvgPath("more.svg") or getValidSvgPath("square-plus.svg") or getValidSvgPath("plus.svg")
@@ -1667,7 +1672,7 @@ function FloatingActionMenu:init()
         is_plus = true,
     }
 
-    local default_sel_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "more" }
+    local default_sel_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "select", "dict", "wiki", "translate", "more" }
     local saved_sel_order = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_btn_order")
     if type(saved_sel_order) ~= "table" then
         if G_reader_settings and (G_reader_settings:isTrue("page_scrubber_sel_reverse_order") or G_reader_settings:isTrue("page_scrubber_sel_more_first")) then
@@ -1681,7 +1686,15 @@ function FloatingActionMenu:init()
         for _, k in ipairs(saved_sel_order) do seen[k] = true end
         for _, k in ipairs(default_sel_order) do
             if not seen[k] then
-                table.insert(saved_sel_order, k)
+                local more_pos
+                for i, sk in ipairs(saved_sel_order) do
+                    if sk == "more" then more_pos = i; break end
+                end
+                if k ~= "more" and more_pos then
+                    table.insert(saved_sel_order, more_pos, k)
+                else
+                    table.insert(saved_sel_order, k)
+                end
             end
         end
     end
@@ -1699,8 +1712,8 @@ function FloatingActionMenu:init()
             end
         else
             local b_spec = SEL_BUTTON_SPECS[btn_key]
-            if b_spec and is_btn_enabled(b_spec.setting) then
-                table.insert(raw_buttons, { svg = b_spec.svg, text = b_spec.text, action = b_spec.action })
+            if b_spec and is_btn_enabled(b_spec.setting, b_spec.default) then
+                table.insert(raw_buttons, { svg = b_spec.svg, text = b_spec.text, action = b_spec.action, row1 = b_spec.row1 })
             end
         end
     end
@@ -1753,6 +1766,8 @@ function FloatingActionMenu:init()
             cb = function() self:toggleMore() end
         elseif spec.external_callback then
             cb = function() pcall(spec.external_callback) end
+        elseif spec.row1 then
+            cb = function() self:invokeRow1Action(spec.action) end
         else
             cb = function() self:invokeNative(spec.action) end
             hold_cb = function(btn_obj, anchor_pos) self:invokeNativeHold(spec.action, anchor_pos) end
@@ -1931,6 +1946,20 @@ function FloatingActionMenu:init()
     self:buildMoreCard()
 end
 
+function FloatingActionMenu:invokeRow1Action(act)
+    if act == "select" then
+        self:invokeNative("adjust")
+        return
+    end
+    local nb = self._native_buttons and self._native_buttons[act]
+    if nb and type(nb.callback) == "function" then
+        UIManager:close(self)
+        pcall(nb.callback, self.highlight_obj, self.annotation_index)
+    else
+        self:invokeNative(act)
+    end
+end
+
 function FloatingActionMenu:buildMoreCard()
     local screen_width = Screen:getWidth()
     local screen_height = Screen:getHeight()
@@ -2014,6 +2043,8 @@ function FloatingActionMenu:buildMoreCard()
     local raw_fs = getBookRawFontSize(ui_instance) or 26
     local font_ratio = self._font_ratio or math.max(0.85, math.min(1.40, raw_fs / 26))
 
+    self._native_buttons = native_buttons
+
     local row1_specs = {
         { svg = "crop.svg", text = "Sel", action = "select" },
         { svg = "copy.svg", text = "Copy", action = "copy" },
@@ -2022,6 +2053,24 @@ function FloatingActionMenu:buildMoreCard()
         { svg = "search.svg", text = "Search", action = "search" },
         { svg = "languages.svg", text = "Trans", action = "translate" },
     }
+
+    -- Dict / Wiki / Trans: si están activados en la barra principal, no se repiten en la fila de More
+    do
+        local main_bar_setting = {
+            select = "page_scrubber_sel_show_select",
+            dict = "page_scrubber_sel_show_dict",
+            wiki = "page_scrubber_sel_show_wiki",
+            translate = "page_scrubber_sel_show_translate",
+        }
+        local filtered = {}
+        for _, sp in ipairs(row1_specs) do
+            local key = main_bar_setting[sp.action]
+            if not (key and is_btn_enabled(key, false)) then
+                table.insert(filtered, sp)
+            end
+        end
+        row1_specs = filtered
+    end
 
     local row1_icon_sz = scale(31)
     local min_btn_w = scale(52)
@@ -2860,13 +2909,41 @@ local function invokeHoldAction(self_obj, action_name, anchor_pos)
 
     local function finish(color_name)
         closeMenu()
+        -- Con selecciones largas (p. ej. un parrafo entero) saveHighlight(true) puede extender la seleccion
+        -- a oracion y trabajar sobre una tabla NUEVA que no trae drawer/color, y entonces usa los valores por
+        -- defecto de KOReader (amarillo / lighten). Por eso, ademas de marcar selected_text, fijamos
+        -- temporalmente el estilo y color por defecto durante el guardado y despues los restauramos.
+        local vh = hl.view and hl.view.highlight
+        local old_saved_drawer, old_saved_color
+        if vh then
+            old_saved_drawer, old_saved_color = vh.saved_drawer, vh.saved_color
+            vh.saved_drawer = style
+            if color_name then vh.saved_color = color_name end
+        end
         local ok, err = pcall(function()
             if not hl.selected_text then hl.selected_text = sel end
             hl.selected_text.drawer = style
             if color_name then hl.selected_text.color = color_name end
-            hl:saveHighlight(true)
+            local saved_index = hl:saveHighlight(true)
+            -- Verificacion: si el item guardado quedo con otro estilo/color, se corrige
+            local annotation = hl.ui and hl.ui.annotation
+            local item = type(saved_index) == "number" and annotation and annotation.annotations
+                and annotation.annotations[saved_index]
+            if type(item) == "table" then
+                local wrong_style = item.drawer ~= style
+                local wrong_color = color_name and item.color ~= color_name
+                if wrong_style or wrong_color then
+                    info("floating_dict: corrigiendo highlight guardado:", item.drawer, item.color, "->", style, color_name)
+                    item.drawer = style
+                    if color_name then item.color = color_name end
+                    pcall(function() UIManager:setDirty("all", "ui") end)
+                end
+            end
             hl:clear()
         end)
+        if vh then
+            vh.saved_drawer, vh.saved_color = old_saved_drawer, old_saved_color
+        end
         if not ok then
             warn("floating_dict: no se pudo guardar el highlight con color:", err)
             pcall(function() hl:clear() end)

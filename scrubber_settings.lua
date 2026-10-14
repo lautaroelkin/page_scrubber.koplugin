@@ -448,7 +448,7 @@ function ScrubberSettings:getOrderableTogglePage(cfg)
                 text = def.text,
                 icon = def.icon,
                 setting = def.setting,
-                default = (def.default ~= nil) and def.default or true,
+                default = (def.default == nil) and true or def.default,
                 order_setting = cfg.order_setting,
                 default_order = cfg.default_order,
                 item_key = key,
@@ -635,6 +635,13 @@ function ScrubberSettings:getPageDefinition(page_id)
                             self.scrubber_ui:_updateChapterMarks()
                         end
                     end,
+                },
+                {
+                    text = _("Disable Images tab"),
+                    icon = "image.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_hide_images_tab",
+                    default = false,
                 },
                 {
                     text = "RTL",
@@ -899,7 +906,7 @@ function ScrubberSettings:getPageDefinition(page_id)
         return self:getOrderableTogglePage({
             title = _("Buttons in selection menu"),
             order_setting = "page_scrubber_sel_btn_order",
-            default_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "more" },
+            default_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "select", "dict", "wiki", "translate", "more" },
             items_def = {
                 xray          = { text = "X-Ray", icon = "xray.svg", setting = "page_scrubber_sel_show_xray", default = has_xray },
                 ai            = { text = _("AI Assistant"), icon = "sparkles.svg", setting = "page_scrubber_sel_show_ai", default = has_ai },
@@ -908,6 +915,10 @@ function ScrubberSettings:getPageDefinition(page_id)
                 underline     = { text = _("Underline"), icon = "underline.svg", setting = "page_scrubber_sel_show_underline", default = true },
                 invert        = { text = _("Invert"), icon = "contrast.svg", setting = "page_scrubber_sel_show_invert", default = true },
                 highlight     = { text = _("Highlight"), icon = "highlighter.svg", setting = "page_scrubber_sel_show_highlight", default = true },
+                select        = { text = _("Text selection"), icon = "crop.svg", setting = "page_scrubber_sel_show_select", default = false },
+                dict          = { text = _("Dictionary"), icon = "book-marked.svg", setting = "page_scrubber_sel_show_dict", default = false },
+                wiki          = { text = _("Wikipedia"), icon = "globe.svg", setting = "page_scrubber_sel_show_wiki", default = false },
+                translate     = { text = _("Translate"), icon = "languages.svg", setting = "page_scrubber_sel_show_translate", default = false },
                 more          = { text = _("More"), icon = "more.svg", setting = "page_scrubber_sel_show_more", default = true },
             }
         })
@@ -1554,6 +1565,9 @@ function ActionSelectDialog:nextPage()
     end
 end
 
+-- Color de las lineas divisorias entre filas (la linea debajo del titulo con la flecha "‹" sigue negra)
+local ROW_DIVIDER_COLOR = Blitbuffer.COLOR_LIGHT_GRAY
+
 function ActionSelectDialog:paintTo(bb, x, y)
     local r = self.card_rect
     if not r then return end
@@ -1596,7 +1610,7 @@ function ActionSelectDialog:paintTo(bb, x, y)
         local rh = rdef.dimen.h
 
         if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, ROW_DIVIDER_COLOR)
         end
 
         local icon_name = ScrubberSettings.getActionIcon and ScrubberSettings:getActionIcon(item) or "package.svg"
@@ -1920,7 +1934,7 @@ function FontSelectDialog:paintTo(bb, x, y)
         local rh = rdef.dimen.h
 
         if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, ROW_DIVIDER_COLOR)
         end
 
         local item_face = Font:getFace("cfont", scaleText(12))
@@ -2248,7 +2262,7 @@ function SystemFontSelectDialog:paintTo(bb, x, y)
         local rh = rdef.dimen.h
 
         if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, ROW_DIVIDER_COLOR)
         end
 
         local item_face = Font:getFace("cfont", scaleText(12))
@@ -2965,7 +2979,7 @@ function ScrubberSettings:paintTo(bb, x, y)
         local rh = rdef.dimen.h
 
         if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
+            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, ROW_DIVIDER_COLOR)
         end
 
         local text_color = item.disabled and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
@@ -3358,7 +3372,7 @@ function ScrubberSettings:onTap(arg1, arg2)
                     end
                     if it.on_change then it.on_change(new_state) end
 
-                    if it.setting == "page_scrubber_full_page_grid" then
+                    if it.setting == "page_scrubber_full_page_grid" or it.setting == "page_scrubber_hide_images_tab" then
                         self:reopenEntireScrubber()
                         return true
                     end

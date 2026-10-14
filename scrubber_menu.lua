@@ -274,6 +274,18 @@ local function getCreFace(font_name, size)
     return Font:getFace("cfont", size)
 end
 
+-- Cara de la fuente de símbolos de KOReader (nerdfonts). El ícono de la lámpara (U+EDB3) vive en esa fuente:
+-- con "cfont" el glifo se tomaba por fallback y quedaba posicionado según las métricas de la fuente del sistema,
+-- por eso subía o bajaba al cambiar la tipografía de la interfaz. Con su propia fuente la posición es siempre la misma.
+local function getSymbolsFace(size)
+    local ok, face = pcall(Font.getFace, Font, "symbols", size)
+    if ok and face then return face end
+    return Font:getFace("cfont", size)
+end
+
+-- Ajuste fino vertical del ícono de la lámpara (en unidades de escala; positivo = más abajo)
+local LAMP_Y_NUDGE = 0
+
 -- ==========================================
 -- WIDGET PRINCIPAL CON PESTAÑAS (PULIDO)
 -- ==========================================
@@ -735,12 +747,12 @@ function ScrubberMenu:paintTo(bb, x, y)
     local is_quick = (self.active_tab == "quick" or self.active_tab == "actions_list")
     local tw_gear = TextWidget:new{
         text = "\u{EDB3}",
-        face = Font:getFace("cfont", scale(15)),
+        face = getSymbolsFace(scale(15)),
         bold = is_quick,
         fgcolor = is_quick and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
     }
     local gsz = tw_gear:getSize()
-    tw_gear:paintTo(bb, self.tab_quick_dimen.x + math.floor((self.tab_quick_dimen.w - gsz.w) / 2), tab_y + math.floor((tab_h - gsz.h) / 2))
+    tw_gear:paintTo(bb, self.tab_quick_dimen.x + math.floor((self.tab_quick_dimen.w - gsz.w) / 2), tab_y + math.floor((tab_h - gsz.h) / 2) + scale(LAMP_Y_NUDGE))
     tw_gear:free()
 
     local is_typo = (self.active_tab == "typo" or self.active_tab == "font_list")
@@ -1072,16 +1084,30 @@ function ScrubberMenu:paintTo(bb, x, y)
                 local is_sel = (fname == cur_font)
                 local item_face = getCreFace(fname, scaleText(13))
 
+                -- "Aa" en la propia fuente de la fila: hace de ícono. Columna de ancho fijo para alinear los nombres.
+                local tw_aa = TextWidget:new{
+                    text = "Aa",
+                    face = item_face,
+                    bold = is_sel,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                }
+                local aa_sz = tw_aa:getSize()
+                local aa_col_w = scale(30)
+                local aa_x = r.x + pad + math.floor((aa_col_w - math.min(aa_sz.w, aa_col_w)) / 2)
+                tw_aa:paintTo(bb, aa_x, curr_y + math.floor((rh - aa_sz.h) / 2))
+                tw_aa:free()
+
+                local name_x = r.x + pad + aa_col_w + scale(6)
                 local tw_f = TextWidget:new{
                     text = fname,
                     face = item_face,
                     bold = is_sel,
                     fgcolor = Blitbuffer.COLOR_BLACK,
-                    max_width = inner_w - scale(36),
+                    max_width = inner_w - scale(36) - aa_col_w - scale(6),
                     truncate_with_ellipsis = true,
                 }
                 local fsz = tw_f:getSize()
-                tw_f:paintTo(bb, r.x + pad, curr_y + math.floor((rh - fsz.h) / 2))
+                tw_f:paintTo(bb, name_x, curr_y + math.floor((rh - fsz.h) / 2))
                 tw_f:free()
 
                 if is_sel then
