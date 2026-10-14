@@ -123,7 +123,7 @@ Works automatically out of the box with zero setup:
 ## Thanks
 
 PageScrubber wouldn't look the way it does without the projects below. Thanks to their authors for the inspiration, and for the code I learned from and reused:
-- **[zen-os](https://github.com/xZenLabs/zen-os):**
-- **[Floating-Dictionary.koplugin](https://github.com/DisastrousPatience83/Floating-Dictionary.koplugin):** 
-- **[glimpse](https://github.com/Fank1/glimpse):** 
-- **[bookshelf.koplugin](https://github.com/AndyHazz/bookshelf.koplugin):** 
+- **[zen-os](https://github.com/xZenLabs/zen-os)**
+- **[Floating-Dictionary.koplugin](https://github.com/DisastrousPatience83/Floating-Dictionary.koplugin)** 
+- **[glimpse](https://github.com/Fank1/glimpse)** 
+- **[bookshelf.koplugin](https://github.com/AndyHazz/bookshelf.koplugin)** 
