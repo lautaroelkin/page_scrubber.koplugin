@@ -116,3 +116,14 @@ Works automatically out of the box with zero setup:
 
 * **1:1 Print Parity:** Matches physical book numbering with zero drift.
 * **Accurate Totals & Breaks:** Instantly detects mid-screen page breaks and displays genuine physical book totals across sliders and chapters.
+
+---
+
+
+## Thanks
+
+PageScrubber wouldn't look the way it does without the projects below. Thanks to their authors for the inspiration, and for the code I learned from and reused:
+- **[zen-os](https://github.com/xZenLabs/zen-os):** [what it inspired]
+- **[Floating-Dictionary.koplugin](https://github.com/DisastrousPatience83/Floating-Dictionary.koplugin):** [what it inspired or which code was reused]
+- **[glimpse](https://github.com/Fank1/glimpse):** [what it inspired]
+- **[bookshelf.koplugin](https://github.com/AndyHazz/bookshelf.koplugin):** [what it inspired]
