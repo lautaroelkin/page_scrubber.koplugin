@@ -5,10 +5,12 @@
 This plugin allows you to quickly flip back and forth through the book, with the option to easily return to your original page using the 'x' button or stay on the new page. You can also use the interactive progress bar and bookmark browser. Streamlined, E-ink optimized, based on KOReader's browser architecture and inspired by the native Kindle page picker experience. Compatible with EPUB, CBZ, and PDFs and works seamlessly in both portrait and landscape modes! 
    
 ### Features
-*   **Thumbnail Grids:** Live 3-page and Multi-page previews, plus a minimalist distraction-free "Simple Grid" mode.
+*   **Thumbnail Grids:** Live 3-page and Multi-page previews, plus a minimalist distraction-free "Simple Grid" mode. 
 *   **Interactive Index:** A dedicated visual Table of Contents view with its own progress bar for easy chapter navigation.
 *   **Advanced Navigation:** Interactive progress slider, chapter-skip buttons, a quick-access top toolbar, and physical D-Pad support.
 *   **Split-View Annotations:** A beautiful split-screen manager for Bookmarks, Highlights, and Notes, featuring a live high-res page preview and smart highlight filters.
+    *   **Detail panel:** Tap a row to preview its page, then tap it again to open a detail panel with the full content of that annotation or bookmark (quote, note, chapter, and page). You can expand the panel for more room, and swipe through annotations inside it.
+    *   **Images tab:** A new tab that lists the pages with images. Open an image in the detail panel to pinch-zoom it, or expand the panel for a bigger view. It only scans images up to the point you've read, which avoids spoilers and avoids loading every image at once. It can be turned off in Settings > Layout > Disable Image Tab.
 *   **Redesigned Reading Pop-Ups :** Features a modern, pill-shaped floating dictionary and multi-word selection menu. It intelligently anchors away from your finger so it never blocks your text. Fully compatible with the AI Assistant, X-Ray, and other external plugins.
 *   **Robust Customization :** Auto-adapting layout with dynamic UI Scaling and customizable Text Size (Small/Medium/Large), choose your own optional custom wallpaper and even pick a font to change the system font of Koreader.
 * **Quick Menu:** A quick-access overlay featuring two dedicated tabs for seamless reading management:
