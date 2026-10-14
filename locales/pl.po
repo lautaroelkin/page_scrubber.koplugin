@@ -429,7 +429,20 @@ msgstr "Uruchom ponownie, aby zastosować zmianę czcionki interfejsu"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-siatka: Pokaż 9 stron"
 
-msgid "Multi Grid: Show 9 pages"
-msgstr "Multigrade: Mostrar 9 páginas"
+msgid "no bold"
+msgstr "bez pogrubienia"
+
+msgid "italic only"
+msgstr "tylko kursywa"
+
+msgid "bold italic only"
+msgstr "tylko pogrubienie i kursywa"
+
+msgid "Disable Images tab"
+msgstr "Wyłącz zakładkę obrazów"
+
+msgid "bold only"
+msgstr "tylko pogrubienie"
+
 
 
