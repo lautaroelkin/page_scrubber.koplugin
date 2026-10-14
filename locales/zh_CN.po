@@ -429,4 +429,9 @@ msgstr "重新启动以应用界面字体更改"
 msgid "Multi Grid: Show 9 pages"
 msgstr "多网格: 显示 9 页"
 
+msgid "Disable Images tab"
+msgstr "禁用图片标签页"
+
+msgid "bold only"
+msgstr "仅加粗"
 

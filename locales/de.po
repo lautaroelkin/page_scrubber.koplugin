@@ -429,3 +429,9 @@ msgstr "Neustart, um die Änderung der Systemschrift anzuwenden"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-Raster: 9 Seiten anzeigen"
 
+msgid "Disable Images tab"
+msgstr "Bilder-Tab deaktivieren"
+
+msgid "bold only"
+msgstr "nur fett"
+

@@ -422,3 +422,10 @@ msgstr "UI फ़ॉन्ट परिवर्तन लागू करने
 msgid "Multi Grid: Show 9 pages"
 msgstr "मल्टी-ग्रिड: 9 पृष्ठ दिखाएं"
 
+msgid "Disable Images tab"
+msgstr "छवियाँ टैब अक्षम करें"
+
+msgid "bold only"
+msgstr "केवल बोल्ड"
+
+

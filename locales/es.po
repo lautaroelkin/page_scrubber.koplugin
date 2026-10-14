@@ -407,3 +407,9 @@ msgstr "Multi-Grid: Mostrar 9 páginas"
 
 msgid "bold italic only"
 msgstr "solo negrita y cursiva"
+
+msgid "Disable Images tab"
+msgstr "Desactivar pestaña de imágenes"
+
+msgid "bold only"
+msgstr "solo negrita"

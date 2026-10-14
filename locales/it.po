@@ -429,3 +429,8 @@ msgstr "Riavvia per applicare il carattere di sistema"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-Griglia: Mostra 9 pagine"
 
+msgid "Disable Images tab"
+msgstr "Disabilita la scheda Immagini"
+
+msgid "bold only"
+msgstr "solo grassetto"

@@ -403,4 +403,9 @@ msgstr "Opnieuw starten om de wijziging in het systeemlettertype toe te passen"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-raster: Toon 9 pagina's"
 
+msgid "Disable Images tab"
+msgstr "Afbeeldingen-tabblad uitschakelen"
+
+msgid "bold only"
+msgstr "alleen vet"
 

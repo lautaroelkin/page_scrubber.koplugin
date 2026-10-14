@@ -435,4 +435,10 @@ msgstr "UIフォントの変更を適用するには再起動が必要です"
 msgid "Multi Grid: Show 9 pages"
 msgstr "マルチグリッド: 9ページ表示"
 
+msgid "Disable Images tab"
+msgstr "画像タブを無効にする"
+
+msgid "bold only"
+msgstr "太字のみ"
+
 

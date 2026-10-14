@@ -455,3 +455,9 @@ msgstr "Перезапустите, чтобы применить изменен
 msgid "Multi Grid: Show 9 pages"
 msgstr "Мульти-сетка: Показывать 9 страниц"
 
+msgid "Disable Images tab"
+msgstr "Отключить вкладку изображений"
+
+msgid "bold only"
+msgstr "только жирный"
+

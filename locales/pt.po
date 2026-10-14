@@ -474,3 +474,9 @@ msgstr "É necessário reiniciar para aplicar a alteração"
 msgid "Restart to apply the UI font change"
 msgstr "É necessário reiniciar para aplicar a fonte do sistema"
 
+msgid "Disable Images tab"
+msgstr "Desativar aba de imagens"
+
+msgid "bold only"
+msgstr "apenas negrito"
+

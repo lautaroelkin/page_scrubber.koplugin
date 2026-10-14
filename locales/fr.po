@@ -429,3 +429,9 @@ msgstr "Redémarrer pour appliquer la police système"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-Grille : Afficher 9 pages"
 
+msgid "Disable Images tab"
+msgstr "Désactiver l'onglet Images"
+
+msgid "bold only"
+msgstr "gras uniquement"
+

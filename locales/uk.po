@@ -416,3 +416,8 @@ msgstr "Перезапустіть, щоб застосувати зміну ш�
 msgid "Multi Grid: Show 9 pages"
 msgstr "Мультисітка: Показувати 9 сторінок"
 
+msgid "Disable Images tab"
+msgstr "Вимкнути вкладку зображень"
+
+msgid "bold only"
+msgstr "тільки жирний"

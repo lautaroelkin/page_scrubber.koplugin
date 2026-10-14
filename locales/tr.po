@@ -415,3 +415,9 @@ msgstr "Arayüz yazı tipi değişikliğini uygulamak için yeniden başlat"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Çoklu Izgara: 9 sayfayı göster"
 
+msgid "Disable Images tab"
+msgstr "Resimler sekmesini devre dışı bırak"
+
+msgid "bold only"
+msgstr "sadece kalın"
+
