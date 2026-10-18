@@ -434,3 +434,106 @@ msgstr "Disabilita la scheda Immagini"
 
 msgid "bold only"
 msgstr "solo grassetto"
+
+msgid "The updater is not available."
+msgstr "Lo strumento di aggiornamento non è disponibile."
+
+msgid "Bar"
+msgstr "Barra"
+
+msgid "Settings"
+msgstr "Impostazioni"
+
+msgid "Interface"
+msgstr "Interfaccia"
+
+msgid "Document"
+msgstr "Documento"
+
+msgid "Other"
+msgstr "Altro"
+
+msgid "Advanced"
+msgstr "Avanzate"
+
+msgid "Top bar"
+msgstr "Barra superiore"
+
+msgid "Dictionary"
+msgstr "Dizionario"
+
+msgid "Selection menu"
+msgstr "Menu di selezione"
+
+msgid "Size of selection menu"
+msgstr "Dimensione del menu di selezione"
+
+msgid "Text selection"
+msgstr "Selezione del testo"
+
+msgid "Back up settings"
+msgstr "Esegui backup impostazioni"
+
+msgid "Restore settings from backup"
+msgstr "Ripristina impostazioni da backup"
+
+msgid "Reset all settings"
+msgstr "Reimposta tutte le impostazioni"
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Clear image cache"
+msgstr "Svuota cache immagini"
+
+msgid "Updates"
+msgstr "Aggiornamenti"
+
+msgid "Check for updates"
+msgstr "Controlla aggiornamenti"
+
+msgid "Settings backed up to:"
+msgstr "Backup impostazioni salvato in:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Per ripristinarle su un altro dispositivo, copia questo file nella stessa cartella lì."
+
+msgid "Could not back up the settings."
+msgstr "Impossibile eseguire il backup delle impostazioni."
+
+msgid "No backup found."
+msgstr "Nessun backup trovato."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Usa prima \"Esegui backup impostazioni\", oppure copia il tuo file page_scrubber_backup.lua in:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Ripristinare le impostazioni da questo file di backup? Le tue impostazioni attuali verranno sostituite."
+
+msgid "Restore"
+msgstr "Ripristina"
+
+msgid "Could not restore the settings."
+msgstr "Impossibile ripristinare le impostazioni."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Svuotare la cache delle immagini? La scheda Immagini scansionerà di nuovo i tuoi libri la prossima volta che la aprirai. Le tue immagini preferite verranno mantenute."
+
+msgid "Clear"
+msgstr "Svuota"
+
+msgid "Image cache cleared."
+msgstr "Cache immagini svuotata."
+
+msgid "Could not clear the image cache."
+msgstr "Impossibile svuotare la cache delle immagini."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Reimpostare TUTTE le impostazioni di PageScrubber ai valori predefiniti? Questo cancellerà anche i tuoi font preferiti e le azioni rapide. Suggerimento: esegui prima un backup."
+
+msgid "Reset"
+msgstr "Reimposta"
+
+msgid "Disabled"
+msgstr "Disattivato"
+

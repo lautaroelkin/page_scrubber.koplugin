@@ -409,3 +409,104 @@ msgstr "Afbeeldingen-tabblad uitschakelen"
 msgid "bold only"
 msgstr "alleen vet"
 
+msgid "The updater is not available."
+msgstr "De updater is niet beschikbaar."
+
+msgid "Bar"
+msgstr "Balk"
+
+msgid "Settings"
+msgstr "Instellingen"
+
+msgid "Interface"
+msgstr "Interface"
+
+msgid "Document"
+msgstr "Document"
+
+msgid "Other"
+msgstr "Overig"
+
+msgid "Advanced"
+msgstr "Geavanceerd"
+
+msgid "Top bar"
+msgstr "Bovenbalk"
+
+msgid "Dictionary"
+msgstr "Woordenboek"
+
+msgid "Selection menu"
+msgstr "Selectiemenu"
+
+msgid "Size of selection menu"
+msgstr "Grootte van selectiemenu"
+
+msgid "Text selection"
+msgstr "Tekstselectie"
+
+msgid "Back up settings"
+msgstr "Instellingen back-uppen"
+
+msgid "Restore settings from backup"
+msgstr "Instellingen herstellen vanaf back-up"
+
+msgid "Reset all settings"
+msgstr "Alle instellingen resetten"
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Clear image cache"
+msgstr "Afbeeldingscache wissen"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Check for updates"
+msgstr "Controleren op updates"
+
+msgid "Settings backed up to:"
+msgstr "Back-up van instellingen gemaakt in:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Om ze op een ander apparaat te herstellen, kopieer je dit bestand daar naar dezelfde map."
+
+msgid "Could not back up the settings."
+msgstr "Kon geen back-up maken van de instellingen."
+
+msgid "No backup found."
+msgstr "Geen back-up gevonden."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Gebruik eerst \"Instellingen back-uppen\" of kopieer je page_scrubber_backup.lua bestand naar:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "De instellingen herstellen vanuit dit back-upbestand? Je huidige instellingen worden vervangen."
+
+msgid "Restore"
+msgstr "Herstellen"
+
+msgid "Could not restore the settings."
+msgstr "Kon de instellingen niet herstellen."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Afbeeldingscache wissen? Het tabblad Afbeeldingen zal je boeken opnieuw scannen de volgende keer dat je het opent. Je favoriete afbeeldingen blijven bewaard."
+
+msgid "Clear"
+msgstr "Wissen"
+
+msgid "Image cache cleared."
+msgstr "Afbeeldingscache gewist."
+
+msgid "Could not clear the image cache."
+msgstr "Kon de afbeeldingscache niet wissen."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "ALLE PageScrubber-instellingen resetten naar de standaardwaarden? Dit wist ook je favoriete lettertypen en snelle acties. Tip: maak er eerst een back-up van."
+
+msgid "Reset"
+msgstr "Resetten"
+
+msgid "Disabled"
+msgstr "Uitgeschakeld"

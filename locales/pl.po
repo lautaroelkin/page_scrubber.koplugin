@@ -444,5 +444,107 @@ msgstr "Wyłącz zakładkę obrazów"
 msgid "bold only"
 msgstr "tylko pogrubienie"
 
+msgid "The updater is not available."
+msgstr "Aktualizator nie jest dostępny."
+
+msgid "Bar"
+msgstr "Pasek"
+
+msgid "Settings"
+msgstr "Ustawienia"
+
+msgid "Interface"
+msgstr "Interfejs"
+
+msgid "Document"
+msgstr "Dokument"
+
+msgid "Other"
+msgstr "Inne"
+
+msgid "Advanced"
+msgstr "Zaawansowane"
+
+msgid "Top bar"
+msgstr "Górny pasek"
+
+msgid "Dictionary"
+msgstr "Słownik"
+
+msgid "Selection menu"
+msgstr "Menu zaznaczania"
+
+msgid "Size of selection menu"
+msgstr "Rozmiar menu zaznaczania"
+
+msgid "Text selection"
+msgstr "Zaznaczanie tekstu"
+
+msgid "Back up settings"
+msgstr "Utwórz kopię zapasową ustawień"
+
+msgid "Restore settings from backup"
+msgstr "Przywróć ustawienia z kopii zapasowej"
+
+msgid "Reset all settings"
+msgstr "Zresetuj wszystkie ustawienia"
+
+msgid "Cache"
+msgstr "Pamięć podręczna"
+
+msgid "Clear image cache"
+msgstr "Wyczyść pamięć podręczną obrazów"
+
+msgid "Updates"
+msgstr "Aktualizacje"
+
+msgid "Check for updates"
+msgstr "Sprawdź aktualizacje"
+
+msgid "Settings backed up to:"
+msgstr "Kopia zapasowa ustawień zapisana w:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Aby przywrócić je na innym urządzeniu, skopiuj ten plik do tego samego folderu."
+
+msgid "Could not back up the settings."
+msgstr "Nie udało się utworzyć kopii zapasowej ustawień."
+
+msgid "No backup found."
+msgstr "Nie znaleziono kopii zapasowej."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Użyj najpierw opcji „Utwórz kopię zapasową ustawień” lub skopiuj plik page_scrubber_backup.lua do:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Przywrócić ustawienia z tego pliku kopii zapasowej? Twoje bieżące ustawienia zostaną zastąpione."
+
+msgid "Restore"
+msgstr "Przywróć"
+
+msgid "Could not restore the settings."
+msgstr "Nie udało się przywrócić ustawień."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Wyczyścić pamięć podręczną obrazów? Zakładka Obrazy ponownie przeskanuje Twoje książki przy następnym otwarciu. Twoje ulubione obrazy zostaną zachowane."
+
+msgid "Clear"
+msgstr "Wyczyść"
+
+msgid "Image cache cleared."
+msgstr "Pamięć podręczna obrazów wyczyszczona."
+
+msgid "Could not clear the image cache."
+msgstr "Nie udało się wyczyścić pamięci podręcznej obrazów."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Zresetować WSZYSTKIE ustawienia PageScrubber do domyślnych? Usunie to również ulubione czcionki i szybkie akcje. Wskazówka: najpierw zrób kopię zapasową."
+
+msgid "Reset"
+msgstr "Zresetuj"
+
+msgid "Disabled"
+msgstr "Wyłączone"
+
 
 

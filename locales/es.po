@@ -413,3 +413,106 @@ msgstr "Desactivar pestaña de imágenes"
 
 msgid "bold only"
 msgstr "solo negrita"
+
+msgid "The updater is not available."
+msgstr "El actualizador no está disponible."
+
+msgid "Bar"
+msgstr "Barra"
+
+msgid "Settings"
+msgstr "Ajustes"
+
+msgid "Interface"
+msgstr "Interfaz"
+
+msgid "Document"
+msgstr "Documento"
+
+msgid "Other"
+msgstr "Otros"
+
+msgid "Advanced"
+msgstr "Avanzado"
+
+msgid "Top bar"
+msgstr "Barra superior"
+
+msgid "Dictionary"
+msgstr "Diccionario"
+
+msgid "Selection menu"
+msgstr "Menú de selección"
+
+msgid "Size of selection menu"
+msgstr "Tamaño del menú de selección"
+
+msgid "Text selection"
+msgstr "Selección de texto"
+
+msgid "Back up settings"
+msgstr "Respaldar ajustes"
+
+msgid "Restore settings from backup"
+msgstr "Restaurar ajustes desde copia"
+
+msgid "Reset all settings"
+msgstr "Restablecer todos los ajustes"
+
+msgid "Cache"
+msgstr "Caché"
+
+msgid "Clear image cache"
+msgstr "Borrar caché de imágenes"
+
+msgid "Updates"
+msgstr "Actualizaciones"
+
+msgid "Check for updates"
+msgstr "Buscar actualizaciones"
+
+msgid "Settings backed up to:"
+msgstr "Ajustes respaldados en:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Para restaurarlos en otro dispositivo, copia este archivo en la misma carpeta allí."
+
+msgid "Could not back up the settings."
+msgstr "No se pudieron respaldar los ajustes."
+
+msgid "No backup found."
+msgstr "No se encontró ninguna copia de seguridad."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Usa \"Respaldar ajustes\" primero, o copia tu archivo page_scrubber_backup.lua en:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "¿Restaurar los ajustes desde este archivo de respaldo? Tus ajustes actuales serán reemplazados."
+
+msgid "Restore"
+msgstr "Restaurar"
+
+msgid "Could not restore the settings."
+msgstr "No se pudieron restaurar los ajustes."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "¿Borrar la caché de imágenes? La pestaña de Imágenes volverá a escanear tus libros la próxima vez. Tus imágenes favoritas se conservan."
+
+msgid "Clear"
+msgstr "Borrar"
+
+msgid "Image cache cleared."
+msgstr "Caché de imágenes borrada."
+
+msgid "Could not clear the image cache."
+msgstr "No se pudo borrar la caché de imágenes."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "¿Restablecer TODOS los ajustes de PageScrubber a sus valores por defecto? Esto también borra tus fuentes y acciones rápidas. Consejo: haz un respaldo primero."
+
+msgid "Reset"
+msgstr "Restablecer"
+
+msgid "Disabled"
+msgstr "Desactivado"
+

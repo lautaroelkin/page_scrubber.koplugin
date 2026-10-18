@@ -435,3 +435,104 @@ msgstr "Désactiver l'onglet Images"
 msgid "bold only"
 msgstr "gras uniquement"
 
+msgid "The updater is not available."
+msgstr "L'outil de mise à jour n'est pas disponible."
+
+msgid "Bar"
+msgstr "Barre"
+
+msgid "Settings"
+msgstr "Paramètres"
+
+msgid "Interface"
+msgstr "Interface"
+
+msgid "Document"
+msgstr "Document"
+
+msgid "Other"
+msgstr "Autres"
+
+msgid "Advanced"
+msgstr "Avancé"
+
+msgid "Top bar"
+msgstr "Barre supérieure"
+
+msgid "Dictionary"
+msgstr "Dictionnaire"
+
+msgid "Selection menu"
+msgstr "Menu de sélection"
+
+msgid "Size of selection menu"
+msgstr "Taille du menu de sélection"
+
+msgid "Text selection"
+msgstr "Sélection de texte"
+
+msgid "Back up settings"
+msgstr "Sauvegarder les paramètres"
+
+msgid "Restore settings from backup"
+msgstr "Restaurer les paramètres depuis une sauvegarde"
+
+msgid "Reset all settings"
+msgstr "Réinitialiser tous les paramètres"
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Clear image cache"
+msgstr "Vider le cache des images"
+
+msgid "Updates"
+msgstr "Mises à jour"
+
+msgid "Check for updates"
+msgstr "Vérifier les mises à jour"
+
+msgid "Settings backed up to:"
+msgstr "Paramètres sauvegardés dans :"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Pour les restaurer sur un autre appareil, copiez ce fichier dans le même dossier là-bas."
+
+msgid "Could not back up the settings."
+msgstr "Impossible de sauvegarder les paramètres."
+
+msgid "No backup found."
+msgstr "Aucune sauvegarde trouvée."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Utilisez d'abord « Sauvegarder les paramètres », ou copiez votre fichier page_scrubber_backup.lua dans :"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Restaurer les paramètres à partir de ce fichier de sauvegarde ? Vos paramètres actuels seront remplacés."
+
+msgid "Restore"
+msgstr "Restaurer"
+
+msgid "Could not restore the settings."
+msgstr "Impossible de restaurer les paramètres."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Vider le cache des images ? L'onglet Images analysera à nouveau vos livres à la prochaine ouverture. Vos images favorites sont conservées."
+
+msgid "Clear"
+msgstr "Vider"
+
+msgid "Image cache cleared."
+msgstr "Cache des images vidé."
+
+msgid "Could not clear the image cache."
+msgstr "Impossible de vider le cache des images."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Réinitialiser TOUS les paramètres de PageScrubber par défaut ? Cela efface également vos polices favorites et actions rapides. Conseil : sauvegardez-les d'abord."
+
+msgid "Reset"
+msgstr "Réinitialiser"
+
+msgid "Disabled"
+msgstr "Désactivé"

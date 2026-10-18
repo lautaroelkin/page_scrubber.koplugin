@@ -421,3 +421,105 @@ msgstr "Resimler sekmesini devre dışı bırak"
 msgid "bold only"
 msgstr "sadece kalın"
 
+msgid "The updater is not available."
+msgstr "Güncelleyici kullanılamıyor."
+
+msgid "Bar"
+msgstr "Çubuk"
+
+msgid "Settings"
+msgstr "Ayarlar"
+
+msgid "Interface"
+msgstr "Arayüz"
+
+msgid "Document"
+msgstr "Belge"
+
+msgid "Other"
+msgstr "Diğer"
+
+msgid "Advanced"
+msgstr "Gelişmiş"
+
+msgid "Top bar"
+msgstr "Üst çubuk"
+
+msgid "Dictionary"
+msgstr "Sözlük"
+
+msgid "Selection menu"
+msgstr "Seçim menüsü"
+
+msgid "Size of selection menu"
+msgstr "Seçim menüsünün boyutu"
+
+msgid "Text selection"
+msgstr "Metin seçimi"
+
+msgid "Back up settings"
+msgstr "Ayarları yedekle"
+
+msgid "Restore settings from backup"
+msgstr "Ayarları yedekten geri yükle"
+
+msgid "Reset all settings"
+msgstr "Tüm ayarları sıfırla"
+
+msgid "Cache"
+msgstr "Önbellek"
+
+msgid "Clear image cache"
+msgstr "Görüntü önbelleğini temizle"
+
+msgid "Updates"
+msgstr "Güncellemeler"
+
+msgid "Check for updates"
+msgstr "Güncellemeleri kontrol et"
+
+msgid "Settings backed up to:"
+msgstr "Ayarlar şuraya yedeklendi:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Bunları başka bir cihazda geri yüklemek için bu dosyayı oradaki aynı klasöre kopyalayın."
+
+msgid "Could not back up the settings."
+msgstr "Ayarlar yedeklenemedi."
+
+msgid "No backup found."
+msgstr "Yedek bulunamadı."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Önce \"Ayarları yedekle\" seçeneğini kullanın veya page_scrubber_backup.lua dosyanızı şuraya kopyalayın:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Ayarlar bu yedek dosyasından geri yüklensin mi? Mevcut ayarlarınız değiştirilecek."
+
+msgid "Restore"
+msgstr "Geri yükle"
+
+msgid "Could not restore the settings."
+msgstr "Ayarlar geri yüklenemedi."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Görüntü önbelleği temizlensin mi? Resimler sekmesi, bir dahaki sefere açtığınızda kitaplarınızı tekrar tarayacaktır. Favori resimleriniz saklanır."
+
+msgid "Clear"
+msgstr "Temizle"
+
+msgid "Image cache cleared."
+msgstr "Görüntü önbelleği temizlendi."
+
+msgid "Could not clear the image cache."
+msgstr "Görüntü önbelleği temizlenemedi."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "TÜM PageScrubber ayarları varsayılana sıfırlansın mı? Bu aynı zamanda favori yazı tiplerinizi ve hızlı eylemlerinizi de temizler. İpucu: Önce bunları yedekleyin."
+
+msgid "Reset"
+msgstr "Sıfırla"
+
+msgid "Disabled"
+msgstr "Devre dışı"
+

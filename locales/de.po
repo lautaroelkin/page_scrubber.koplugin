@@ -435,3 +435,105 @@ msgstr "Bilder-Tab deaktivieren"
 msgid "bold only"
 msgstr "nur fett"
 
+msgid "The updater is not available."
+msgstr "Der Updater ist nicht verfügbar."
+
+msgid "Bar"
+msgstr "Leiste"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Interface"
+msgstr "Benutzeroberfläche"
+
+msgid "Document"
+msgstr "Dokument"
+
+msgid "Other"
+msgstr "Sonstiges"
+
+msgid "Advanced"
+msgstr "Erweitert"
+
+msgid "Top bar"
+msgstr "Obere Leiste"
+
+msgid "Dictionary"
+msgstr "Wörterbuch"
+
+msgid "Selection menu"
+msgstr "Auswahlmenü"
+
+msgid "Size of selection menu"
+msgstr "Größe des Auswahlmenüs"
+
+msgid "Text selection"
+msgstr "Textauswahl"
+
+msgid "Back up settings"
+msgstr "Einstellungen sichern"
+
+msgid "Restore settings from backup"
+msgstr "Einstellungen aus Backup wiederherstellen"
+
+msgid "Reset all settings"
+msgstr "Alle Einstellungen zurücksetzen"
+
+msgid "Cache"
+msgstr "Cache"
+
+msgid "Clear image cache"
+msgstr "Bild-Cache leeren"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Check for updates"
+msgstr "Nach Updates suchen"
+
+msgid "Settings backed up to:"
+msgstr "Einstellungen gesichert in:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Um sie auf einem anderen Gerät wiederherzustellen, kopieren Sie diese Datei dort in denselben Ordner."
+
+msgid "Could not back up the settings."
+msgstr "Die Einstellungen konnten nicht gesichert werden."
+
+msgid "No backup found."
+msgstr "Kein Backup gefunden."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Verwenden Sie zuerst „Einstellungen sichern“ oder kopieren Sie Ihre Datei page_scrubber_backup.lua nach:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Einstellungen aus dieser Backup-Datei wiederherstellen? Ihre aktuellen Einstellungen werden überschrieben."
+
+msgid "Restore"
+msgstr "Wiederherstellen"
+
+msgid "Could not restore the settings."
+msgstr "Die Einstellungen konnten nicht wiederhergestellt werden."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Bild-Cache leeren? Der Bilder-Tab wird Ihre Bücher beim nächsten Öffnen erneut scannen. Ihre Favoriten bleiben erhalten."
+
+msgid "Clear"
+msgstr "Leeren"
+
+msgid "Image cache cleared."
+msgstr "Bild-Cache geleert."
+
+msgid "Could not clear the image cache."
+msgstr "Der Bild-Cache konnte nicht geleert werden."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "ALLE PageScrubber-Einstellungen auf die Standardwerte zurücksetzen? Dies löscht auch Ihre bevorzugten Schriftarten und Schnellaktionen. Tipp: Sichern Sie sie zuerst."
+
+msgid "Reset"
+msgstr "Zurücksetzen"
+
+msgid "Disabled"
+msgstr "Deaktiviert"
+

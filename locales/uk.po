@@ -421,3 +421,105 @@ msgstr "Вимкнути вкладку зображень"
 
 msgid "bold only"
 msgstr "тільки жирний"
+
+msgid "The updater is not available."
+msgstr "Засіб оновлення недоступний."
+
+msgid "Bar"
+msgstr "Панель"
+
+msgid "Settings"
+msgstr "Налаштування"
+
+msgid "Interface"
+msgstr "Інтерфейс"
+
+msgid "Document"
+msgstr "Документ"
+
+msgid "Other"
+msgstr "Інше"
+
+msgid "Advanced"
+msgstr "Додатково"
+
+msgid "Top bar"
+msgstr "Верхня панель"
+
+msgid "Dictionary"
+msgstr "Словник"
+
+msgid "Selection menu"
+msgstr "Меню виділення"
+
+msgid "Size of selection menu"
+msgstr "Розмір меню виділення"
+
+msgid "Text selection"
+msgstr "Виділення тексту"
+
+msgid "Back up settings"
+msgstr "Створити резервну копію налаштувань"
+
+msgid "Restore settings from backup"
+msgstr "Відновити налаштування з копії"
+
+msgid "Reset all settings"
+msgstr "Скинути всі налаштування"
+
+msgid "Cache"
+msgstr "Кеш"
+
+msgid "Clear image cache"
+msgstr "Очистити кеш зображень"
+
+msgid "Updates"
+msgstr "Оновлення"
+
+msgid "Check for updates"
+msgstr "Перевірити оновлення"
+
+msgid "Settings backed up to:"
+msgstr "Резервну копію налаштувань збережено в:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Щоб відновити їх на іншому пристрої, скопіюйте цей файл у ту ж саму папку там."
+
+msgid "Could not back up the settings."
+msgstr "Не вдалося створити резервну копію налаштувань."
+
+msgid "No backup found."
+msgstr "Резервну копію не знайдено."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Спочатку скористайтеся опцією «Створити резервну копію налаштувань» або скопіюйте файл page_scrubber_backup.lua до:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Відновити налаштування з цього файлу резервної копії? Ваші поточні налаштування будуть замінені."
+
+msgid "Restore"
+msgstr "Відновити"
+
+msgid "Could not restore the settings."
+msgstr "Не вдалося відновити налаштування."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Очистити кеш зображень? Вкладка Зображення знову просканує ваші книги під час наступного відкриття. Ваші улюблені зображення збережуться."
+
+msgid "Clear"
+msgstr "Очистити"
+
+msgid "Image cache cleared."
+msgstr "Кеш зображень очищено."
+
+msgid "Could not clear the image cache."
+msgstr "Не вдалося очистити кеш зображень."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Скинути ВСІ налаштування PageScrubber до стандартних? Це також видалить ваші улюблені шрифти та швидкі дії. Порада: спочатку зробіть резервну копію."
+
+msgid "Reset"
+msgstr "Скинути"
+
+msgid "Disabled"
+msgstr "Вимкнено"

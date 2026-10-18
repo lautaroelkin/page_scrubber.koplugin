@@ -421,3 +421,105 @@ msgstr "Deaktiver bilde-fanen"
 
 msgid "bold only"
 msgstr "kun fet"
+
+msgid "The updater is not available."
+msgstr "Oppdateringsverktøyet er ikke tilgjengelig."
+
+msgid "Bar"
+msgstr "Linje"
+
+msgid "Settings"
+msgstr "Innstillinger"
+
+msgid "Interface"
+msgstr "Grensesnitt"
+
+msgid "Document"
+msgstr "Dokument"
+
+msgid "Other"
+msgstr "Annet"
+
+msgid "Advanced"
+msgstr "Avansert"
+
+msgid "Top bar"
+msgstr "Topplinje"
+
+msgid "Dictionary"
+msgstr "Ordbok"
+
+msgid "Selection menu"
+msgstr "Valgmeny"
+
+msgid "Size of selection menu"
+msgstr "Størrelse på valgmeny"
+
+msgid "Text selection"
+msgstr "Tekstmarkering"
+
+msgid "Back up settings"
+msgstr "Sikkerhetskopier innstillinger"
+
+msgid "Restore settings from backup"
+msgstr "Gjenopprett innstillinger fra sikkerhetskopi"
+
+msgid "Reset all settings"
+msgstr "Tilbakestill alle innstillinger"
+
+msgid "Cache"
+msgstr "Hurtigbuffer"
+
+msgid "Clear image cache"
+msgstr "Tøm bildebuffer"
+
+msgid "Updates"
+msgstr "Oppdateringer"
+
+msgid "Check for updates"
+msgstr "Se etter oppdateringer"
+
+msgid "Settings backed up to:"
+msgstr "Innstillinger sikkerhetskopiert til:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "For å gjenopprette dem på en annen enhet, kopier denne filen til samme mappe der."
+
+msgid "Could not back up the settings."
+msgstr "Kunne ikke sikkerhetskopiere innstillingene."
+
+msgid "No backup found."
+msgstr "Ingen sikkerhetskopi funnet."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Bruk «Sikkerhetskopier innstillinger» først, eller kopier page_scrubber_backup.lua-filen din til:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Gjenopprette innstillingene fra denne sikkerhetskopien? Dine nåværende innstillinger vil bli overskrevet."
+
+msgid "Restore"
+msgstr "Gjenopprett"
+
+msgid "Could not restore the settings."
+msgstr "Kunne ikke gjenopprette innstillingene."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Tømme bildebufferen? Bilde-fanen vil skanne bøkene dine på nytt neste gang du åpner den. Favorittbildene dine beholdes."
+
+msgid "Clear"
+msgstr "Tøm"
+
+msgid "Image cache cleared."
+msgstr "Bildebuffer tømt."
+
+msgid "Could not clear the image cache."
+msgstr "Kunne ikke tømme bildebufferen."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Tilbakestille ALLE PageScrubber-innstillinger til standard? Dette sletter også favorittskrifter og hurtighandlinger. Tips: Sikkerhetskopier dem først."
+
+msgid "Reset"
+msgstr "Tilbakestill"
+
+msgid "Disabled"
+msgstr "Deaktivert"

@@ -435,3 +435,105 @@ msgstr "禁用图片标签页"
 msgid "bold only"
 msgstr "仅加粗"
 
+msgid "The updater is not available."
+msgstr "更新程序不可用。"
+
+msgid "Bar"
+msgstr "条状"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Interface"
+msgstr "界面"
+
+msgid "Document"
+msgstr "文档"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Top bar"
+msgstr "顶部栏"
+
+msgid "Dictionary"
+msgstr "词典"
+
+msgid "Selection menu"
+msgstr "选择菜单"
+
+msgid "Size of selection menu"
+msgstr "选择菜单大小"
+
+msgid "Text selection"
+msgstr "文本选择"
+
+msgid "Back up settings"
+msgstr "备份设置"
+
+msgid "Restore settings from backup"
+msgstr "从备份恢复设置"
+
+msgid "Reset all settings"
+msgstr "重置所有设置"
+
+msgid "Cache"
+msgstr "缓存"
+
+msgid "Clear image cache"
+msgstr "清除图片缓存"
+
+msgid "Updates"
+msgstr "更新"
+
+msgid "Check for updates"
+msgstr "检查更新"
+
+msgid "Settings backed up to:"
+msgstr "设置已备份至："
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "若要在另一台设备上恢复，请将此文件复制到该设备的相同文件夹中。"
+
+msgid "Could not back up the settings."
+msgstr "无法备份设置。"
+
+msgid "No backup found."
+msgstr "未找到备份。"
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "请先使用“备份设置”，或将 page_scrubber_backup.lua 文件复制到："
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "是否从该备份文件恢复设置？您当前的设置将被覆盖。"
+
+msgid "Restore"
+msgstr "恢复"
+
+msgid "Could not restore the settings."
+msgstr "无法恢复设置。"
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "是否清除图片缓存？下次打开时图片标签页会再次扫描您的书籍。您的收藏图片将被保留。"
+
+msgid "Clear"
+msgstr "清除"
+
+msgid "Image cache cleared."
+msgstr "图片缓存已清除。"
+
+msgid "Could not clear the image cache."
+msgstr "无法清除图片缓存。"
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "是否将所有 PageScrubber 设置重置为默认值？这也会清除您的收藏字体和快捷动作。提示：请先备份。"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "Disabled"
+msgstr "已禁用"
+

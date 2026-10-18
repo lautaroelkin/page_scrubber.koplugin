@@ -461,3 +461,104 @@ msgstr "Отключить вкладку изображений"
 msgid "bold only"
 msgstr "только жирный"
 
+msgid "The updater is not available."
+msgstr "Обновление недоступно."
+
+msgid "Bar"
+msgstr "Панель"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Interface"
+msgstr "Интерфейс"
+
+msgid "Document"
+msgstr "Документ"
+
+msgid "Other"
+msgstr "Другое"
+
+msgid "Advanced"
+msgstr "Дополнительно"
+
+msgid "Top bar"
+msgstr "Верхняя панель"
+
+msgid "Dictionary"
+msgstr "Словарь"
+
+msgid "Selection menu"
+msgstr "Меню выделения"
+
+msgid "Size of selection menu"
+msgstr "Размер меню выделения"
+
+msgid "Text selection"
+msgstr "Выделение текста"
+
+msgid "Back up settings"
+msgstr "Сделать резервную копию настроек"
+
+msgid "Restore settings from backup"
+msgstr "Восстановить настройки из копии"
+
+msgid "Reset all settings"
+msgstr "Сбросить все настройки"
+
+msgid "Cache"
+msgstr "Кэш"
+
+msgid "Clear image cache"
+msgstr "Очистить кэш изображений"
+
+msgid "Updates"
+msgstr "Обновления"
+
+msgid "Check for updates"
+msgstr "Проверить обновления"
+
+msgid "Settings backed up to:"
+msgstr "Резервная копия настроек сохранена в:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "Чтобы восстановить их на другом устройстве, скопируйте этот файл в ту же папку там."
+
+msgid "Could not back up the settings."
+msgstr "Не удалось сделать резервную копию настроек."
+
+msgid "No backup found."
+msgstr "Резервная копия не найдена."
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "Сначала используйте «Сделать резервную копию настроек» или скопируйте файл page_scrubber_backup.lua в:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "Восстановить настройки из этого файла резервной копии? Текущие настройки будут заменены."
+
+msgid "Restore"
+msgstr "Восстановить"
+
+msgid "Could not restore the settings."
+msgstr "Не удалось восстановить настройки."
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "Очистить кэш изображений? Вкладка Изображения снова отсканирует ваши книги при следующем открытии. Избранные изображения сохранятся."
+
+msgid "Clear"
+msgstr "Очистить"
+
+msgid "Image cache cleared."
+msgstr "Кэш изображений очищен."
+
+msgid "Could not clear the image cache."
+msgstr "Не удалось очистить кэш изображений."
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "Сбросить ВСЕ настройки PageScrubber по умолчанию? Это также удалит ваши избранные шрифты и быстрые действия. Совет: сначала сделайте их резервную копию."
+
+msgid "Reset"
+msgstr "Сбросить"
+
+msgid "Disabled"
+msgstr "Отключено"

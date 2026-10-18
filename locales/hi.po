@@ -428,4 +428,106 @@ msgstr "छवियाँ टैब अक्षम करें"
 msgid "bold only"
 msgstr "केवल बोल्ड"
 
+msgid "The updater is not available."
+msgstr "अपडेटर उपलब्ध नहीं है।"
+
+msgid "Bar"
+msgstr "बार"
+
+msgid "Settings"
+msgstr "सेटिंग्स"
+
+msgid "Interface"
+msgstr "इंटरफ़ेस"
+
+msgid "Document"
+msgstr "दस्तावेज़"
+
+msgid "Other"
+msgstr "अन्य"
+
+msgid "Advanced"
+msgstr "उन्नत"
+
+msgid "Top bar"
+msgstr "शीर्ष बार"
+
+msgid "Dictionary"
+msgstr "शब्दकोश"
+
+msgid "Selection menu"
+msgstr "चयन मेनू"
+
+msgid "Size of selection menu"
+msgstr "चयन मेनू का आकार"
+
+msgid "Text selection"
+msgstr "टेक्स्ट चयन"
+
+msgid "Back up settings"
+msgstr "सेटिंग्स का बैकअप लें"
+
+msgid "Restore settings from backup"
+msgstr "बैकअप से सेटिंग्स पुनर्स्थापित करें"
+
+msgid "Reset all settings"
+msgstr "सभी सेटिंग्स रीसेट करें"
+
+msgid "Cache"
+msgstr "कैश"
+
+msgid "Clear image cache"
+msgstr "इमेज कैश साफ़ करें"
+
+msgid "Updates"
+msgstr "अपडेट"
+
+msgid "Check for updates"
+msgstr "अपडेट की जाँच करें"
+
+msgid "Settings backed up to:"
+msgstr "सेटिंग्स का यहाँ बैकअप लिया गया:"
+
+msgid "To restore them on another device, copy this file to the same folder there."
+msgstr "उन्हें किसी अन्य डिवाइस पर पुनर्स्थापित करने के लिए, इस फ़ाइल को वहाँ उसी फ़ोल्डर में कॉपी करें।"
+
+msgid "Could not back up the settings."
+msgstr "सेटिंग्स का बैकअप नहीं लिया जा सका।"
+
+msgid "No backup found."
+msgstr "कोई बैकअप नहीं मिला।"
+
+msgid "Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:"
+msgstr "पहले \"सेटिंग्स का बैकअप लें\" का उपयोग करें, या अपनी page_scrubber_backup.lua फ़ाइल को यहाँ कॉपी करें:"
+
+msgid "Restore the settings from this backup file? Your current settings will be replaced."
+msgstr "क्या इस बैकअप फ़ाइल से सेटिंग्स पुनर्स्थापित करें? आपकी वर्तमान सेटिंग्स बदल दी जाएंगी।"
+
+msgid "Restore"
+msgstr "पुनर्स्थापित करें"
+
+msgid "Could not restore the settings."
+msgstr "सेटिंग्स पुनर्स्थापित नहीं की जा सकीं।"
+
+msgid "Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."
+msgstr "क्या इमेज कैश साफ़ करें? अगली बार जब आप इसे खोलेंगे तो छवियाँ टैब आपकी पुस्तकों को फिर से स्कैन करेगा। आपकी पसंदीदा छवियाँ रखी जाती हैं।"
+
+msgid "Clear"
+msgstr "साफ़ करें"
+
+msgid "Image cache cleared."
+msgstr "इमेज कैश साफ़ कर दिया गया।"
+
+msgid "Could not clear the image cache."
+msgstr "इमेज कैश साफ़ नहीं किया जा सका।"
+
+msgid "Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."
+msgstr "क्या सभी PageScrubber सेटिंग्स को उनके डिफ़ॉल्ट पर रीसेट करें? यह आपके पसंदीदा फ़ॉन्ट और त्वरित क्रियाओं को भी साफ़ करता है। टिप: पहले उनका बैकअप लें।"
+
+msgid "Reset"
+msgstr "रीसेट करें"
+
+msgid "Disabled"
+msgstr "अक्षम"
+
 
