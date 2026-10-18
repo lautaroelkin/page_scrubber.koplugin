@@ -137,6 +137,20 @@ local function scaleText(px)
     return scale(px + getTextOffset())
 end
 
+-- Tamaño del selection menu (small / medium / large): escala íconos, botones y contorno.
+-- "medium" es el tamaño original.
+local function getSelSizeK()
+    local v = G_reader_settings and G_reader_settings:readSetting("page_scrubber_sel_menu_size")
+    if v == "small" then return 0.8 end
+    if v == "large" then return 1.25 end
+    return 1.0
+end
+local function sscale(px)
+    return math.max(1, math.floor(scale(px) * getSelSizeK() + 0.5))
+end
+-- Grosor del contorno del selection menu (en px base; se escala con el tamaño elegido)
+local SEL_BORDER_PX = 3
+
 local function is_btn_enabled(key, default_val)
     if not G_reader_settings then
         return (default_val ~= nil) and default_val or true
@@ -1742,10 +1756,10 @@ function FloatingActionMenu:init()
     local font_ratio = math.max(0.85, math.min(1.40, raw_fs / 26))
 
     -- Íconos y botones fijos al DPI táctil; el texto preserva el ratio del libro
-    local dynamic_icon_sz = scale(36)
-    local btn_w = is_horizontal and scale(56) or scale(62)
-    local btn_h = is_horizontal and scale(56) or scale(54)
-    local text_fs = math.floor(scaleText(12) * font_ratio + 0.5)
+    local dynamic_icon_sz = sscale(36)
+    local btn_w = is_horizontal and sscale(56) or sscale(62)
+    local btn_h = is_horizontal and sscale(56) or sscale(54)
+    local text_fs = math.floor(scaleText(12) * getSelSizeK() * font_ratio + 0.5)
     self._btn_w = btn_w
     self._btn_h = btn_h
     self._font_ratio = font_ratio
@@ -1795,8 +1809,8 @@ function FloatingActionMenu:init()
         table.insert(icon_widgets, btn)
     end
 
-    local card_pad = math.floor(scale(4) * font_ratio + 0.5)
-    local card_sep = math.max(1, math.floor(scale(2) * font_ratio + 0.5))
+    local card_pad = math.floor(sscale(4) * font_ratio + 0.5)
+    local card_sep = math.max(1, math.floor(sscale(2) * font_ratio + 0.5))
     self._card_pad = card_pad
     self._card_sep = card_sep
 
@@ -1901,7 +1915,7 @@ function FloatingActionMenu:init()
     end
 
     self.card = FloatingPillCard:new({
-        content = popup_content, bordersize = scale(2), radius = math.floor(scale(14) * font_ratio + 0.5)
+        content = popup_content, bordersize = sscale(SEL_BORDER_PX), radius = math.floor(sscale(14) * font_ratio + 0.5)
     })
 
     local card_size = self.card:getSize()
@@ -2072,9 +2086,9 @@ function FloatingActionMenu:buildMoreCard()
         row1_specs = filtered
     end
 
-    local row1_icon_sz = scale(31)
-    local min_btn_w = scale(52)
-    local row1_btn_h = scale(52)
+    local row1_icon_sz = sscale(31)
+    local min_btn_w = sscale(52)
+    local row1_btn_h = sscale(52)
     local row1_text_fs = math.floor(scaleText(11) * font_ratio + 0.5)
 
     -- Ancho base mínimo requerido por los 6 iconos superiores
@@ -2233,7 +2247,7 @@ function FloatingActionMenu:buildMoreCard()
     local more_content = VerticalGroup:new(card_vertical_items)
 
     self.more_card = FloatingPillCard:new({
-        content = more_content, bordersize = scale(2), radius = math.floor(scale(14) * font_ratio + 0.5)
+        content = more_content, bordersize = sscale(SEL_BORDER_PX), radius = math.floor(sscale(14) * font_ratio + 0.5)
     })
 end
 
@@ -2246,7 +2260,7 @@ function FloatingActionMenu:updateMoreLayout()
 
     -- Calcular la posición absoluta en pantalla del botón '+'
     local btn_idx = self._plus_btn_index or 1
-    local b = scale(3)
+    local b = sscale(SEL_BORDER_PX)  -- grosor real del contorno de la tarjeta principal
     local btn_plus_x, btn_plus_y
     local btn_w, btn_h = self._btn_w, self._btn_h
     local card_pad = self._card_pad or scale(6)

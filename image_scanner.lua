@@ -626,6 +626,33 @@ local function saveFav(fav_settings, key, fav)
     end)
 end
 
+local function baseName(p) return tostring(p):match("([^/\\]+)$") end
+
+-- Favoritos que vienen de otro dispositivo (o de un libro movido de carpeta):
+-- se buscan por nombre de archivo y se re-indexan a la ruta actual
+local function adoptFavByName(fav_settings, file)
+    local data = fav_settings and fav_settings.data
+    if type(data) ~= "table" then return nil end
+    local name = baseName(file)
+    local okL, lfs = pcall(require, "libs/libkoreader-lfs")
+    local found
+    for k, v in pairs(data) do
+        if k ~= file and type(v) == "table" and baseName(k) == name
+           and not (okL and lfs.attributes(k, "mode") == "file") then
+            found = k
+            break
+        end
+    end
+    if not found then return nil end
+    local fav = data[found]
+    saveFav(fav_settings, file, fav)
+    pcall(function()
+        fav_settings:delSetting(found)
+        fav_settings:flush()
+    end)
+    return fav
+end
+
 local function pruneOldBooks(settings, fav_settings, keep_key)
     local data = settings.data
     if type(data) ~= "table" then return end
@@ -689,6 +716,7 @@ function ImageScanner.getBook(ui)
             end
             -- Favoritos: archivo aparte (+ migracion de los que estaban en el formato anterior)
             local fav = fav_settings and fav_settings:readSetting(file)
+            if type(fav) ~= "table" then fav = adoptFavByName(fav_settings, file) end
             fav = type(fav) == "table" and fav or {}
             if legacy_fav then
                 for path, v in pairs(legacy_fav) do fav[path] = v end

@@ -501,8 +501,9 @@ function PageScrubber:init()
     self._top_bar_dimen = Geom:new{ x = 0, y = top_bar_y, w = sw, h = top_h }
     self._top_bar_bg_color = 0xFFEAEAEA -- Gris tenue (92% luminosidad)
 
-    self.font_ch    = Font:getFace("cfont", S_GRANDE)
-    self.font_title = Font:getFace("cfont", S_GRANDE) 
+    self.font_ch    = Font:getFace("cfont", S_GRANDE)   -- se sigue usando en los botones "Delete"
+    self.font_chapter = Font:getFace("cfont", S_MEDIANO) -- título del capítulo: mismo tamaño que "Library"
+    self.font_title = Font:getFace("cfont", S_MEDIANO)  -- mismo tamaño que el texto "Library"
     self.font_info  = Font:getFace("cfont", self.S_BOTTOM_GRAY or S_MEDIANO)
 
     local function getBookTitle()
@@ -524,7 +525,7 @@ function PageScrubber:init()
     self.max_title_w = sw - (side_margin_btn * 2) - (self._cbtn_sz * 2) - S(10)
     
     self.tw_booktitle = TextWidget:new{ text = getBookTitle(), face = self.font_title, bold = true, fgcolor = Blitbuffer.COLOR_BLACK, max_width = sw - pad * 3 - S(44) }
-    self.tw_chapter  = TextWidget:new{ text = "", face = self.font_ch, bold = true, fgcolor = Blitbuffer.COLOR_BLACK, max_width = self.max_title_w }
+    self.tw_chapter  = TextWidget:new{ text = "", face = self.font_chapter, bold = true, fgcolor = Blitbuffer.COLOR_BLACK, max_width = self.max_title_w }
     self.tw_info     = TextWidget:new{ text = "", face = self.font_info, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
 
     self.tw_chapter:setText(_("—"))
@@ -535,6 +536,9 @@ function PageScrubber:init()
     local title_h = self.tw_booktitle:getSize().h
     
     self._booktitle_y = top_h + title_margin_top
+    -- Donde empieza la barra blanca "Kindle": justo debajo de la linea divisoria de la barra superior
+    -- (la negra de la barra inferior es la de _bar_dimen; esta se mide desde la superior)
+    self._bar_top_y = top_h
 
     local ch_h = self.tw_chapter:getSize().h
     local info_h = self.tw_info:getSize().h
@@ -661,6 +665,10 @@ function PageScrubber:init()
     self.icon_gs_x = createSafeIcon("✕", "x.svg", gs_x_sz)
     -- Versiones blancas para el efecto al apretar del grid simple (fondo negro)
     self.icon_gs_x_inv             = createSafeIcon("✕", "x.svg", gs_x_sz, Blitbuffer.COLOR_WHITE)
+    -- Flechitas del selector de color de las pestañas. El SVG tiene el trazo negro y el fgcolor no lo recolorea,
+    -- así que se crean normales y se pintan con el truco de inversión (igual que los demás íconos de la pestaña activa)
+    self.icon_tab_chev_down = createSafeIcon("\u{25BE}", "chevron-down.svg", S(16))
+    self.icon_tab_chev_up   = createSafeIcon("\u{25B4}", "chevron-up.svg", S(16))
     self.icon_gs_chevron_left_inv  = createSafeIcon("‹", "chevron-left.svg", gs_chevron_sz, Blitbuffer.COLOR_WHITE)
     self.icon_gs_chevron_right_inv = createSafeIcon("›", "chevron-right.svg", gs_chevron_sz, Blitbuffer.COLOR_WHITE)
 
@@ -2388,7 +2396,7 @@ function PageScrubber:_paintGrid(bb)
         local slot = self._grid_tiles[idx]
         local rect = self:_gridSlotDimen(idx)
         local is_cur = (idx == 2)
-        local border = is_cur and self.S(3) or self.S(1)
+        local border = self.S(1)   -- la pagina del medio con el mismo grosor que las de los costados
 
         if slot and slot.page then
             if slot.tile_bb and slot.mode == "grid" then
@@ -2886,6 +2894,72 @@ local function imgSrcMax()
     return math.max(1024, math.min(IMG_ZOOM_SRC_MAX, m * 2))
 end
 
+-- ---- Esquinas de afuera de un recuadro redondeado ----
+-- Con fondo de pantalla (o con el libro detras) lo que se pinta dentro de un recuadro redondeado -- la
+-- miniatura, la imagen con zoom, el blanco de paintFrameOver -- puede asomar en las esquinas, fuera del
+-- contorno. Se guardan esas 4 esquinas del fondo ANTES de pintar y se restauran DESPUES. Asi no depende
+-- del grosor del borde y respeta cualquier fondo. La forma es la misma de paintCornerRect.
+local function cornerOutsideInset(j, r)
+    if r <= 0 or j >= r then return 0 end
+    local d = r - j - 0.5
+    return r - math.ceil(math.sqrt(r * r - d * d))
+end
+
+function PageScrubber:_snapCorners(bb, x, y, w, h, r)
+    r = math.max(0, math.min(r or 0, math.floor(w / 2), math.floor(h / 2)))
+    if r <= 0 then return nil end
+    local ok, snap = pcall(function()
+        local t = bb:getType()
+        local function patch(px, py)
+            local pb = Blitbuffer.new(r, r, t)
+            pb:blitFrom(bb, 0, 0, px, py, r, r)
+            return pb
+        end
+        return { r = r, x = x, y = y, w = w, h = h,
+                 tl = patch(x, y), tr = patch(x + w - r, y),
+                 bl = patch(x, y + h - r), br = patch(x + w - r, y + h - r) }
+    end)
+    return ok and snap or nil
+end
+
+function PageScrubber:_restoreCorners(bb, snap)
+    if not snap then return end
+    pcall(function()
+        local r, x, y, w, h = snap.r, snap.x, snap.y, snap.w, snap.h
+        for j = 0, r - 1 do
+            local o = cornerOutsideInset(j, r)
+            if o > 0 then
+                bb:blitFrom(snap.tl, x, y + j, 0, j, o, 1)
+                bb:blitFrom(snap.tr, x + w - o, y + j, r - o, j, o, 1)
+                bb:blitFrom(snap.bl, x, y + h - 1 - j, 0, r - 1 - j, o, 1)
+                bb:blitFrom(snap.br, x + w - o, y + h - 1 - j, r - o, r - 1 - j, o, 1)
+            end
+        end
+    end)
+    for _, k in ipairs({ "tl", "tr", "bl", "br" }) do
+        pcall(function() snap[k]:free() end)
+    end
+end
+
+-- Copia / restaura una region entera (el modo expandido tapa la columna derecha: se restaura el fondo
+-- que habia debajo en vez de pintar un rectangulo blanco)
+function PageScrubber:_snapRegion(bb, x, y, w, h)
+    if w <= 0 or h <= 0 then return nil end
+    local ok, snap = pcall(function()
+        local c = Blitbuffer.new(w, h, bb:getType())
+        c:blitFrom(bb, 0, 0, x, y, w, h)
+        return { bb = c, x = x, y = y, w = w, h = h }
+    end)
+    return ok and snap or nil
+end
+
+function PageScrubber:_restoreRegion(bb, snap)
+    if not snap then return false end
+    local ok = pcall(function() bb:blitFrom(snap.bb, snap.x, snap.y, 0, 0, snap.w, snap.h) end)
+    pcall(function() snap.bb:free() end)
+    return ok
+end
+
 -- Libera el ultimo cuadro con zoom guardado
 function PageScrubber:_freeZoomRender()
     local rc = self._zoom_render
@@ -3105,6 +3179,14 @@ end
 
 -- full_w: ancho que toma el panel en modo expandido (desde x hasta el contorno derecho del menu derecho)
 function PageScrubber:_paintDetailsPanel(bb, x, y, w, h, radius, thick, full_w)
+    local pw = w
+    if self._details_open and self._details_expanded and full_w and full_w > w then pw = full_w end
+    local snap = self._details_open and self:_snapCorners(bb, x, y, pw, h, radius) or nil
+    self:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, full_w)
+    self:_restoreCorners(bb, snap)
+end
+
+function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, full_w)
     self._details_panel_dimen = nil
     self._details_close_dimen = nil
     self._details_nav_dimens = nil
@@ -3730,7 +3812,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     local shadow_offset = S(4)
     local box_radius = S(12)
-    local b_thick = S(3)
+    local b_thick = S(2)   -- estilo nativo: contorno mas fino (antes S(3)); los redondeados no cambian
     -- Atados dinámicamente a tu configuración base:
     local font_sz_chiquito = self.S_BOTTOM_GRAY and (self.S_BOTTOM_GRAY - S(4)) or S(10)
     local S_MEDIANO = self.S_BOTTOM_GRAY or S(14) 
@@ -3820,7 +3902,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local hl_count = #(self._cached_hl or {})
     local note_count = #(self._cached_notes or {})
 
-    local b_thick = S(3)
+    local b_thick = S(2)
     local tab_sp = S(6)
     local current_tab_x = pr_x
     local r = math.floor(tab_h / 2)
@@ -3886,7 +3968,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
             -- Flechita para elegir color (solo en la pestaña activa y con más de un color)
             local show_arrow = is_active and (id == "highlights" or id == "notes") and self:_hasMultiColor(id)
-            local arrow_w, arrow_h, arrow_gap = S(10), S(6), S(7)
+            local arrow_w, arrow_h, arrow_gap = S(16), S(16), S(3)
             local arrow_extra = show_arrow and (arrow_w + arrow_gap) or 0
 
             -- Si hay nombre de color sumamos su ancho y un gap adicional
@@ -3898,14 +3980,12 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 -- Relleno negro sólido completo sin marco blanco interno
                 paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
             else
-                -- Pestaña inactiva: borde fino refinado (S(1) o S(2))
-                local thin_b = S(1)
-                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-                paintRoundRect(bb, current_tab_x + thin_b, tab_draw_y + thin_b, tab_w - thin_b*2, tab_h - thin_b*2, math.max(1, r - thin_b), Blitbuffer.COLOR_WHITE)
+                -- Pestaña inactiva: gris, sin contorno
+                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
             end
 
             local lead_x = current_tab_x + math.floor((tab_w - content_w) / 2)
-            local ix = lead_x + arrow_extra
+            local ix = lead_x
             local nx = ix + isz.w + gap
             local cx = nx + name_extra_w
             
@@ -3914,15 +3994,20 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local cy = tab_draw_y + math.floor((tab_h - csz.h) / 2) - S(1)
 
             if show_arrow then
+                -- Flechita (chevron) a la derecha del contenido de la pestaña
+                local ax = cx + csz.w + arrow_gap
                 local ay = tab_draw_y + math.floor((tab_h - arrow_h) / 2)
-                if self._color_menu_is_open then
-                    self:_paintChevronUp(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
-                else
-                    self:_paintChevronDown(bb, lead_x, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+                local arrow_icon = self._color_menu_is_open and self.icon_tab_chev_up or self.icon_tab_chev_down
+                if arrow_icon then
+                    -- Blanco sobre la pestaña negra: fondo blanco + ícono negro + inversión
+                    bb:paintRect(ax, ay, arrow_w, arrow_h, Blitbuffer.COLOR_WHITE)
+                    arrow_icon:paintTo(bb, ax, ay)
+                    bb:invertRect(ax, ay, arrow_w, arrow_h)
                 end
+                local hit_x = ax - S(8)
                 self._tab_arrow_dimen = Geom:new{
-                    x = current_tab_x, y = tab_draw_y,
-                    w = math.max(S(30), ix - current_tab_x - S(2)), h = tab_h,
+                    x = hit_x, y = tab_draw_y,
+                    w = math.max(S(30), (current_tab_x + tab_w) - hit_x), h = tab_h,
                 }
                 self._tab_arrow_tab_dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = tab_w, h = tab_h }
             end
@@ -3968,6 +4053,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local card_w = pr_w
     local card_h = pr_h + status_h
     
+    self._card_snap = self:_snapCorners(bb, card_x, card_y, card_w, card_h, box_radius)   -- esquinas de afuera (fondo)
     paintRoundRect(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
@@ -4175,6 +4261,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     -- Regiones de la polaroid completa y de su linea de texto (chin) + panel de detalles
     self._split_card_dimen = Geom:new{ x = card_x, y = card_y, w = card_w, h = card_h }
     self._split_chin_dimen = Geom:new{ x = card_x, y = card_y + pr_h, w = card_w, h = status_h }
+    -- Termino la tarjeta: lo que asomo (miniatura, etc.) fuera de las esquinas redondeadas se restaura al fondo
+    self:_restoreCorners(bb, self._card_snap)
+    self._card_snap = nil
+
     if not (self._details_open and self._details_expanded) then
         local okp, errp = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, lm_x + lm_w - card_x)
         if not okp then
@@ -4413,6 +4503,14 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         end
     end
 
+    -- Panel expandido: el menu derecho se pinta y luego se tapa; se guarda el fondo de esa columna para
+    -- restaurarlo (con fondo de pantalla un rectangulo blanco se notaria)
+    if self._details_open and self._details_expanded then
+        self._col_snap = self:_snapRegion(bb, card_x + card_w, card_y, (lm_x + lm_w) - (card_x + card_w), card_h)
+    else
+        self._col_snap = nil
+    end
+
     local fixed_page = self._split_fixed_page or self._origin_page
     local fx_w = lm_w
     local is_f_sel = (self._cur_page == fixed_page)
@@ -4422,10 +4520,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         if tonumber(b) == tonumber(fixed_page) then is_page_bmed = true end
     end
 
+    -- Fila fija: borde negro siempre; seleccionada = relleno gris muy clarito (texto e ícono quedan negros)
+    local fixed_fill = is_f_sel and (Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY) or Blitbuffer.COLOR_WHITE
     paintRoundRect(bb, lm_x, fx_y, lm_w, fx_h, box_radius, Blitbuffer.COLOR_BLACK)
-    if not is_f_sel then
-        paintRoundRect(bb, lm_x + b_thick, fx_y + b_thick, lm_w - b_thick*2, fx_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
-    end
+    paintRoundRect(bb, lm_x + b_thick, fx_y + b_thick, lm_w - b_thick*2, fx_h - b_thick*2, math.max(1, box_radius - b_thick), fixed_fill)
     
     local active_fixed_icon = is_page_bmed and self.icon_box_minus_fill or self.icon_box_plus
     local bsz_f = active_fixed_icon and active_fixed_icon:getSize() or {w = S(22), h = S(22)}
@@ -4439,28 +4537,29 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local tw_pg_f = is_f_sel and self._tw_row_bold or self._tw_row_normal
     tw_pg_f.max_width = nil 
     tw_pg_f.text = nil
-    tw_pg_f.fgcolor = is_f_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+    tw_pg_f.fgcolor = Blitbuffer.COLOR_BLACK
     
     local disp_f = self:_getDisplayPageInfo(fixed_page)
     tw_pg_f:setText(tostring(disp_f))
     
     local pt_sz = tw_pg_f:getSize()
-    local ptx = lm_x + S(15) 
+    local f_area_x = lm_x + b_thick
+    local f_area_w = (btn_xf - S(8)) - f_area_x
+    local f_show_dot = is_f_sel and self._details_open
+    local ptx = f_area_x + math.max(f_show_dot and S(30) or S(10), math.floor((f_area_w - pt_sz.w) / 2))
     local pty = fx_y + math.floor((fx_h - pt_sz.h) / 2) + S(2)
-    
+
+    if f_show_dot then
+        local dot_d = S(8)
+        paintRoundRect(bb, lm_x + b_thick + S(17), fx_y + math.floor((fx_h - dot_d) / 2), dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_DARK_GRAY)
+    end
     tw_pg_f:paintTo(bb, ptx, pty)
 
     if active_fixed_icon then
         local ix = btn_xf
         local iy = fx_y + math.floor((fx_h - bsz_f.h)/2)
         
-        if is_f_sel then
-            bb:paintRect(ix, iy, bsz_f.w, bsz_f.h, Blitbuffer.COLOR_WHITE)
-            active_fixed_icon:paintTo(bb, ix, iy)
-            bb:invertRect(ix, iy, bsz_f.w, bsz_f.h)
-        else
-            active_fixed_icon:paintTo(bb, ix, iy)
-        end
+        active_fixed_icon:paintTo(bb, ix, iy)
     end
 
     local row_clickable_w = (btn_xf - S(10)) - lm_x
@@ -4603,7 +4702,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     paintRoundRect(bb, lm_x, menu_y, lm_w, exact_menu_h, box_radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, lm_x + b_thick, menu_y + b_thick, lm_w - b_thick*2, exact_menu_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
 
-    bb:paintRect(lm_x + b_thick, menu_y + header_h - S(1), lm_w - b_thick*2, S(1), Blitbuffer.COLOR_BLACK)
+    bb:paintRect(lm_x + b_thick, menu_y + header_h - S(2), lm_w - b_thick*2, S(2), Blitbuffer.COLOR_LIGHT_GRAY)
 
     if not self._tw_header_page then
         self._tw_header_page = TextWidget:new{ text = _("Page"), face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
@@ -4670,6 +4769,16 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         -- Expandido: el menu derecho queda tapado por el panel, no se pintan sus filas
         if self._details_open and self._details_expanded then end_idx = start_idx - 1 end
         local row_y_float = list_y
+        -- ¿La fila idx de la lista es la seleccionada? (misma regla que usa el pintado de cada fila)
+        local function row_is_selected(idx)
+            local o = other_items[idx]
+            if not o then return false end
+            local pp = (type(o) == "table") and o.page or o
+            local oo = (type(o) == "table") and o or nil
+            if self._active_tab == "bookmarks" then return self._cur_page == pp end
+            if self._split_selected_item then return self._split_selected_item == oo end
+            return self._cur_page == pp
+        end
         for i = start_idx, end_idx do
             local current_row_y = math.floor(row_y_float)
             local it = other_items[i]
@@ -4699,18 +4808,24 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local physical_row = i - start_idx + 1
     
             if is_r_sel then
-                local is_touching_bottom = (not needs_pagination) and (physical_row == num_rows)
-                
-                if is_touching_bottom then
-                    paintTopSquareBottomRounded(bb, lm_x + b_thick, current_row_y, lm_w - b_thick*2, row_h - b_thick, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_BLACK)
-                else
-                    bb:paintRect(lm_x + b_thick, current_row_y, lm_w - b_thick*2, row_h, Blitbuffer.COLOR_BLACK)
+                -- Pastilla redondeada (estilo iOS) en vez de pintar la fila entera de negro
+                local pill_inset = S(5)
+                local pill_pad_y = S(3)
+                local pill_h = row_h - pill_pad_y * 2
+                paintRoundRect(bb, lm_x + b_thick + pill_inset, current_row_y + pill_pad_y,
+                    lm_w - (b_thick + pill_inset) * 2, pill_h,
+                    math.min(S(14), math.floor(pill_h / 2)), Blitbuffer.COLOR_BLACK)
+                -- Puntito blanco a la izquierda: aparece solo cuando el panel de detalle está abierto en esta fila
+                if self._details_open then
+                    local dot_d = S(8)
+                    paintRoundRect(bb, lm_x + b_thick + pill_inset + S(12), current_row_y + math.floor((row_h - dot_d) / 2),
+                        dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
                 end
             end
             
-            -- Línea Hairline divisoria color Gris Claro extendida de lado a lado
-            if not is_r_sel and i < end_idx then
-                bb:paintRect(lm_x + b_thick, current_row_y + row_h - 1, lm_w - b_thick*2, 1, Blitbuffer.COLOR_LIGHT_GRAY)
+            -- Línea Hairline divisoria color Gris Claro (no se dibuja pegada a la pastilla)
+            if not is_r_sel and i < end_idx and not row_is_selected(i + 1) then
+                bb:paintRect(lm_x + S(15), current_row_y + row_h - 1, lm_w - S(30), 1, Blitbuffer.COLOR_LIGHT_GRAY)
             end
             
             local active_row_icon
@@ -4731,7 +4846,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 local is_btn_pressed = (self._pressed_btn == "row_toggle_" .. p)
                 
                 if is_btn_pressed then
-                    local pad = S(6)
+                    local pad = is_r_sel and S(3) or S(6)
                     local bg_c = is_r_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
                     paintRoundRect(bb, ix - pad, iy - pad, rm_sz.w + pad * 2, rm_sz.h + pad * 2, S(8), bg_c)
                     
@@ -4771,20 +4886,26 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             tw_pg:setText(tostring(disp_p))
             
             local tw_pg_sz = tw_pg:getSize()
-            local pg_x = lm_x + S(15)
-            local pg_y = current_row_y + math.floor((row_h - tw_pg_sz.h) / 2) + S(2) - 1
-            
-            tw_pg:paintTo(bb, pg_x, pg_y)
 
+            local tw_super, tw_super_sz
             if total_on_page and total_on_page > 1 and order then
-                local tw_super = is_r_sel and self._tw_row_super_bold or self._tw_row_super_normal
+                tw_super = is_r_sel and self._tw_row_super_bold or self._tw_row_super_normal
                 tw_super.text = nil
                 tw_super.fgcolor = is_r_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
                 tw_super:setText(tostring(order))
+                tw_super_sz = tw_super:getSize()
+            end
 
-                local super_x = pg_x + tw_pg_sz.w + S(2)
-                local super_y = pg_y - S(3)
-                tw_super:paintTo(bb, super_x, super_y)
+            -- Número de página (con su superíndice) centrado entre el borde izquierdo y el ícono de la fila
+            local group_w = tw_pg_sz.w + (tw_super_sz and (S(2) + tw_super_sz.w) or 0)
+            local area_x = lm_x + b_thick
+            local area_w = (rm_x - S(8)) - area_x
+            local pg_x = area_x + math.max((is_r_sel and self._details_open) and S(30) or S(10), math.floor((area_w - group_w) / 2))
+            local pg_y = current_row_y + math.floor((row_h - tw_pg_sz.h) / 2) + S(2) - 1
+
+            tw_pg:paintTo(bb, pg_x, pg_y)
+            if tw_super then
+                tw_super:paintTo(bb, pg_x + tw_pg_sz.w + S(2), pg_y - S(3))
             end
             
             local t_dim = Geom:new{ x = rm_x - S(10), y = current_row_y, w = rm_sz.w + S(20), h = row_h }
@@ -4803,7 +4924,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local pag_y = list_y + (num_rows - 1) * row_h
             
             -- Línea horizontal completa, negra e idéntica a la que está debajo de "Page"
-            bb:paintRect(lm_x + b_thick, pag_y, lm_w - b_thick*2, S(1), Blitbuffer.COLOR_BLACK)
+            bb:paintRect(lm_x + b_thick, pag_y, lm_w - b_thick*2, S(1), Blitbuffer.COLOR_LIGHT_GRAY)
             
             local pag_str = cur_page .. " / " .. total_pages
             if not self._tw_pagination then
@@ -4893,7 +5014,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             end
             UIManager:setDirty(self, "ui", self.dimen)   -- la tarjeta no se pinto: repintar con el menu a la vista
         else
-            bb:paintRect(card_x + card_w, card_y, (lm_x + lm_w) - (card_x + card_w), card_h, Blitbuffer.COLOR_WHITE)
+            if not self:_restoreRegion(bb, self._col_snap) then
+                bb:paintRect(card_x + card_w, card_y, (lm_x + lm_w) - (card_x + card_w), card_h, Blitbuffer.COLOR_WHITE)
+            end
+            self._col_snap = nil
             local okx, errx = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, lm_x + lm_w - card_x)
             if not okx then
                 logger.warn("page-scrubber expanded details panel error:", errx)
@@ -5659,7 +5783,8 @@ function PageScrubber:_paintToImpl(bb, x, y)
         local td = self._top_bar_dimen
         bb:paintRect(td.x, td.y, td.w, td.h, Blitbuffer.COLOR_WHITE)
         if show_top_line then
-            bb:paintRect(td.x, td.y + td.h - S(2), td.w, S(2), Blitbuffer.COLOR_BLACK)
+            local gray_t = math.max(S(2), math.min(S(3) - 1, S(2) + 1))   -- un poco mas gruesa, siempre menos que la negra
+            bb:paintRect(td.x, td.y + td.h - gray_t, td.w, gray_t, Blitbuffer.COLOR_LIGHT_GRAY)
         end
 
         if self._view_mode == "split" then
@@ -5770,7 +5895,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
     local td = self._top_bar_dimen
 
     bb:paintRect(bd.x, bd.y, bd.w, bd.h, Blitbuffer.COLOR_WHITE)
-    bb:paintRect(bd.x, bd.y, bd.w, S(3), Blitbuffer.COLOR_BLACK)
+    bb:paintRect(bd.x, bd.y, bd.w, S(3) - math.max(1, math.floor(S(1) / 2)), Blitbuffer.COLOR_BLACK)   -- linea superior de la barra inferior
 
     if self._view_mode == "grid_simple" then
         local ok, GridSimpleView = pcall(require, "grid_simple_view")
@@ -5789,16 +5914,20 @@ function PageScrubber:_paintToImpl(bb, x, y)
         -- Barra superior: fondo blanco con línea divisoria si está habilitada
         bb:paintRect(td.x, td.y, td.w, td.h, Blitbuffer.COLOR_WHITE)
         if show_top_line then
-            bb:paintRect(td.x, td.y + td.h - S(2), td.w, S(2), Blitbuffer.COLOR_BLACK)
+            local gray_t = math.max(S(2), math.min(S(3) - 1, S(2) + 1))   -- un poco mas gruesa, siempre menos que la negra
+            bb:paintRect(td.x, td.y + td.h - gray_t, td.w, gray_t, Blitbuffer.COLOR_LIGHT_GRAY)
         end
         
         if self._view_mode == "grid" or self._view_mode == "grid_six" then
             if self._view_mode ~= "grid_six" then
                 local title_x = pad
                 local pill_mode = "none"
+                local title_bar = false
                 if G_reader_settings then
                     local s_val = G_reader_settings:readSetting("page_scrubber_title_bg")
-                    if s_val == "border" or s_val == true or s_val == "true" or s_val == 1 then
+                    if s_val == "bar" or s_val == "kindle_bar" then
+                        title_bar = true
+                    elseif s_val == "border" or s_val == true or s_val == "true" or s_val == 1 then
                         pill_mode = "border"
                     elseif s_val == "no_border" or s_val == "borderless" then
                         pill_mode = "no_border"
@@ -5811,7 +5940,22 @@ function PageScrubber:_paintToImpl(bb, x, y)
                     end
                 end
 
-                if pill_mode == "border" or pill_mode == "no_border" or pill_mode == "translucent" then
+                if title_bar then
+                    -- Barra blanca de ancho completo desde la linea divisoria de la barra superior
+                    -- hasta la altura del titulo, con una linea horizontal en su borde inferior
+                    local tsz = self.tw_booktitle:getSize()
+                    local bar_top = self._bar_top_y or (self._booktitle_y - S(14))
+                    local bar_bot = self._booktitle_y + tsz.h + S(8)
+                    local line_t = S(3) - math.max(1, math.floor(S(1) / 2))   -- mismo grosor que la linea negra de la barra inferior (bd)
+                    -- Barra blanca de ancho completo; la linea horizontal va en su borde inferior
+                    bb:paintRect(0, bar_top, sw, bar_bot - bar_top, Blitbuffer.COLOR_WHITE)
+                    bb:paintRect(0, bar_bot - line_t, sw, line_t, Blitbuffer.COLOR_BLACK)
+                    -- Título centrado en vertical entre la línea de arriba (la de la barra superior) y la línea negra de abajo
+                    local bar_inner_h = (bar_bot - line_t) - bar_top
+                    local title_y = bar_top + math.floor((bar_inner_h - tsz.h) / 2)
+                    self.tw_booktitle.fgcolor = Blitbuffer.COLOR_BLACK
+                    self.tw_booktitle:paintTo(bb, title_x, title_y)
+                elseif pill_mode == "border" or pill_mode == "no_border" or pill_mode == "translucent" then
                     local tsz = self.tw_booktitle:getSize()
                     local pad_h = S(12)
                     local pad_v = S(4)
@@ -7693,6 +7837,7 @@ function PageScrubber:onCloseWidget()
         self.tw_booktitle, self.tw_chapter, self.tw_info,
         self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_gallery, self.tw_toc, self.tw_grid_toggle, self.tw_x,
         self.icon_gs_x_inv, self.icon_gs_chevron_left_inv, self.icon_gs_chevron_right_inv,
+        self.icon_tab_chev_down, self.icon_tab_chev_up,
         self.tw_ch_l, self.tw_ch_r,
         self.tw_ctrl_prev, self.tw_ctrl_next,
         self.tw_fb_l, self.tw_fb_r,

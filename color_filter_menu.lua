@@ -160,7 +160,7 @@ function ColorFilterMenu:init()
     local FILTER_K = 0.8
     local function F(v) return math.max(1, math.floor(S(v) * FILTER_K + 0.5)) end
 
-    self.border   = S(2)
+    self.border   = S(1)
     self.radius   = F(16)
     self.row_h    = F(40)
     self.pad      = F(14)
@@ -252,7 +252,7 @@ function ColorFilterMenu:paintTo(bb, x, y)
         local rh = rd.dimen.h
 
         if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - border * 2, 1, Blitbuffer.COLOR_BLACK)
+            bb:paintRect(r.x + border, ry, r.w - border * 2, 1, Blitbuffer.COLOR_LIGHT_GRAY)
         end
 
         -- Círculo prolijo: aro negro + relleno del color

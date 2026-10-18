@@ -268,6 +268,32 @@ local function loadSvg(filename, sz, fgcolor)
     return nil
 end
 
+-- Medidas del rediseño de la ventana de ajustes
+local function frameBorder() return math.max(1, scale(1)) end
+local function rowPad() return scale(14) end
+local PRESSED_ROW_BG = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
+
+-- Caché del escaneo de imágenes (pestaña Images): vive en settings/page_scrubber_images.lua.
+-- Los favoritos están en otro archivo (page_scrubber_images_fav.lua) y NO se tocan.
+local function imageCachePath()
+    local DataStorage = require("datastorage")
+    return DataStorage:getSettingsDir() .. "/page_scrubber_images.lua"
+end
+
+local function imageCacheSizeLabel()
+    local label = "0 KB"
+    pcall(function()
+        local lfs = require("libs/libkoreader-lfs")
+        local size = lfs.attributes(imageCachePath(), "size") or 0
+        if size >= 1024 * 1024 then
+            label = string.format("%.1f MB", size / (1024 * 1024))
+        else
+            label = string.format("%d KB", math.ceil(size / 1024))
+        end
+    end)
+    return label
+end
+
 local ScrubberSettings = InputContainer:extend({
     ui = nil,
     scrubber_ui = nil,
@@ -275,6 +301,7 @@ local ScrubberSettings = InputContainer:extend({
     history = nil,
     row_dimens = nil,
     btn_back_dimen = nil,
+    btn_close_dimen = nil,
     card_w = nil,
 })
 
@@ -476,16 +503,84 @@ function ScrubberSettings:getOrderableTogglePage(cfg)
     }
 end
 
+-- Texto del valor actual (Small / Medium / Large) de una opción, para mostrarlo a la derecha de la fila
+function ScrubberSettings:sizeLabel(key, default)
+    local map = { small = _("Small"), medium = _("Medium"), large = _("Large") }
+    return map[self:readSetting(key, default)] or ""
+end
+
+-- Estilo actual del título del libro (mismos alias que normaliza la página "title_bg")
+function ScrubberSettings:titleStyleLabel()
+    local raw = self:readSetting("page_scrubber_title_bg", "none")
+    if raw == "border" or raw == true or raw == "true" or raw == 1 then return _("With border") end
+    if raw == "no_border" or raw == "borderless" then return _("No border") end
+    if raw == "translucent" or raw == "opacity" or raw == "semi_transparent" then return _("Translucent") end
+    if raw == "aura" or raw == "off" then return _("Aura") end
+    if raw == "bar" or raw == "kindle_bar" then return _("Bar") end
+    return _("None")
+end
+
+-- Nombre del wallpaper elegido ("None" si no hay)
+function ScrubberSettings:wallpaperLabel()
+    local cur = self:readSetting("page_scrubber_wallpaper", "none")
+    if cur == nil or cur == "" or cur == "none" then return _("None") end
+    local label
+    pcall(function()
+        local ScrubberWallpaper = require("scrubber_wallpaper")
+        for _i, wp in ipairs(ScrubberWallpaper.list()) do
+            if wp.id == cur then label = wp.label; break end
+        end
+    end)
+    return label or _("None")
+end
+
+-- Versión instalada del plugin (campo `version` de _meta.lua) para mostrarla en la fila de actualizaciones
+function ScrubberSettings:updaterVersionLabel()
+    local label = ""
+    pcall(function()
+        local Updater = require("scrubber_updater")
+        local v = Updater.installedVersion()
+        if v then label = "v" .. v end
+    end)
+    return label
+end
+
+function ScrubberSettings:checkForUpdates()
+    local ok, Updater = pcall(require, "scrubber_updater")
+    if not ok then
+        UIManager:show(InfoMessage:new{ text = _("The updater is not available.") })
+        return
+    end
+    Updater.check()
+end
+
+-- Fuente del sistema elegida (para mostrarla a la derecha de la fila); "Disabled" si no hay ninguna activa
+function ScrubberSettings:systemFontLabel()
+    if not G_reader_settings then return "" end
+    local enabled = G_reader_settings:readSetting("ui_font_enabled", true) == true
+    local name = G_reader_settings:readSetting("ui_font_name")
+    if enabled and type(name) == "string" and name ~= "" then
+        return name
+    end
+    return _("None")
+end
+
+function ScrubberSettings:getPageTitle(data)
+    if data and data.title and data.title ~= "" then return data.title end
+    return _("Settings")
+end
+
 function ScrubberSettings:getPageDefinition(page_id)
     if page_id == "main" then
         return {
             title = "",
             items = {
-                { text = _("Layout"), icon = "square-arrow-right-enter.svg", kind = "submenu", target = "layout" },
+                { section = _("Interface"), text = _("Layout"), icon = "square-arrow-right-enter.svg", kind = "submenu", target = "layout" },
                 { text = _("Appearance"), icon = "sparkles.svg", kind = "submenu", target = "appearance" },
                 { text = _("Reading Pop-Ups"), icon = "notepad-text.svg", kind = "submenu", target = "popups" },
                 { text = _("Quick Menu"), icon = "sun.svg", kind = "submenu", target = "quick_menu" },
-                { text = _("Export notes of this document"), icon = "book-marked.svg", kind = "action", action = function() self:exportNotes() end },
+                { section = _("Document"), text = _("Export notes of this document"), icon = "book-marked.svg", kind = "action", action = function() self:exportNotes() end },
+                { section = _("Other"), text = _("Advanced"), icon = "settings-2.svg", kind = "submenu", target = "advanced" },
             }
         }
 
@@ -504,6 +599,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Start quick menu with..."),
+                    value = ({ quick = _("Quick actions"), typo = _("Typography (Aa)") })[self:readSetting("page_scrubber_quick_menu_start_tab", "quick")] or "",
                     icon = "square-arrow-right-enter.svg",
                     kind = "submenu",
                     target = "quick_menu_start_tab",
@@ -638,7 +734,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Disable Images tab"),
-                    icon = "image.svg",
+                    icon = "image-minus.svg",
                     kind = "toggle",
                     setting = "page_scrubber_hide_images_tab",
                     default = false,
@@ -696,15 +792,16 @@ function ScrubberSettings:getPageDefinition(page_id)
                     text = has_zenos and _("System Font (Disabled by ZenOS)") or (has_simpleui and _("System Font (Managed by SimpleUI)") or _("System Font")), 
                     icon = "droplet.svg", 
                     kind = "action",
+                    value = (not has_zenos and not has_simpleui) and self:systemFontLabel() or nil,
                     disabled = has_zenos,
                     action = function()
                         if has_simpleui then self:showSimpleUIManagedNotice() else self:openSystemFontDialog() end
                     end 
                 },
-                { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", action = function() self:openScaleDialog() end },
-                { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size" },
-                { text = _("Choose wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "choose_wallpaper" },
-                { text = _("Book title style"), icon = "contrast.svg", kind = "submenu", target = "title_bg" },
+                { text = _("UI Scale (%)"), icon = "search.svg", kind = "action", value = tostring(math.floor(self:readSetting("page_scrubber_ui_scale", 1.0) * 100 + 0.5)) .. "%", action = function() self:openScaleDialog() end },
+                { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size", value = self:sizeLabel("page_scrubber_text_size", "medium") },
+                { text = _("Choose wallpaper"), icon = "layout-grid.svg", kind = "submenu", target = "choose_wallpaper", value = self:wallpaperLabel() },
+                { section = _("Top bar"), text = _("Book title style"), icon = "contrast.svg", kind = "submenu", target = "title_bg", value = self:titleStyleLabel() },
                 {
                     text = _("Top bar separator line"),
                     icon = "underline.svg",
@@ -794,6 +891,7 @@ function ScrubberSettings:getPageDefinition(page_id)
             title = _("Reading Pop-Ups"),
             items = {
                 {
+                    section = _("Dictionary"),
                     text = _("Scrubber Dictionary"),
                     icon = "globe.svg",
                     kind = "toggle",
@@ -818,12 +916,14 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Dictionary text size"),
+                    value = ({ very_small = _("Very small"), small = _("Small"), normal = _("Normal"), large = _("Large"), very_large = _("Very large") })[self:readSetting("page_scrubber_dict_font_size", "normal")] or "",
                     icon = "pencil-ruler.svg",
                     kind = "submenu",
                     target = "dict_text_size",
                     disabled = not dict_enabled,
                 },
                 {
+                    section = _("Selection menu"),
                     text = _("Scrubber Selection Menu"),
                     icon = "crop.svg",
                     kind = "toggle",
@@ -833,9 +933,18 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Position of selection menu"),
+                    value = ({ right_v = _("Right (Vertical)"), left_v = _("Left (Vertical)"), bottom_h = _("Bottom (Horizontal)"), center_h = _("Center (Horizontal)") })[self:readSetting("page_scrubber_sel_menu_position", "right_v")] or "",
                     icon = "square-arrow-right-enter.svg",
                     kind = "submenu",
                     target = "sel_pos",
+                    disabled = not sel_enabled,
+                },
+                {
+                    text = _("Size of selection menu"),
+                    value = self:sizeLabel("page_scrubber_sel_menu_size", "medium"),
+                    icon = "search.svg",
+                    kind = "submenu",
+                    target = "sel_size",
                     disabled = not sel_enabled,
                 },
                 {
@@ -935,6 +1044,29 @@ function ScrubberSettings:getPageDefinition(page_id)
             }
         }
 
+    elseif page_id == "sel_size" then
+        local cur = self:readSetting("page_scrubber_sel_menu_size", "medium")
+        return {
+            title = _("Size of selection menu"),
+            items = {
+                { text = _("Small"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_size", val = "small", checked = (cur == "small") },
+                { text = _("Medium"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_size", val = "medium", checked = (cur == "medium") },
+                { text = _("Large"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_size", val = "large", checked = (cur == "large") },
+            }
+        }
+
+    elseif page_id == "advanced" then
+        return {
+            title = _("Advanced"),
+            items = {
+                { section = _("Settings"), text = _("Back up settings"), icon = "folder.svg", kind = "action", action = function() self:backupSettings() end },
+                { text = _("Restore settings from backup"), icon = "undo.svg", kind = "action", action = function() self:confirmRestoreSettings() end },
+                { text = _("Reset all settings"), icon = "trash-2.svg", kind = "action", action = function() self:confirmResetSettings() end },
+                { section = _("Cache"), text = _("Clear image cache"), icon = "image.svg", kind = "action", value = imageCacheSizeLabel(), action = function() self:confirmClearImageCache() end },
+                { section = _("Updates"), text = _("Check for updates"), icon = "zap.svg", kind = "action", value = self:updaterVersionLabel(), action = function() self:checkForUpdates() end },
+            }
+        }
+
     elseif page_id == "text_size" then
         local cur = self:readSetting("page_scrubber_text_size", "medium")
         return {
@@ -997,6 +1129,8 @@ function ScrubberSettings:getPageDefinition(page_id)
             cur = "translucent"
         elseif raw == "aura" or raw == "off" then
             cur = "aura"
+        elseif raw == "bar" or raw == "kindle_bar" then
+            cur = "bar"   -- "kindle_bar" era el nombre anterior de este estilo
         elseif raw == "none" or raw == false or raw == "false" or raw == 0 then
             cur = "none"
         end
@@ -1044,6 +1178,14 @@ function ScrubberSettings:getPageDefinition(page_id)
                     val = "aura",
                     checked = (cur == "aura"),
                 },
+                {
+                    text = _("Bar"),
+                    icon = nil,
+                    kind = "radio",
+                    setting = "page_scrubber_title_bg",
+                    val = "bar",
+                    checked = (cur == "bar"),
+                },
             }
         }
     end
@@ -1053,7 +1195,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "sel_size", "advanced", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _i, pid in ipairs(pages) do
@@ -1064,8 +1206,8 @@ function ScrubberSettings:calculateGlobalCardWidth()
             local pdef = self:getPageDefinition(pid)
             if pdef.title and pdef.title ~= "" then
                 local tw = TextWidget:new{
-                    text = "‹  " .. pdef.title,
-                    face = Font:getFace("cfont", scaleText(11)),
+                    text = pdef.title,
+                    face = Font:getFace("cfont", scaleText(12)),
                     bold = true,
                 }
                 local sz = tw:getSize()
@@ -1078,8 +1220,15 @@ function ScrubberSettings:calculateGlobalCardWidth()
                     face = Font:getFace("cfont", scaleText(11)),
                 }
                 local sz = tw:getSize()
-                if sz.w > max_item_w then max_item_w = sz.w end
+                local w_total = sz.w
                 tw:free()
+                -- Las filas con valor a la derecha necesitan lugar para el texto del valor
+                if item.value and item.value ~= "" then
+                    local tv = TextWidget:new{ text = tostring(item.value), face = Font:getFace("cfont", scaleText(10)) }
+                    w_total = w_total + math.min(tv:getSize().w, scale(130)) + scale(10)
+                    tv:free()
+                end
+                if w_total > max_item_w then max_item_w = w_total end
             end
         end
     end
@@ -1094,20 +1243,36 @@ function ScrubberSettings:updateLayout()
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
     local data = self:getPageDefinition(self.current_view)
-    local num_items = #data.items
+    local items = data.items or {}
     local has_back = #self.history > 0
 
     if not self.card_w then
         self:calculateGlobalCardWidth()
     end
 
-    self.header_h = has_back and scale(28) or 0
-    self.row_h = scale(31)
-    self.card_h = self.header_h + (num_items * self.row_h) + scale(4)
+    local border = frameBorder()
+    local sect_h = scale(38)
+    local pad_bottom = scale(8)
+    self.header_h = scale(42)
 
     local top_bar = self.scrubber_ui and self.scrubber_ui._top_bar_dimen
     local top_bar_bottom = top_bar and (top_bar.y + top_bar.h) or scale(58)
     local target_y = top_bar_bottom + scale(6)
+
+    local n_sections = 0
+    for _i, item in ipairs(items) do
+        if item.section then n_sections = n_sections + 1 end
+    end
+
+    -- Filas más altas y cómodas; si la página es muy larga se compactan para que entre en pantalla
+    local fixed_h = (border * 2) + self.header_h + (n_sections * sect_h) + pad_bottom
+    local avail_h = sh - target_y - scale(12)
+    local row_h = scale(38)
+    if fixed_h + (#items * row_h) > avail_h then
+        row_h = math.max(scale(28), math.floor((avail_h - fixed_h) / math.max(1, #items)))
+    end
+    self.row_h = row_h
+    self.card_h = fixed_h + (#items * row_h)
 
     local target_x = math.floor((sw * 0.75) - (self.card_w / 2))
     if target_x + self.card_w > sw - scale(8) then
@@ -1122,19 +1287,26 @@ function ScrubberSettings:updateLayout()
     self.popup_rect = Geom:new{ x = target_x, y = target_y, w = self.card_w, h = self.card_h }
 
     local r = self.popup_rect
-    local border = scale(2)
+    local btn_w = scale(56)
 
+    -- Encabezado: botón volver (izquierda, solo en submenús) y botón cerrar (derecha, siempre)
     if has_back then
-        self.btn_back_dimen = Geom:new{ x = r.x, y = r.y, w = r.w, h = self.header_h + border }
+        self.btn_back_dimen = Geom:new{ x = r.x, y = r.y, w = r.w - btn_w, h = self.header_h + border }
     else
         self.btn_back_dimen = nil
     end
+    self.btn_close_dimen = Geom:new{ x = r.x + r.w - btn_w, y = r.y, w = btn_w, h = self.header_h + border }
 
     self.row_dimens = {}
     local curr_y = r.y + border + self.header_h
-    for _i, item in ipairs(data.items) do
+    for _i, item in ipairs(items) do
+        local section_y
+        if item.section then
+            section_y = curr_y
+            curr_y = curr_y + sect_h
+        end
         local row_rect = Geom:new{ x = r.x + border, y = curr_y, w = r.w - (border * 2), h = self.row_h }
-        table.insert(self.row_dimens, { dimen = row_rect, item = item })
+        table.insert(self.row_dimens, { dimen = row_rect, item = item, section_y = section_y, section_h = sect_h })
         curr_y = curr_y + self.row_h
     end
 end
@@ -1512,7 +1684,7 @@ function ActionSelectDialog:updateLayout()
 
     local bottom_limit = (self.scrubber_ui and self.scrubber_ui._chapter_dimen and self.scrubber_ui._chapter_dimen.y) or (sh - scale(115))
 
-    local border = scale(2)
+    local border = frameBorder()
     local max_avail = bottom_limit - start_y
     self.items_per_page = math.max(10, math.floor((max_avail - self.header_h - self.footer_h - (border * 2)) / self.row_h))
 
@@ -1571,7 +1743,7 @@ local ROW_DIVIDER_COLOR = Blitbuffer.COLOR_LIGHT_GRAY
 function ActionSelectDialog:paintTo(bb, x, y)
     local r = self.card_rect
     if not r then return end
-    local border = scale(2)
+    local border = frameBorder()
     local radius = scale(16)
     local pad = scale(14)
 
@@ -1838,7 +2010,7 @@ function FontSelectDialog:updateLayout()
 
     local bottom_limit = (self.scrubber_ui and self.scrubber_ui._chapter_dimen and self.scrubber_ui._chapter_dimen.y) or (sh - scale(115))
 
-    local border = scale(2)
+    local border = frameBorder()
     local max_avail = bottom_limit - start_y
     self.items_per_page = math.max(10, math.floor((max_avail - self.header_h - self.footer_h - (border * 2)) / self.row_h))
 
@@ -1893,7 +2065,7 @@ end
 function FontSelectDialog:paintTo(bb, x, y)
     local r = self.card_rect
     if not r then return end
-    local border = scale(2)
+    local border = frameBorder()
     local radius = scale(16)
     local pad = scale(14)
 
@@ -2166,7 +2338,7 @@ function SystemFontSelectDialog:updateLayout()
 
     local bottom_limit = (self.scrubber_ui and self.scrubber_ui._chapter_dimen and self.scrubber_ui._chapter_dimen.y) or (sh - scale(115))
 
-    local border = scale(2)
+    local border = frameBorder()
     local max_avail = bottom_limit - start_y
     self.items_per_page = math.max(10, math.floor((max_avail - self.header_h - self.footer_h - (border * 2)) / self.row_h))
 
@@ -2221,7 +2393,7 @@ end
 function SystemFontSelectDialog:paintTo(bb, x, y)
     local r = self.card_rect
     if not r then return end
-    local border = scale(2)
+    local border = frameBorder()
     local radius = scale(16)
     local pad = scale(14)
 
@@ -2791,6 +2963,181 @@ function ScrubberSettings:openScaleDialog()
     UIManager:show(spin)
 end
 
+-- =========================================================================
+-- AJUSTES AVANZADOS: respaldo, restauración y reinicio de las opciones del plugin
+-- =========================================================================
+local function backupPath()
+    local DataStorage = require("datastorage")
+    return DataStorage:getSettingsDir() .. "/page_scrubber_backup.lua"
+end
+
+-- Favoritos de la pestaña Images (archivo aparte, uno por libro)
+local function favPath()
+    local DataStorage = require("datastorage")
+    return DataStorage:getSettingsDir() .. "/page_scrubber_images_fav.lua"
+end
+
+-- Todas las opciones del plugin (las claves que empiezan con "page_scrubber_")
+local function collectOwnSettings()
+    local out = {}
+    local data = G_reader_settings and G_reader_settings.data
+    if type(data) == "table" then
+        for k, v in pairs(data) do
+            if type(k) == "string" and k:find("^page_scrubber_") then out[k] = v end
+        end
+    end
+    return out
+end
+
+function ScrubberSettings:backupSettings()
+    local path = backupPath()
+    local count = 0
+    local ok = pcall(function()
+        local LuaSettings = require("luasettings")
+        local f = LuaSettings:open(path)
+        for k in pairs(f.data) do f.data[k] = nil end
+        for k, v in pairs(collectOwnSettings()) do
+            f:saveSetting(k, v)
+            count = count + 1
+        end
+        -- Imágenes favoritas (clave sin prefijo "page_scrubber_": el bucle de restauración la ignora)
+        local fav = LuaSettings:open(favPath())
+        if type(fav.data) == "table" and next(fav.data) then
+            f:saveSetting("images_fav", fav.data)
+        end
+        f:flush()
+    end)
+    if ok then
+        UIManager:show(InfoMessage:new{
+            text = _("Settings backed up to:") .. "\n" .. path .. "\n\n"
+                .. _("To restore them on another device, copy this file to the same folder there."),
+        })
+    else
+        UIManager:show(InfoMessage:new{ text = _("Could not back up the settings.") })
+    end
+end
+
+function ScrubberSettings:confirmRestoreSettings()
+    local path = backupPath()
+    local lfs = require("libs/libkoreader-lfs")
+    if lfs.attributes(path, "mode") ~= "file" then
+        UIManager:show(InfoMessage:new{
+            text = _("No backup found.") .. "\n\n"
+                .. _("Use \"Back up settings\" first, or copy your page_scrubber_backup.lua file to:") .. "\n" .. path,
+        })
+        return
+    end
+    UIManager:show(ConfirmBox:new{
+        text = _("Restore the settings from this backup file? Your current settings will be replaced.") .. "\n\n" .. path,
+        ok_text = _("Restore"),
+        ok_callback = function()
+            local ok = pcall(function()
+                local LuaSettings = require("luasettings")
+                local f = LuaSettings:open(path)
+                for k, v in pairs(f.data) do
+                    if type(k) == "string" and k:find("^page_scrubber_") then
+                        G_reader_settings:saveSetting(k, v)
+                    end
+                end
+                G_reader_settings:flush()
+
+                -- Imágenes favoritas: se fusionan con las actuales (no se pisan)
+                local bfav = f:readSetting("images_fav")
+                if type(bfav) == "table" then
+                    local ui = self.ui
+                    local fs = (ui and ui._image_scanner_fav_settings) or LuaSettings:open(favPath())
+                    for book, imgs in pairs(bfav) do
+                        if type(imgs) == "table" then
+                            local cur = fs:readSetting(book)
+                            if type(cur) ~= "table" then cur = {} end
+                            for p, v in pairs(imgs) do cur[p] = v end
+                            fs:saveSetting(book, cur)
+                        end
+                    end
+                    fs:flush()
+                    -- Descarta la copia en memoria del libro abierto: si no, el próximo guardado pisaría lo restaurado
+                    if ui then ui._image_scanner_book = nil end
+                end
+            end)
+            if ok then
+                self:reopenEntireScrubber()
+            else
+                UIManager:show(InfoMessage:new{ text = _("Could not restore the settings.") })
+            end
+        end,
+    })
+end
+
+function ScrubberSettings:confirmClearImageCache()
+    UIManager:show(ConfirmBox:new{
+        text = _("Clear the image cache? The Images tab will scan your books again the next time you open it. Your favorite images are kept."),
+        ok_text = _("Clear"),
+        ok_callback = function()
+            local ok = pcall(function()
+                local LuaSettings = require("luasettings")
+                local ui = self.ui
+
+                -- 1) Archivo del caché en disco
+                local f = LuaSettings:open(imageCachePath())
+                for k in pairs(f.data) do f.data[k] = nil end
+                f:flush()
+
+                -- 2) Copias en memoria del libro abierto: si quedaran, el próximo guardado volvería a escribir el caché
+                if ui then
+                    local cached = ui._image_scanner_settings
+                    if cached and type(cached.data) == "table" then
+                        for k in pairs(cached.data) do cached.data[k] = nil end
+                        cached:flush()
+                    end
+                    local book = ui._image_scanner_book
+                    if type(book) == "table" then book.scan = nil end
+                end
+            end)
+            -- Reabre el scrubber para que la pestaña Images arranque limpia (sin el escaneo viejo en memoria)
+            self:reopenEntireScrubber()
+            UIManager:scheduleIn(0.6, function()
+                UIManager:show(InfoMessage:new{
+                    text = ok and _("Image cache cleared.") or _("Could not clear the image cache."),
+                    timeout = 2,
+                })
+            end)
+        end,
+    })
+end
+
+function ScrubberSettings:confirmResetSettings()
+    UIManager:show(ConfirmBox:new{
+        text = _("Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."),
+        ok_text = _("Reset"),
+        ok_callback = function()
+            pcall(function()
+                for k in pairs(collectOwnSettings()) do
+                    G_reader_settings:delSetting(k)
+                end
+                G_reader_settings:flush()
+            end)
+            -- También las imágenes favoritas: se vacía la copia en memoria antes de borrar el archivo
+            pcall(function()
+                local ui = self.ui
+                local fs = ui and ui._image_scanner_fav_settings
+                if fs and type(fs.data) == "table" then
+                    for k in pairs(fs.data) do fs.data[k] = nil end
+                end
+                if ui then
+                    ui._image_scanner_book = nil
+                    ui._image_scanner_fav_settings = nil
+                end
+                -- LuaSettings guarda la versión anterior en ".old" y la usa si falta el archivo principal:
+                -- hay que borrarla también o los favoritos viejos reaparecen
+                os.remove(favPath())
+                os.remove(favPath() .. ".old")
+                os.remove(favPath() .. ".new")
+            end)
+            self:reopenEntireScrubber()
+        end,
+    })
+end
+
 function ScrubberSettings:exportNotes()
     UIManager:close(self)
     local ui = self.ui
@@ -2946,30 +3293,68 @@ end
 
 function ScrubberSettings:paintTo(bb, x, y)
     local r = self.popup_rect
-    local border = scale(2)
-    local radius = scale(16)
+    local border = frameBorder()
+    local radius = scale(18)
 
     paintRoundRect(bb, r.x, r.y, r.w, r.h, radius, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, r.x + border, r.y + border, r.w - (border * 2), r.h - (border * 2), math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
-    local pad = scale(10)
+    local pad = rowPad()
     local data = self:getPageDefinition(self.current_view)
     local has_back = #self.history > 0
 
-    if has_back then
+    -- Encabezado: [undo]  Título centrado  [X]  (se pone gris clarito solo mientras se presiona "volver")
+    do
         local hy = r.y + border
         local hh = self.header_h
+        if self._pressed_header then
+            paintCornerRect(bb, r.x + border, hy, r.w - (border * 2), hh, math.max(1, radius - border), PRESSED_ROW_BG, true, true, false, false)
+        end
+        local ico_sz = scale(18)
+        local ico_y = hy + math.floor((hh - ico_sz) / 2)
 
-        local tw_back = TextWidget:new{
-            text = "‹  " .. data.title,
-            face = Font:getFace("cfont", scaleText(11)),
+        if has_back then
+            local back_icon = loadSvg("undo.svg", ico_sz, Blitbuffer.COLOR_BLACK)
+            if back_icon then
+                pcall(function() back_icon:paintTo(bb, r.x + pad, ico_y) end)
+            else
+                local tw_b = TextWidget:new{ text = "‹", face = Font:getFace("cfont", scaleText(15)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+                local bsz = tw_b:getSize()
+                tw_b:paintTo(bb, r.x + pad, hy + math.floor((hh - bsz.h) / 2))
+                tw_b:free()
+            end
+        end
+
+        local close_icon = loadSvg("x.svg", ico_sz, Blitbuffer.COLOR_BLACK)
+        if close_icon then
+            pcall(function() close_icon:paintTo(bb, r.x + r.w - pad - ico_sz, ico_y) end)
+        else
+            local tw_x = TextWidget:new{ text = "✕", face = Font:getFace("cfont", scaleText(12)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+            local xsz = tw_x:getSize()
+            tw_x:paintTo(bb, r.x + r.w - pad - xsz.w, hy + math.floor((hh - xsz.h) / 2))
+            tw_x:free()
+        end
+
+        local tw_title = TextWidget:new{
+            text = self:getPageTitle(data),
+            face = Font:getFace("cfont", scaleText(12)),
             bold = true,
-            fgcolor = Blitbuffer.COLOR_BLACK
+            fgcolor = Blitbuffer.COLOR_BLACK, -- Cambiado de COLOR_DARK_GRAY a COLOR_BLACK
+            max_width = r.w - (scale(56) * 2),
+            truncate_with_ellipsis = true,
         }
-        local bsz = tw_back:getSize()
-        tw_back:paintTo(bb, r.x + pad, hy + math.floor((hh - bsz.h) / 2))
-        tw_back:free()
+        local tsz = tw_title:getSize()
+        
+        -- Calcular posición izquierda, dejando espacio si está el botón "volver"
+        local title_x = r.x + pad
+        if has_back then
+            title_x = title_x + ico_sz + scale(12)
+        end
+        
+        tw_title:paintTo(bb, title_x, hy + math.floor((hh - tsz.h) / 2)) -- Alineado a la izquierda
+        tw_title:free()
 
+        -- La línea debajo del título es negra (el resto de divisiones son grises)
         bb:paintRect(r.x + border, hy + hh - 1, r.w - (border * 2), 1, Blitbuffer.COLOR_BLACK)
     end
 
@@ -2978,8 +3363,30 @@ function ScrubberSettings:paintTo(bb, x, y)
         local ry = rdef.dimen.y
         local rh = rdef.dimen.h
 
-        if idx > 1 then
-            bb:paintRect(r.x + border, ry, r.w - (border * 2), 1, ROW_DIVIDER_COLOR)
+        -- Rótulo de sección (texto chico gris) encima del primer ítem del grupo
+        if rdef.section_y and item.section then
+            local tw_sec = TextWidget:new{
+                text = tostring(item.section),
+                face = Font:getFace("cfont", scaleText(9)),
+                bold = true,
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                max_width = r.w - pad * 2,
+                truncate_with_ellipsis = true,
+            }
+            local ssz = tw_sec:getSize()
+            tw_sec:paintTo(bb, r.x + pad + scale(2), rdef.section_y + rdef.section_h - ssz.h - scale(3))
+            tw_sec:free()
+        end
+
+        -- Fila presionada: pastilla redondeada gris clarito (mismo estilo que el menú derecho)
+        if self._pressed_row == idx then
+            local pin = scale(6)
+            paintRoundRect(bb, r.x + border + pin, ry + scale(2), r.w - (border + pin) * 2, rh - scale(4), scale(10), PRESSED_ROW_BG)
+        end
+
+        -- Divisor gris con sangría (no se dibuja entre grupos ni pegado a la pastilla)
+        if idx > 1 and not item.section and self._pressed_row ~= idx and self._pressed_row ~= (idx - 1) then
+            bb:paintRect(r.x + pad, ry, r.w - pad * 2, 1, ROW_DIVIDER_COLOR)
         end
 
         local text_color = item.disabled and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_BLACK
@@ -3035,6 +3442,17 @@ function ScrubberSettings:paintTo(bb, x, y)
         end
 
         local right_reserved = scale(28)
+        local tw_val
+        if (item.kind == "submenu" or item.kind == "action") and not item.right_icon and item.value and item.value ~= "" then
+            tw_val = TextWidget:new{
+                text = tostring(item.value),
+                face = Font:getFace("cfont", scaleText(10)),
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                max_width = scale(130),
+                truncate_with_ellipsis = true,
+            }
+            right_reserved = right_reserved + tw_val:getSize().w + scale(10)
+        end
         if item.kind == "orderable_action" then
             -- Scrubber Actions y Favorite Fonts: reservan espacio para papelera, divisor y flechas (↑ ↓)
             right_reserved = scale(94)
@@ -3236,6 +3654,10 @@ function ScrubberSettings:paintTo(bb, x, y)
                 local asz = tw_arrow:getSize()
                 tw_arrow:paintTo(bb, r.x + r.w - pad - asz.w, ry + math.floor((rh - asz.h) / 2))
                 tw_arrow:free()
+                if tw_val then
+                    local vsz = tw_val:getSize()
+                    tw_val:paintTo(bb, r.x + r.w - pad - asz.w - scale(6) - vsz.w, ry + math.floor((rh - vsz.h) / 2))
+                end
             end
 
         elseif item.kind == "radio" and item.checked then
@@ -3249,10 +3671,59 @@ function ScrubberSettings:paintTo(bb, x, y)
             tw_chk:paintTo(bb, r.x + r.w - pad - rsz.w, ry + math.floor((rh - rsz.h) / 2))
             tw_chk:free()
         end
+
+        if tw_val then tw_val:free() end
     end
 end
 
 function ScrubberSettings:onTap(arg1, arg2)
+    -- Mientras la pastilla de "fila presionada" está en pantalla, se absorben los toques
+    if self._flash_busy then return true end
+
+    local ges = arg2 or arg1
+
+    -- Encabezado (volver): se pone gris un instante y después vuelve al menú anterior
+    if ges and ges.pos and self.btn_back_dimen and ges.pos:intersectWith(self.btn_back_dimen) then
+        self._pressed_header = true
+        self._flash_busy = true
+        UIManager:setDirty(self, "ui", self.popup_rect)
+        UIManager:scheduleIn(0.1, function()
+            self._flash_busy = false
+            self._pressed_header = false
+            if self._closed then return end
+            self:_onTapInner(arg1, arg2)
+            if not self._closed then
+                UIManager:setDirty(self, "ui", self.popup_rect)
+            end
+        end)
+        return true
+    end
+
+    if ges and ges.pos and self.row_dimens then
+        for idx, rdef in ipairs(self.row_dimens) do
+            local k = rdef.item.kind
+            if ges.pos:intersectWith(rdef.dimen) and not rdef.item.disabled
+               and (k == "submenu" or k == "action" or k == "radio" or k == "toggle") then
+                self._pressed_row = idx
+                self._flash_busy = true
+                UIManager:setDirty(self, "ui", self.popup_rect)
+                UIManager:scheduleIn(0.1, function()
+                    self._flash_busy = false
+                    self._pressed_row = nil
+                    if self._closed then return end
+                    self:_onTapInner(arg1, arg2)
+                    if not self._closed then
+                        UIManager:setDirty(self, "ui", self.popup_rect)
+                    end
+                end)
+                return true
+            end
+        end
+    end
+    return self:_onTapInner(arg1, arg2)
+end
+
+function ScrubberSettings:_onTapInner(arg1, arg2)
     local ges = arg2 or arg1
     if not ges or not ges.pos then return false end
 
@@ -3264,9 +3735,15 @@ function ScrubberSettings:onTap(arg1, arg2)
 
     local r = self.popup_rect
 
-    -- Botón Atrás (encabezado)
+    -- Botón Atrás (encabezado, izquierda)
     if self.btn_back_dimen and ges.pos:intersectWith(self.btn_back_dimen) then
         self:popView()
+        return true
+    end
+
+    -- Botón Cerrar (encabezado, derecha)
+    if self.btn_close_dimen and ges.pos:intersectWith(self.btn_close_dimen) then
+        UIManager:close(self)
         return true
     end
 
@@ -3281,7 +3758,7 @@ function ScrubberSettings:onTap(arg1, arg2)
                 end
 
                 if it.kind == "orderable_toggle" then
-                    local pad = scale(10)
+                    local pad = rowPad()
                     local check_w = scale(32)
                     local arrow_w = scale(22)
                     local div_x = r.x + r.w - pad - check_w - scale(4)
@@ -3319,7 +3796,7 @@ function ScrubberSettings:onTap(arg1, arg2)
                     end
 
                 elseif it.kind == "orderable_action" then
-                    local pad = scale(10)
+                    local pad = rowPad()
                     local trash_w = scale(26)
                     local arrow_w = scale(22)
                     local div_x = r.x + r.w - pad - trash_w - scale(4)
@@ -3428,6 +3905,7 @@ function ScrubberSettings:onShow()
 end
 
 function ScrubberSettings:onCloseWidget()
+    self._closed = true
     if self.scrubber_ui then
         UIManager:setDirty(self.scrubber_ui, "ui")
     end

@@ -766,10 +766,12 @@ function ScrubberMenu:paintTo(bb, x, y)
     tw_aa:paintTo(bb, self.tab_typo_dimen.x + math.floor((self.tab_typo_dimen.w - aasz.w) / 2), tab_y + math.floor((tab_h - aasz.h) / 2))
     tw_aa:free()
 
-    -- Borde horizontal inferior de pestañas e indicador de selección activa
-    bb:paintRect(r.x + border, tab_y + tab_h - 1, inner_w, 1, Blitbuffer.COLOR_BLACK)
+    -- Línea divisoria inferior de pestañas: gris y más gruesa (crece hacia arriba, el contenido no se mueve).
+    -- El indicador negro de la pestaña activa se pinta DESPUÉS, por encima de esta línea.
+    local div_h = scale(2)
+    bb:paintRect(r.x + border, tab_y + tab_h - div_h, inner_w, div_h, Blitbuffer.COLOR_LIGHT_GRAY)
 
-    local ind_h = scale(3)
+    local ind_h = scale(3)   -- más alto que la línea: la cubre por completo en el tramo activo
     if is_quick then
         bb:paintRect(self.tab_quick_dimen.x + scale(16), tab_y + tab_h - ind_h, half_w - scale(32), ind_h, Blitbuffer.COLOR_BLACK)
     else
