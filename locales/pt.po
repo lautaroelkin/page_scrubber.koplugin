@@ -582,3 +582,126 @@ msgstr "Redefinir"
 msgid "Disabled"
 msgstr "Desativado"
 
+# Review Card / SRS (Repetição Espaçada)
+msgid "Again"
+msgstr "Novamente"
+
+msgid "Good"
+msgstr "Bom"
+
+msgid "Easy"
+msgstr "Fácil"
+
+msgid "SESSION"
+msgstr "SESSÃO"
+
+msgid "COMPLETE!"
+msgstr "CONCLUÍDA!"
+
+msgid "You studied"
+msgstr "Você estudou"
+
+msgid "card"
+msgstr "cartão"
+
+msgid "cards"
+msgstr "cartões"
+
+msgid "Done"
+msgstr "Concluído"
+
+msgid "Undo last card"
+msgstr "Desfazer último cartão"
+
+msgid "Study mode is off for this book."
+msgstr "O modo de estudo está desativado para este livro."
+
+msgid "Nothing to study right now."
+msgstr "Nada para estudar no momento."
+
+msgid "Study mode"
+msgstr "Modo de estudo"
+
+msgid "Everywhere"
+msgstr "Em todos os lugares"
+
+msgid "Only in a folder"
+msgstr "Apenas em uma pasta"
+
+msgid "Change"
+msgstr "Alterar"
+
+msgid "Reset study progress"
+msgstr "Redefinir progresso de estudo"
+
+msgid "This book"
+msgstr "Este livro"
+
+msgid "Choose study folder"
+msgstr "Escolher pasta de estudo"
+
+msgid "Reset the study progress of this book? Every highlight and note will start again from zero."
+msgstr "Redefinir o progresso de estudo deste livro? Cada destaque e nota começará do zero."
+
+msgid "Study progress reset."
+msgstr "Progresso de estudo redefinido."
+
+msgid "Could not reset the study progress."
+msgstr "Não foi possível redefinir o progresso de estudo."
+
+msgid "Study"
+msgstr "Estudar"
+
+# Frontlight / Linha de Status
+msgid "Frontlight enabled"
+msgstr "Luz frontal ativada"
+
+msgid "Frontlight disabled"
+msgstr "Luz frontal desativada"
+
+msgid "Status row"
+msgstr "Linha de status"
+
+# Ícones Personalizados
+msgid "Custom icons"
+msgstr "Ícones personalizados"
+
+msgid "Overview"
+msgstr "Visão geral"
+
+msgid "Icons"
+msgstr "Ícones"
+
+msgid "Custom"
+msgstr "Personalizado"
+
+msgid "Default"
+msgstr "Padrão"
+
+msgid "Pick a custom SVG..."
+msgstr "Escolher um SVG personalizado..."
+
+msgid "Reset to default icon"
+msgstr "Redefinir para o ícone padrão"
+
+msgid "Pick an SVG for %s"
+msgstr "Escolha um SVG para %s"
+
+msgid "Please select a .svg file"
+msgstr "Por favor, selecione um arquivo .svg"
+
+msgid "Icon updated. Reopen the scrubber to see the change."
+msgstr "Ícone atualizado. Reabra o scrubber para ver a alteração."
+
+msgid "Could not use that icon: "
+msgstr "Não foi possível usar esse ícone: "
+
+msgid "Reset \"%s\" to the default icon?"
+msgstr "Redefinir \"%s\" para o ícone padrão?"
+
+msgid "Reset ALL custom icons back to the plugin defaults?"
+msgstr "Redefinir TODOS os ícones personalizados para os padrões do plugin?"
+
+msgid "Reset all to default"
+msgstr "Redefinir todos para o padrão"
+
