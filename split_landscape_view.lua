@@ -317,6 +317,8 @@ function SplitLandscapeView.paint(scrubber, bb)
     scrubber._tab_bm_dimen = drawTab("bookmarks", scrubber.icon_tab_bm, #(scrubber:_getAllBookmarks() or {}))
     scrubber._tab_hl_dimen = drawTab("highlights", scrubber.icon_tab_hl, #(scrubber._cached_hl or {}))
     scrubber._tab_note_dimen = drawTab("notes", scrubber.icon_tab_note, #(scrubber._cached_notes or {}))
+
+    scrubber._tab_review_dimen = nil
     scrubber._tab_img_dimen = nil
     if scrubber._imgTabEnabled then
         if scrubber._active_tab == "images" and not scrubber._img_scan_requested then
@@ -325,6 +327,11 @@ function SplitLandscapeView.paint(scrubber, bb)
         end
         local img_count = scrubber:_imgCount()
         scrubber._tab_img_dimen = drawTab("images", scrubber.icon_tab_img, img_count)
+    end
+
+    -- Botón "Study" (repaso espaciado) a la derecha de las pestañas; solo si el ajuste está activo
+    if require("srs").isStudyActive(scrubber.ui) then
+        scrubber._tab_review_dimen = scrubber:_paintStudyButton(bb, tab_draw_y, tab_h, cur_tab_x, card_x + card_w, font_sz_chiquito + S(1))
     end
 
     -- =========================================================

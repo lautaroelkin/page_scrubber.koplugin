@@ -18,6 +18,8 @@ local logger          = require("logger")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local Widget          = require("ui/widget/widget")
 local ok_hatch, Hatching = pcall(require, "hatching")
+local ok_icon_mgr, IconManager = pcall(require, "icon_manager")   -- reemplazos de íconos del usuario
+if not ok_icon_mgr then IconManager = nil end
 
 -- Lector de .po en vivo
 local _dict = {}
@@ -296,21 +298,26 @@ function ScrubberToc:init()
     local function createSafeIcon(icon_char, svg_filename, sz, custom_color)
         local fg = custom_color or Blitbuffer.COLOR_BLACK
         local base_path = PLUGIN_DIR .. "/icons/" .. svg_filename
+        if IconManager then
+            local custom_path = IconManager.resolvePath(svg_filename)
+            if custom_path then base_path = custom_path end
+        end
         local ok, widget = pcall(function()
             local ImageWidget = require("ui/widget/imagewidget")
             return ImageWidget:new{ 
                 file = base_path, width = sz, height = sz, 
                 alpha = true, fgcolor = fg,
                 original_in_nightmode = false,
+                file_do_cache = false,   -- si no, un reemplazo con el mismo path podría seguir mostrando el ícono viejo
             }
         end)
         if ok and widget then return widget end
         return TextWidget:new{ text = icon_char, face = Font:getFace("cfont", sz), fgcolor = fg }
     end
 
-    self.icon_wifi_0    = createSafeIcon("0", "wifi-zero.svg", S(42))
-    self.icon_wifi_1    = createSafeIcon("1", "wifi-low.svg", S(42))
-    self.icon_wifi_2    = createSafeIcon("2", "wifi-high.svg", S(42))
+    self.icon_wifi_0    = createSafeIcon("0", "zero.svg", S(42))
+    self.icon_wifi_1    = createSafeIcon("1", "low.svg", S(42))
+    self.icon_wifi_2    = createSafeIcon("2", "high.svg", S(42))
     
     self.icon_ch_prev   = createSafeIcon("|<", "skip-back.svg", S(40)) 
     self.icon_ch_prev_inv = createSafeIcon("|<", "skip-back.svg", S(40), Blitbuffer.COLOR_WHITE) 

@@ -552,14 +552,22 @@ end
 -- ==========================================
 -- VERIFICADOR DE SVG SEGURO
 -- ==========================================
+local ok_icon_mgr, IconManager = pcall(require, "icon_manager")   -- reemplazos de íconos del usuario
+if not ok_icon_mgr then IconManager = nil end
+
 local function getValidSvgPath(svg_name)
     if not svg_name then return nil end
+    -- Cada gsub va entre paréntesis: así devuelve solo el string y no suma el contador a la tabla
     local variants = {
         svg_name,
-        svg_name:gsub("-", "_"),
-        svg_name:gsub("_", "-")
+        (svg_name:gsub("%-", "_")),
+        (svg_name:gsub("_", "-"))
     }
     for _, name in ipairs(variants) do
+        if IconManager then
+            local custom_or_plugin = IconManager.resolvePath(name)
+            if custom_or_plugin then return custom_or_plugin end
+        end
         local paths = {
             plugin_path .. "icons/" .. name,
             plugin_path .. name,
@@ -598,6 +606,7 @@ function PreviewButton:init()
                 alpha = true,
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 original_in_nightmode = false,
+                file_do_cache = false,
             }
         end)
         if ok and widget then
@@ -2699,7 +2708,36 @@ function ColorSwatchPopup:init()
     self.circle_d = sk(54)
     self.border = scale(2)
     self.radius = sk(16)
-    self.face = Font:getFace("cfont", math.max(8, math.floor(scaleText(17) * POPUP_K + 0.5)))
+    local font_sz = math.max(8, math.floor(scaleText(17) * POPUP_K + 0.5))
+
+    -- Los nombres de los colores cambian de largo según el idioma ("Verde oliva", "Amarillo"...): se mide el más
+    -- ancho (en negrita, que es como se marca el actual) y, si no entra, primero se ensancha la celda y después,
+    -- si hace falta, se achica la letra, para que los textos de celdas vecinas nunca se pisen.
+    local function measure(face, text)
+        local tw = TextWidget:new({ text = text, face = face, bold = true })
+        local sz = tw:getSize()
+        tw:free()
+        return sz.w, sz.h
+    end
+    local max_cell_w = math.floor((sw - scale(16) - self.pad * 2) / cols)   -- tope: que el popup entre en pantalla
+    local label_gap = scale(6)
+    local face, widest, label_h
+    while true do
+        face = Font:getFace("cfont", font_sz)
+        widest, label_h = 0, 0
+        for _, v in ipairs(clean) do
+            local lw, lh = measure(face, tostring(v[1] or v[2] or ""))
+            if lw > widest then widest = lw end
+            if lh > label_h then label_h = lh end
+        end
+        if widest + scale(8) <= max_cell_w or font_sz <= 8 then break end
+        font_sz = font_sz - 1
+    end
+    self.face = face
+    self.label_gap = label_gap
+    self.cell_w = math.max(self.cell_w, math.min(max_cell_w, widest + scale(10)))
+    -- Alto de la celda según el alto real del texto: círculo + aire + texto + aire (las filas no se solapan)
+    self.cell_h = math.max(self.cell_h, scale(4) + self.circle_d + label_gap + label_h + scale(8))
 
     local w = cols * self.cell_w + self.pad * 2
     local h = rows * self.cell_h + self.pad * 2
@@ -2808,9 +2846,13 @@ function ColorSwatchPopup:paintTo(bb, x, y)
                 paintCornerRect(bb, cx + ring, cy + ring, inner, inner, math.floor(inner / 2), Blitbuffer.COLOR_GRAY, true, true, true, true)
             end
 
-            local tw = TextWidget:new({ text = cell.name, face = self.face, fgcolor = Blitbuffer.COLOR_BLACK, bold = is_current })
+            -- max_width + "…" como último recurso: nunca invade la celda de al lado
+            local tw = TextWidget:new({
+                text = cell.name, face = self.face, fgcolor = Blitbuffer.COLOR_BLACK, bold = is_current,
+                max_width = cell.dimen.w - scale(2), truncate_with_ellipsis = true,
+            })
             local tsz = tw:getSize()
-            tw:paintTo(bb, cell.dimen.x + math.floor((cell.dimen.w - tsz.w) / 2), cy + d + scale(6))
+            tw:paintTo(bb, cell.dimen.x + math.floor((cell.dimen.w - tsz.w) / 2), cy + d + (self.label_gap or scale(6)))
             tw:free()
         end
     end)

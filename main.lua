@@ -63,7 +63,29 @@ local function getScale()
     return 1.0 
 end
 
+-- KOReader le pone el prefijo "NEW:" a cualquier ítem de menú que no figure en su lista de orden
+-- (reader_menu_order). Se registra el ítem ahí para que el submenú aparezca normal, sin el prefijo.
+local MENU_ITEM_ID = "page_scrubber"
+
+local function registerInMenuOrder()
+    local ok, order = pcall(require, "ui/elements/reader_menu_order")
+    if not ok or type(order) ~= "table" then return end
+    -- El ítem puede quedar en "navi" o dentro de "document" según el menú; si en una de las
+    -- listas no existe, KOReader simplemente ignora el id.
+    for _i, section in ipairs({ "navi", "document" }) do
+        local list = order[section]
+        if type(list) == "table" then
+            local found = false
+            for _j, id in ipairs(list) do
+                if id == MENU_ITEM_ID then found = true; break end
+            end
+            if not found then table.insert(list, MENU_ITEM_ID) end
+        end
+    end
+end
+
 function PageScrubberPlugin:init()
+    registerInMenuOrder()
     Dispatcher:registerAction("page_scrubber_grid_action", { category = "none", event = "PageScrubberGrid", title = _("Page Scrubber: Grid"), reader = true })
     Dispatcher:registerAction("page_scrubber_simple_grid_action", { category = "none", event = "PageScrubberSimpleGrid", title = _("Page Scrubber: Simple Grid"), reader = true })
     Dispatcher:registerAction("page_scrubber_multi_grid_action", { category = "none", event = "PageScrubberMultiGrid", title = _("Page Scrubber: Multi-Grid"), reader = true })
@@ -72,6 +94,7 @@ function PageScrubberPlugin:init()
     Dispatcher:registerAction("page_scrubber_toc_action", { category = "none", event = "PageScrubberToc", title = _("Page Scrubber: Index"), reader = true })
     Dispatcher:registerAction("page_scrubber_toc_expanded_action", { category = "none", event = "PageScrubberTocExpanded", title = _("Page Scrubber: Index (Table of Content)"), reader = true })
     Dispatcher:registerAction("page_scrubber_toggle_rtl_action", { category = "none", event = "PageScrubberToggleRTL", title = _("Page Scrubber: Toggle RTL"), reader = true })
+    Dispatcher:registerAction("page_scrubber_study_action", { category = "none", event = "PageScrubberStudy", title = _("Page Scrubber: Study"), reader = true })
     Dispatcher:registerAction("page_scrubber_quick_menu_action", { category = "none", event = "PageScrubberQuickMenu", title = _("Page Scrubber: Quick Menu"), reader = true, separator = true })
 
     if self.ui.menu then self.ui.menu:registerToMainMenu(self) end
@@ -175,6 +198,34 @@ function ReaderUI:onPageScrubberToggleRTL()
         text = msg,
         timeout = 1.5,
     })
+    return true
+end
+
+-- Abre el split y, apenas termina de construirse, el Review Card (ver initial_open_review en scrubber_ui.lua).
+-- Respeta el modo estudio (Off / Everywhere / Only in a folder): si no está activo para este libro, solo avisa.
+function ReaderUI:onPageScrubberStudy()
+    local ui = self
+    if not ui.document then return end
+
+    if not require("srs").isStudyActive(ui) then
+        local InfoMessage = require("ui/widget/infomessage")
+        UIManager:show(InfoMessage:new{ text = _("Study mode is off for this book."), timeout = 2 })
+        return true
+    end
+
+    UIManager:nextTick(function()
+        if not ui or not ui.document then return end
+        local ScrubberUI = require("scrubber_ui")
+        UIManager:show(ScrubberUI:new{
+            ui                  = ui,
+            document            = ui.document,
+            initial_view_mode   = "split",
+            initial_tab         = "bookmarks",
+            ui_scale            = getScale(),
+            initial_open_review = true,
+        })
+        if Device:isKindle() then UIManager:setDirty(nil, "full") end
+    end)
     return true
 end
 

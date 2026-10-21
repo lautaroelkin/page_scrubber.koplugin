@@ -73,6 +73,8 @@ local HL_COLOR_NAMES = {
 local GridSimpleView    = require("grid_simple_view")
 local ProgressSlider    = require("progress_slider")
 local ScrubberWallpaper = require("scrubber_wallpaper")
+local ok_icon_mgr, IconManager = pcall(require, "icon_manager")   -- reemplazos de íconos del usuario
+if not ok_icon_mgr then IconManager = nil end
 local Screen            = Device.screen
 
 local function flatten_keys(...)
@@ -554,12 +556,17 @@ function PageScrubber:init()
     local function createSafeIcon(icon_char, svg_filename, sz, custom_color)
         local fg = custom_color or Blitbuffer.COLOR_BLACK
         local base_path = PLUGIN_DIR .. "/icons/" .. svg_filename
+        if IconManager then
+            local custom_path = IconManager.resolvePath(svg_filename)
+            if custom_path then base_path = custom_path end
+        end
         local ok, widget = pcall(function()
             local ImageWidget = require("ui/widget/imagewidget")
             return ImageWidget:new{ 
                 file = base_path, width = sz, height = sz, 
                 alpha = true, fgcolor = fg,
                 original_in_nightmode = false,
+                file_do_cache = false,
             }
         end)
         if ok and widget then return widget end
@@ -595,6 +602,13 @@ function PageScrubber:init()
     self.icon_tab_hl   = createSafeIcon("\u{E931}", "majesticons--filter.svg", tab_icon_sz)
     self.icon_tab_note = createSafeIcon("\u{F075}", "majesticons--chat-2-text.svg", tab_icon_sz)
     self.icon_tab_img  = createSafeIcon("\u{F03E}", "image-svgrepo-com.svg", tab_icon_sz)
+
+    -- Ícono del tab de repaso (SRS): highlighter.svg; si falta, glifo de refresco
+    self.icon_tab_review = createSafeIcon("\u{F021}", "highlighter.svg", tab_icon_sz)
+    -- Icono de aviso al lado del texto del botón Study (alert-circle.svg; si falta, un "!")
+    self.icon_study_alert = createSafeIcon("!", "alert-circle.svg", tab_icon_sz)
+    -- Ícono del botón Study cuando ya no queda nada por estudiar (abre el modo repaso): award.svg
+    self.icon_study_done = createSafeIcon("\u{2605}", "award.svg", tab_icon_sz)
 
     self.icon_sort_asc  = createSafeIcon("\u{EBBB}", "arrow-up-wide-narrow.svg", tab_icon_sz)
     self.icon_sort_desc = createSafeIcon("\u{EBBC}", "arrow-down-wide-narrow.svg", tab_icon_sz)
@@ -854,6 +868,21 @@ function PageScrubber:init()
                 if not self._closing then self:_updateGridPages() end
             end)
         end
+    end
+
+    -- Acción de Dispatcher "Study": abre el Review Card apenas el scrubber terminó de construirse
+    if self.initial_open_review then
+        UIManager:scheduleIn(0.35, function()
+            if self._closing then return end
+            -- Respeta el modo estudio (Off / Everywhere / Only in a folder) del libro abierto
+            if not require("srs").isStudyActive(self.ui) then
+                UIManager:show(InfoMessage:new{ text = _("Study mode is off for this book."), timeout = 2 })
+                return
+            end
+            -- Las anotaciones se cargan perezosamente: asegurarlas antes de armar las tarjetas
+            if not self._cached_hl then pcall(function() self:_extractAnnotations() end) end
+            self:_openReviewCard()
+        end)
     end
 end
 
@@ -1370,6 +1399,150 @@ function PageScrubber:_openColorMenu(anchor)
             end
         })
     end)
+end
+
+-- Anotaciones del libro para el repaso: highlights + notas, sin duplicar las que tienen ambos
+function PageScrubber:_getReviewItems()
+    local items, seen = {}, {}
+    for _i, it in ipairs(self._cached_hl or {}) do
+        local k = it.raw_index or it.page
+        if k and not seen[k] then seen[k] = true; items[#items + 1] = it end
+    end
+    for _i, it in ipairs(self._cached_notes or {}) do
+        local k = it.raw_index or it.page
+        if k and not seen[k] then seen[k] = true; items[#items + 1] = it end
+    end
+    return items
+end
+
+-- Botón "Study" a la derecha de las pestañas del split: abre el Review Card.
+-- Muestra "Study (N)" con las tarjetas por repasar; si no hay lugar, solo "Study"; si tampoco, solo el ícono.
+-- free_x = primer x libre después de la última pestaña; right_x = borde derecho disponible.
+-- Devuelve el rectángulo del botón (para el toque) o nil si no entra.
+function PageScrubber:_paintStudyButton(bb, y, h, free_x, right_x, font_sz)
+    local S = self.S
+    local SRS = require("srs")
+    local review_items = self:_getReviewItems()
+    local n = SRS.getDueCount(self.ui, review_items)
+    -- Nada por estudiar: en vez de desaparecer queda solo el ícono award.svg (abre el modo repaso).
+    -- Solo se oculta si el libro no tiene ningún highlight ni nota.
+    local review_only = (n <= 0)
+    if review_only and #review_items == 0 then return nil end
+    local pressed = (self._pressed_btn == "study")
+    local fg = pressed and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+    local face = Font:getFace("cfont", font_sz)
+    local pad = S(14)
+    local avail = right_x - free_x - S(6)
+
+    -- Prioridad: texto con contador > sin contador; en cada caso se prefiere con el ícono de aviso a su izquierda
+    local alert = self.icon_study_alert
+    local asz = alert and alert:getSize() or { w = 0, h = 0 }
+    local agap = S(6)
+    local tw, use_alert
+    local cands = review_only and {} or {
+        { _("Study") .. " (" .. tostring(n) .. ")", true }, { _("Study") .. " (" .. tostring(n) .. ")", false },
+        { _("Study"), true }, { _("Study"), false },
+    }
+    for _i, cand in ipairs(cands) do
+        if not cand[2] or alert then
+            local t = TextWidget:new{ text = cand[1], face = face, bold = true, fgcolor = fg }
+            local need = t:getSize().w + pad * 2 + (cand[2] and (asz.w + agap) or 0)
+            if need <= avail then tw = t; use_alert = cand[2]; break end
+            t:free()
+        end
+    end
+
+    local btn_icon = review_only and (self.icon_study_done or self.icon_tab_review) or self.icon_tab_review
+    local isz = btn_icon and btn_icon:getSize() or { w = S(18), h = S(18) }
+    local w = tw and (tw:getSize().w + pad * 2 + (use_alert and (asz.w + agap) or 0)) or (isz.w + S(16))
+    if w > avail then return nil end
+
+    local x = right_x - w
+    local r = math.floor(h / 2)
+    -- Gris clarito como las pestañas inactivas; negro mientras se presiona
+    local fill = pressed and Blitbuffer.COLOR_BLACK
+        or (Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
+    paintRoundRect(bb, x, y, w, h, r, fill)
+
+    if tw then
+        local tsz = tw:getSize()
+        local group_w = tsz.w + (use_alert and (asz.w + agap) or 0)
+        local gx = x + math.floor((w - group_w) / 2)
+        if use_alert then
+            local ax, ay = gx, y + math.floor((h - asz.h) / 2)
+            if pressed then
+                bb:paintRect(ax, ay, asz.w, asz.h, Blitbuffer.COLOR_WHITE)
+                alert:paintTo(bb, ax, ay)
+                bb:invertRect(ax, ay, asz.w, asz.h)
+            else
+                alert:paintTo(bb, ax, ay)
+            end
+            gx = gx + asz.w + agap
+        end
+        tw:paintTo(bb, gx, y + math.floor((h - tsz.h) / 2))
+        tw:free()
+    elseif btn_icon then
+        local ix, iy = x + math.floor((w - isz.w) / 2), y + math.floor((h - isz.h) / 2)
+        if pressed then
+            bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
+            btn_icon:paintTo(bb, ix, iy)
+            bb:invertRect(ix, iy, isz.w, isz.h)
+        else
+            btn_icon:paintTo(bb, ix, iy)
+        end
+    end
+    return Geom:new{ x = x, y = y, w = w, h = h }
+end
+
+-- Etiqueta del tipo de anotación con su color entre paréntesis, igual que el título del panel de detalle:
+-- "Highlight (Yellow)", "Strikethrough (Orange)", "Invert", "Note"
+function PageScrubber:_getHighlightTypeLabel(e)
+    if type(e) ~= "table" then return nil end
+    local a = e.annotation
+    if a and a.drawer == nil and type(e.note) == "string" and e.note ~= "" then
+        return _("Note")
+    end
+    local type_names = {
+        normal = _("Highlight"), invert = _("Invert"),
+        underline = _("Underline"), strikethrough = _("Strikethrough"),
+    }
+    local label = type_names[e.type] or _("Highlight")
+    if e.type ~= "invert" and type(e.color) == "string" and e.color ~= "" then
+        local cname = HL_COLOR_NAMES[e.color] or (e.color:sub(1, 1):upper() .. e.color:sub(2))
+        label = label .. " (" .. cname .. ")"
+    end
+    return label
+end
+
+-- Abre el Review Card (repaso espaciado)
+function PageScrubber:_openReviewCard()
+    local SRS = require("srs")
+    local items = self:_getReviewItems()
+    local due = SRS.getDue(self.ui, items)
+    -- Sin tarjetas due: modo repaso (todas las tarjetas, sin botones Again/Good/Easy, no toca el SRS)
+    local review_only = false
+    if #due == 0 then
+        due = SRS.getAll(self.ui, items)
+        review_only = true
+    end
+    if #due == 0 then
+        UIManager:show(InfoMessage:new{ text = _("Nothing to study right now."), timeout = 2 })
+        return
+    end
+    local ReviewView = require("review_view")
+    local rv = ReviewView:new{
+        scrubber_ui = self,
+        due = due,
+        review_only = review_only,
+        on_close = function()
+            -- Refresca el contador del tab al cerrar el Review Card
+            pcall(function() UIManager:setDirty(self, "ui", self.dimen) end)
+        end,
+    }
+    -- e-ink (Kindle): refresh explícito de pantalla completa al abrir. Sin esto, la tarjeta queda pintada
+    -- en el buffer pero la pantalla solo refresca el rect del botón (_flashAndDo) hasta el primer toque.
+    UIManager:show(rv, "ui", rv.dimen)
+    UIManager:setDirty(rv, "ui", rv.dimen)
 end
 
 -- Flechita hacia abajo (triángulo) para las pestañas con selector de color
@@ -4038,6 +4211,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
     self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)
     self._tab_note_dimen = drawTabWithSVG("notes", self.icon_tab_note, note_count)
+
+    self._tab_review_dimen = nil
     self._tab_img_dimen = nil
     if self._imgTabEnabled then
         if self._active_tab == "images" and not self._img_scan_requested then
@@ -4046,6 +4221,11 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         end
         local img_count = self:_imgCount()
         self._tab_img_dimen = drawTabWithSVG("images", self.icon_tab_img, img_count)
+    end
+
+    -- Botón "Study" (repaso espaciado) a la derecha de las pestañas; solo si el ajuste está activo
+    if require("srs").isStudyActive(self.ui) then
+        self._tab_review_dimen = self:_paintStudyButton(bb, tab_draw_y, tab_h, current_tab_x, sw - pr_x, font_sz_chiquito + S(1))
     end
 
     local card_x = pr_x
@@ -7036,7 +7216,13 @@ function PageScrubber:onTap(_, ges)
             UIManager:setDirty(self, "ui", self.dimen)
             return true
         end
-        
+
+        -- Tap en el tab de repaso: abre el Review Card
+        if self._tab_review_dimen and ges.pos:intersectWith(self._tab_review_dimen) then
+            self:_flashAndDo("study", self._tab_review_dimen, function() self:_openReviewCard() end)
+            return true
+        end
+
         if self._split_fixed_toggle_dimen and ges.pos:intersectWith(self._split_fixed_toggle_dimen) then
             local tgt = self._split_fixed_page or self._origin_page
             self:_safeBookmarkToggle(tgt)
@@ -7837,7 +8023,7 @@ function PageScrubber:onCloseWidget()
         self.tw_booktitle, self.tw_chapter, self.tw_info,
         self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_gallery, self.tw_toc, self.tw_grid_toggle, self.tw_x,
         self.icon_gs_x_inv, self.icon_gs_chevron_left_inv, self.icon_gs_chevron_right_inv,
-        self.icon_tab_chev_down, self.icon_tab_chev_up,
+        self.icon_tab_chev_down, self.icon_tab_chev_up, self.icon_tab_review, self.icon_study_alert, self.icon_study_done,
         self.tw_ch_l, self.tw_ch_r,
         self.tw_ctrl_prev, self.tw_ctrl_next,
         self.tw_fb_l, self.tw_fb_r,

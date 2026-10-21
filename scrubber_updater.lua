@@ -3,6 +3,10 @@
 -- Pregunta por la última release, la compara con la versión instalada (campo `version` de _meta.lua)
 -- y, si el usuario acepta, descarga el .zip, lo descomprime en una carpeta temporal y lo copia
 -- encima de la carpeta del plugin (guardando antes una copia para poder volver atrás si falla).
+-- Después de copiar, borra los archivos instalados (.lua, .svg, .png, .po) que ya no están en la versión nueva
+-- (así, si un archivo se mueve de carpeta o se elimina, no quedan copias viejas sueltas) y las carpetas que
+-- hayan quedado vacías.
+-- Al detectar una versión nueva se abre un visor (TextViewer) con las notas completas y los botones Install / Cancel.
 -- Al terminar ofrece reiniciar KOReader.
 -- Basado en el updater de Kobold/Mythos.
 
@@ -89,9 +93,29 @@ local function download(url, dest)
     return true
 end
 
+local NOTES_MAX = 4000
+
+-- Markdown de GitHub -> texto plano legible: sin #, **, *, `código` ni enlaces [texto](url).
+local function cleanNotes(raw)
+    local t = (raw or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+    t = t:gsub("<!%-%-.-%-%->", "")                  -- comentarios HTML (marcas)
+    t = t:gsub("%[([^%]]+)%]%([^%)]+%)", "%1")       -- [texto](url) -> texto
+    t = t:gsub("\n[ \t]*[%*%+][ \t]+", "\n- ")             -- viñetas "* " / "+ " -> "- " (antes de tocar los *)
+    t = t:gsub("^[ \t]*[%*%+][ \t]+", "- ")
+    t = t:gsub("\n#+[ \t]*", "\n"):gsub("^#+[ \t]*", "")    -- títulos "## Texto" -> "Texto"
+    t = t:gsub("%*%*(.-)%*%*", "%1")
+    t = t:gsub("%*([^%s%*][^%*\n]-)%*", "%1")
+    t = t:gsub("`(.-)`", "%1")
+    t = t:gsub("\n%s*\n%s*\n+", "\n\n")
+    t = t:match("^%s*(.-)%s*$") or ""
+    if #t > NOTES_MAX then t = t:sub(1, NOTES_MAX - 3) .. "..." end
+    return t
+end
+
 -- { version, url, notes } de la última release, o nil y el motivo.
 -- Las notas son el texto entre <!--pagescrubber--> y <!--/pagescrubber--> de la descripción de la release,
--- o el principio de la descripción si no hay marcas.
+-- o toda la descripción si no hay marcas. Se limpia el markdown (el visor muestra texto plano) y solo se recorta
+-- si pasa de NOTES_MAX caracteres (mismo criterio que el updater de X-Ray).
 local function latestRelease()
     local body, err = httpGet(API_URL)
     if not body then return nil, err end
@@ -117,16 +141,92 @@ local function latestRelease()
 
     local raw = (data.body or ""):gsub("\r\n", "\n")
     local notes = raw:match("<!%-%-pagescrubber%-%->(.-)<!%-%-/pagescrubber%-%->")
-    if not notes or not notes:match("%S") then
-        notes = #raw > 600 and (raw:sub(1, 600) .. "...") or raw
-    end
-    notes = notes:match("^%s*(.-)%s*$")
+    if not notes or not notes:match("%S") then notes = raw end
+    notes = cleanNotes(notes)
     return { version = data.tag_name:match("^v?(.*)$"), url = url, notes = notes ~= "" and notes or nil }
 end
 
 local function sh(cmd)
     local ret = os.execute(cmd)
     return ret == 0 or ret == true
+end
+
+-- Extensiones que la limpieza considera "del plugin". Además de .lua y .svg (pedidos), se incluyen .png y .po
+-- (iconos raster y traducciones) con el mismo criterio: instalado, pero ausente en la versión nueva.
+local CLEAN_EXT = { lua = true, svg = true, png = true, po = true }
+
+-- Los enlaces simbólicos no se siguen ni se borran: así nunca se sale de la carpeta del plugin.
+local linkAttributes = lfs.symlinkattributes or lfs.attributes
+
+-- Todos los archivos con extensión de CLEAN_EXT de una carpeta (recursivo), como set de rutas relativas
+-- ("scrubber_ui.lua", "grid/grid_view.lua", "icons/undo.svg")
+local function listFiles(root, rel, out)
+    rel = rel or ""
+    out = out or {}
+    local path = rel == "" and root or (root .. "/" .. rel)
+    local ok, iter, dir_obj = pcall(lfs.dir, path)
+    if not ok or not iter then return out end
+    for name in iter, dir_obj do
+        if name ~= "." and name ~= ".." then
+            local r = rel == "" and name or (rel .. "/" .. name)
+            local mode = linkAttributes(root .. "/" .. r, "mode")
+            if mode == "directory" then
+                listFiles(root, r, out)
+            elseif mode == "file" then
+                local ext = name:match("%.([^.]+)$")
+                if ext and CLEAN_EXT[ext:lower()] then out[r] = true end
+            end
+        end
+    end
+    return out
+end
+
+-- Borra de `installed_dir` los archivos (.lua, .svg, .png, .po) que no vienen en `new_dir` (la versión recién
+-- copiada) y después las carpetas que hayan quedado vacías (nunca la carpeta del plugin en sí).
+-- Seguro: si lo descargado no trae main.lua y _meta.lua, no borra nada. Si un borrado falla, lo registra y sigue.
+local function removeStaleFiles(new_dir, installed_dir)
+    local fresh = listFiles(new_dir)
+    if not fresh["main.lua"] or not fresh["_meta.lua"] then return 0 end
+    local removed = 0
+    local touched = {}   -- carpetas (rutas relativas) donde se borró algo: candidatas a quedar vacías
+    for rel in pairs(listFiles(installed_dir)) do
+        if not fresh[rel] then
+            local ok, res, err = pcall(os.remove, installed_dir .. "/" .. rel)
+            if ok and res then
+                removed = removed + 1
+                logger.info("PageScrubber: removed stale file", rel)
+                local d = rel:match("^(.*)/[^/]+$")
+                while d and not touched[d] do   -- también los padres (icons/sub/ → icons/)
+                    touched[d] = true
+                    d = d:match("^(.*)/[^/]+$")
+                end
+            else
+                logger.warn("PageScrubber: could not remove stale file", rel, tostring(ok and err or res))
+            end
+        end
+    end
+    -- Carpetas vacías: de la más profunda a la más superficial. lfs.rmdir solo borra directorios vacíos,
+    -- así que una carpeta con cualquier otro contenido (u otro tipo de archivo) simplemente se queda.
+    local dirs = {}
+    for d in pairs(touched) do dirs[#dirs + 1] = d end
+    table.sort(dirs, function(a, b)
+        local _n1, da = a:gsub("/", "")
+        local _n2, db = b:gsub("/", "")
+        if da ~= db then return da > db end
+        return a > b
+    end)
+    for _i, d in ipairs(dirs) do
+        local path = installed_dir .. "/" .. d
+        if linkAttributes(path, "mode") == "directory" then
+            local ok, res = pcall(lfs.rmdir, path)
+            if ok and res then
+                logger.info("PageScrubber: removed empty folder", d)
+            else
+                logger.dbg("PageScrubber: kept non-empty folder", d)
+            end
+        end
+    end
+    return removed
 end
 
 -- Descarga e instala `release`. Corre con un pequeño retraso para que el mensaje "Downloading" ya esté en pantalla.
@@ -192,6 +292,10 @@ local function install(release)
             return
         end
 
+        -- Limpieza: archivos viejos (.lua, .svg, .png, .po) que la versión nueva ya no trae, y carpetas que quedaron
+        -- vacías (si falla, no impide terminar la instalación)
+        pcall(removeStaleFiles, inner, dir)
+
         sh(string.format("rm -rf %q %q", work, backup))
         UIManager:show(ConfirmBox:new{
             text = string.format(_("PageScrubber %s is installed.\n\nRestart KOReader to use it?"), release.version),
@@ -206,6 +310,36 @@ local function install(release)
             end,
         })
     end)
+end
+
+-- Visor con las notas completas de la release (scrolleable, sin recortar) y los botones Install / Cancel.
+-- Se abre directamente al detectar una versión nueva (sin paso intermedio con un resumen corto).
+local function showUpdateDialog(release, current)
+    local TextViewer = require("ui/widget/textviewer")
+    local text = string.format(_("PageScrubber %s is available. You have %s."), release.version, current)
+        .. (release.notes and ("\n\n" .. release.notes) or "")
+        .. "\n\n" .. _("Download and install now?")
+    local viewer
+    viewer = TextViewer:new{
+        title = "PageScrubber " .. tostring(release.version),
+        text = text,
+        justified = false,   -- las notas son texto de GitHub (listas, líneas cortas): mejor sin justificar
+        buttons_table = {{
+            {
+                text = _("Cancel"),
+                callback = function() UIManager:close(viewer) end,
+            },
+            {
+                text = _("Install"),
+                is_enter_default = true,
+                callback = function()
+                    UIManager:close(viewer)
+                    install(release)
+                end,
+            },
+        }},
+    }
+    UIManager:show(viewer)
 end
 
 -- Busca una release más nueva en GitHub y ofrece instalarla. Enciende el Wi-Fi si hace falta,
@@ -242,13 +376,7 @@ function Updater.check()
                 })
                 return
             end
-            UIManager:show(ConfirmBox:new{
-                text = string.format(_("PageScrubber %s is available. You have %s."), release.version, current)
-                    .. (release.notes and ("\n\n" .. release.notes) or "")
-                    .. "\n\n" .. _("Download and install now?"),
-                ok_text = _("Install"),
-                ok_callback = function() install(release) end,
-            })
+            showUpdateDialog(release, current)
         end)
     end)
 end
