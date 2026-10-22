@@ -104,6 +104,14 @@ Download `page_scrubber.koplugin-vX.Y.Z.zip` from the [latest release](../../rel
 >* **Swipe down:** To Exit (X).
 
 ---
+## _Study Mode_
+Turns your highlights and notes into flashcards, using spaced repetition like Anki.
+
+*   **Off by default:** enable it for all books or only for specific folders, like School, University or Work.
+*   **Study:** open the **Study** button in the split menu. Rate each card **Again**, **Good** or **Easy**. The easier the card, the longer it takes to come back.
+*   **Review mode:** after a session, browse your annotations without rating them, so your progress doesn't change.
+*   **On each card:** tap the page to jump to it and read the context, or undo a card you rated wrong.
+*   **Storage:** progress is saved in each book's `.sdr` folder. Reset it from **Settings > Study Mode > Reset Study Progress**.
 
 ## _RTL Support_
 Page Scrubber fully supports Right-to-Left reading order for manga, comics, and right-to-left documents:
