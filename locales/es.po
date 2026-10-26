@@ -639,3 +639,8 @@ msgstr "¿Restaurar TODOS los iconos personalizados a los valores por defecto de
 msgid "Reset all to default"
 msgstr "Restablecer todos por defecto"
 
+msgid "Progress bar"
+msgstr "Barra de progreso"
+
+msgid "Breadcrumb pins in slider"
+msgstr "Pines de recorrido en la barra"

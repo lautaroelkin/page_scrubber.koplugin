@@ -588,3 +588,8 @@ msgstr "Redefinir TODOS os ícones personalizados para os padrões do plugin?"
 msgid "Reset all to default"
 msgstr "Redefinir todos para o padrão"
 
+msgid "Progress bar"
+msgstr "Barra de progresso"
+
+msgid "Breadcrumb pins in slider"
+msgstr "Pins de percurso na barra"
