@@ -12,6 +12,7 @@ local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local ProgressSlider  = require("progress_slider")
+local Breadcrumbs     = require("breadcrumbs")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
@@ -482,6 +483,7 @@ function ScrubberToc:init()
     self._slider_x = slider_pad_x
     self._slider = ProgressSlider:new{ width = slider_w, value = self._cur_page, value_min = 1, value_max = self._total_pages, ticks = nil, S = S, is_rtl = self.is_rtl }
     self:_updateChapterMarks()
+    self:_refreshSliderMarks()
     local slider_h = self._slider:getSize().h
 
     local bar_h = p_top + ch_h + spacing1 + info_h + spacing2 + slider_h + spacing3 + mark_sz + p_bot
@@ -658,6 +660,13 @@ function ScrubberToc:_updateLayout()
     local target_row_h = S(48)
     self._items_per_page = math.max(2, math.floor(self._list_avail_h / target_row_h))
     self._row_h = math.floor(self._list_avail_h / self._items_per_page)
+end
+
+-- Breadcrumbs en la barra del TOC: origen (gris) + historial. Con la opcion apagada
+-- la barra queda como siempre (sin puntos).
+function ScrubberToc:_refreshSliderMarks()
+    if not self._slider then return end
+    Breadcrumbs.applyToSlider(self._slider, self.ui, self._total_pages, self._origin_page, nil)
 end
 
 function ScrubberToc:_updateChapterMarks()
@@ -949,11 +958,17 @@ function ScrubberToc:_gotoPageDirectly(page)
     local origin_page = self._origin_page
 
     if target_page ~= origin_page then
+        -- Breadcrumb: la pagina desde la que salto queda guardada ya mismo
+        if Breadcrumbs.isEnabled() then
+            pcall(Breadcrumbs.push, self.ui, origin_page, self._total_pages)
+        end
+        Breadcrumbs.suppress = true
         pcall(function()
             if self.ui.link and self.ui.link.addCurrentLocationToStack then
                 self.ui.link:addCurrentLocationToStack()
             end
         end)
+        Breadcrumbs.suppress = false
     end
 
     local ui_ref = self.ui

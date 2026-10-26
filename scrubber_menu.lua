@@ -1581,7 +1581,7 @@ function ScrubberMenu:paintTo(bb, x, y)
             if self.font_total_pages > 1 then
                 local fy = content_top + (per_page * rh)
                 local fh = self.font_footer_h
-                bb:paintRect(r.x + border, fy, inner_w, 1, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(r.x + border, fy, inner_w, scale(2), Blitbuffer.COLOR_LIGHT_GRAY)  -- igual que la divisoria de los tabs
                 self.font_footer_dimen = Geom:new{ x = r.x + border, y = fy, w = inner_w, h = fh }
 
                 local total_pages = self.font_total_pages
@@ -1689,7 +1689,7 @@ function ScrubberMenu:paintTo(bb, x, y)
             if self.actions_total_pages > 1 then
                 local fy = content_top + (per_page * rh)
                 local fh = self.font_footer_h
-                bb:paintRect(r.x + border, fy, inner_w, 1, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(r.x + border, fy, inner_w, scale(2), Blitbuffer.COLOR_LIGHT_GRAY)  -- igual que la divisoria de los tabs
                 self.actions_footer_dimen = Geom:new{ x = r.x + border, y = fy, w = inner_w, h = fh }
 
                 local total_pages = self.actions_total_pages

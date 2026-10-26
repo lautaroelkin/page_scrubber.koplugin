@@ -873,18 +873,6 @@ function ScrubberSettings:getPageDefinition(page_id)
                     end,
                 },
                 {
-                    text = _("Show chapter marks in slider"),
-                    icon = "step-forward.svg",
-                    kind = "toggle",
-                    setting = "page_scrubber_show_chapter_marks",
-                    default = true,
-                    on_change = function()
-                        if self.scrubber_ui and self.scrubber_ui._updateChapterMarks then
-                            self.scrubber_ui:_updateChapterMarks()
-                        end
-                    end,
-                },
-                {
                     text = _("Disable Images tab"),
                     icon = "image-minus.svg",
                     kind = "toggle",
@@ -919,6 +907,33 @@ function ScrubberSettings:getPageDefinition(page_id)
                                 self.scrubber_ui:_updateTexts()
                             end
                             UIManager:setDirty(self.scrubber_ui, "ui")
+                        end
+                    end,
+                },
+                {
+                    section = _("Progress bar"),
+                    text = _("Show chapter marks in slider"),
+                    icon = "step-forward.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_show_chapter_marks",
+                    default = true,
+                    on_change = function()
+                        if self.scrubber_ui and self.scrubber_ui._updateChapterMarks then
+                            self.scrubber_ui:_updateChapterMarks()
+                        end
+                    end,
+                },
+                {
+                    text = _("Breadcrumb pins in slider"),
+                    icon = "pin.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_breadcrumbs",
+                    default = false,
+                    on_change = function()
+                        local sc = self.scrubber_ui
+                        if sc and sc._refreshSliderMarks then
+                            sc:_refreshSliderMarks()
+                            UIManager:setDirty(sc, "ui", sc.dimen)
                         end
                     end,
                 },

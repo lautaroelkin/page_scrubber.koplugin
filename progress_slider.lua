@@ -179,6 +179,20 @@ function ProgressSlider:paintTo(bb, x, y)
         end
     end
 
+    -- Punto de origen (breadcrumbs): siempre visible, en gris, encima del historial
+    if self.breadcrumb_mode and self.origin_pin
+       and self.origin_pin >= self.value_min and self.origin_pin <= self.value_max then
+        local gray = Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_GRAY
+        local ox = math.floor(x + self:_valueToX(self.origin_pin))
+        if self.chapters then
+            paintRoundedDownTriangle(bb, ox, bar_y + 1, S(8), S(7), Blitbuffer.COLOR_WHITE)
+            paintRoundedDownTriangle(bb, ox, bar_y, S(6), S(5), gray)
+        else
+            paintCircle(bb, ox, cy, S(8), Blitbuffer.COLOR_WHITE)
+            paintCircle(bb, ox, cy, S(5), gray)
+        end
+    end
+
     if not self._dragging then
         local kx = math.floor(x + self:_valueToX(self.value))
         if self.chapters then
@@ -202,6 +216,11 @@ function ProgressSlider:handleTap(ges)
     local tap_x = ges.pos.x - self.dimen.x
     local v = self:_xToValue(tap_x)
     local S = self.S
+    if self.breadcrumb_mode and self.origin_pin then
+        if math.abs(tap_x - self:_valueToX(self.origin_pin)) < S(20) then
+            v = self.origin_pin
+        end
+    end
     if self.bookmarks then
         for _, bmpage in ipairs(self.bookmarks) do
             local bmx = self:_valueToX(bmpage)

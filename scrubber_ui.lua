@@ -72,6 +72,7 @@ local HL_COLOR_NAMES = {
 
 local GridSimpleView    = require("grid_simple_view")
 local ProgressSlider    = require("progress_slider")
+local Breadcrumbs       = require("breadcrumbs")
 local ScrubberWallpaper = require("scrubber_wallpaper")
 local ok_icon_mgr, IconManager = pcall(require, "icon_manager")   -- reemplazos de íconos del usuario
 if not ok_icon_mgr then IconManager = nil end
@@ -399,6 +400,7 @@ function PageScrubber:init()
     self._saved_swipe_animations = Screen.swipe_animations
     Screen.swipe_animations = false
 
+    pcall(Breadcrumbs.hook, ui)
     self._origin_page = self.initial_origin or (ui.view and ui.view.state and ui.view.state.page) or 1
     self._cur_page    = self.initial_page or self._origin_page
     self._total_pages = (doc and doc.getPageCount and doc:getPageCount()) or 1
@@ -1069,9 +1071,17 @@ function PageScrubber:_updateChapterMarks()
     if self._slider then self._slider.chapters = marks end
 end
 
+-- Puntos de la barra: bookmarks/highlights (normal) o breadcrumbs (si la opcion esta activa).
+-- Nunca coexisten. _getAllBookmarks() se sigue calculando siempre porque las listas y tabs lo usan.
+function PageScrubber:_refreshSliderMarks()
+    if not self._slider then return end
+    local all_bms = self:_getAllBookmarks()
+    Breadcrumbs.applyToSlider(self._slider, self.ui, self._total_pages, self._origin_page, all_bms)
+end
+
 function PageScrubber:_invalidateBookmarksCache()
     self._cached_bms = nil
-    self._slider.bookmarks = self:_getAllBookmarks()
+    self:_refreshSliderMarks()
     self:_extractAnnotations()
 end
 
@@ -5322,15 +5332,23 @@ function PageScrubber:_gotoPage(page)
     local target_page = self._cur_page
     local origin_page = self._origin_page
 
+    -- Breadcrumb inmediato: el pin queda guardado ya mismo, asi el scrubber que se reabre
+    -- enseguida lo encuentra (no depende de que termine _waitForIdle).
+    if target_page ~= origin_page and Breadcrumbs.isEnabled() then
+        pcall(Breadcrumbs.push, self.ui, origin_page, self._total_pages)
+    end
+
     self:_waitForIdle(function()
         if self._nav_token == my_token then
             -- Guardamos la ubicación en el historial de KOReader antes de hacer el salto
             if target_page ~= origin_page then
+                Breadcrumbs.suppress = true
                 pcall(function()
                     if self.ui.link and self.ui.link.addCurrentLocationToStack then
                         self.ui.link:addCurrentLocationToStack()
                     end
                 end)
+                Breadcrumbs.suppress = false
             end
             self.ui:handleEvent(Event:new("GotoPage", target_page))
         end
