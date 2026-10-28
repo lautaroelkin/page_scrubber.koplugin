@@ -92,7 +92,7 @@ Download `page_scrubber.koplugin-vX.Y.Z.zip` from the [latest release](../../rel
 
 ## Useful Gestures & Shortcuts
 
->* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the 3x2 Multi-grid and the standard grid.
+>* **Pinch / Spread (Grid):** Pinch or spread in the grid view to toggle between the Multi-grid and the standard grid.
 >* **Long press Multi-grid button:** Switches to Simple Grid.
 >* **Long press TOC button:** Opens the full index with the bottom bar hidden.
 >* **Notes button / Long press bottom bookmark icon:** Opens the split menu.
