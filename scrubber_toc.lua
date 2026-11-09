@@ -725,6 +725,219 @@ function ScrubberToc:_getChapterIndexForPage(page)
     return best_idx
 end
 
+-- Tiempo que falta para terminar el capítulo de origen, contado desde la página donde se abrió el índice
+-- (mismo criterio que el footer de KOReader: sin contar la página actual). Devuelve nil si no hay datos
+-- de estadísticas o si ya no queda nada por leer en el capítulo.
+function ScrubberToc:_getOriginTimeLeft(ch)
+    if not ch then return nil end
+    local key = tostring(self._origin_page) .. ":" .. tostring(ch.page) .. ":" .. tostring(ch.depth or 0)
+    local cache = self._origin_left_cache
+    if cache and cache.key == key then return cache.val or nil end
+
+    local val = false
+    local ok = pcall(function()
+        local stats = self.ui and self.ui.statistics
+        if not (stats and type(stats.getTimeForPages) == "function" and self._flat_toc) then return end
+
+        local flat_idx = 1
+        for i, fch in ipairs(self._flat_toc) do
+            if fch.page == ch.page and fch.title == ch.title then flat_idx = i; break end
+        end
+        local cur_depth = ch.depth or 0
+        local next_page, has_next = self._total_pages, false
+        for j = flat_idx + 1, #self._flat_toc do
+            if (self._flat_toc[j].depth or 0) <= cur_depth then
+                next_page, has_next = self._flat_toc[j].page, true
+                break
+            end
+        end
+        -- Con capítulo siguiente: páginas entre la actual y el próximo capítulo. Último capítulo: hasta el final.
+        local pages_left = has_next and (next_page - self._origin_page - 1) or (next_page - self._origin_page)
+        if pages_left <= 0 then return end
+
+        local t = stats:getTimeForPages(pages_left)
+        -- Sin datos, statistics devuelve "N/A" (traducido): un tiempo real siempre tiene algún dígito
+        if type(t) == "string" and t ~= "" and t:find("%d") then val = t end
+    end)
+    if not ok then val = false end
+    self._origin_left_cache = { key = key, val = val }
+    return val or nil
+end
+
+-- Número de página que se muestra para un capítulo (respeta la paginación "real" del scrubber)
+function ScrubberToc:_chapterDispPage(ch)
+    local disp_p = nil
+    local scrubber = self.parent_scrubber or self._scrubber_helper
+    if scrubber and type(scrubber._getDisplayPageInfo) == "function" then
+        local ok, dp = pcall(scrubber._getDisplayPageInfo, scrubber, ch.page)
+        if ok and dp and tostring(dp) ~= "" then disp_p = tostring(dp) end
+    end
+    return disp_p or tostring(ch.page)
+end
+
+local function measureTextW(face, bold, text)
+    local tw = TextWidget:new{ text = text, face = face, bold = bold or false }
+    local w = tw:getSize().w
+    tw:free()
+    return w
+end
+
+-- Decide cómo mostrar el time left en la fila del capítulo de origen:
+--   inline : en la misma línea, a la derecha del punto (versión larga "12m left", o la corta "12m")
+--   stack  : si no entra, la fila se expande al doble de alto y se aprovechan las dos líneas:
+--              · el título entero cabe en la 1ª línea  → el cartel va solo en la 2ª
+--              · el título no cabe → se parte en dos líneas (más título visible) y el punto + el cartel
+--                van al final de la 2ª línea, si hay lugar; si no hay, el cartel se corta con "…" o se omite
+--   nil    : sin datos de estadísticas / nada por leer
+-- `g` describe la geometría de la fila (todo relativo al borde izquierdo de la fila):
+--   title, bold, pnum_str, x0 (inicio del título), row_w, pnum_pad, dot_gap, tail_gap, label_gap
+--   (separación mínima con el "Page N"), stack_right (margen derecho cuando el cartel va solo en su línea)
+function ScrubberToc:_planOriginLabel(ch, g)
+    local t = self:_getOriginTimeLeft(ch)
+    if not t then return nil end
+
+    local key = table.concat({ tostring(self._origin_page), tostring(ch.page), tostring(g.bold), g.title, g.pnum_str,
+        tostring(g.row_w), tostring(g.x0), tostring(g.label_gap), tostring(g.dot_gap), t }, "|")
+    local cache = self._origin_plan_cache
+    if cache and cache.key == key then return cache.plan or nil end
+
+    local plan = false
+    pcall(function()
+        local face, bold = self.font_item, g.bold
+        local cands = { t .. " " .. _("left"), t }
+        local function label_w(txt) return measureTextW(face, false, txt) end
+
+        local title_w = measureTextW(face, bold, g.title)
+        local dot_w   = measureTextW(face, false, "•")
+        local pnum_w  = measureTextW(self.font_badge, bold, g.pnum_str)
+        local pnum_x  = g.row_w - g.pnum_pad - pnum_w
+        -- Ancho de cada línea de título: la columna del "Page N" queda reservada (con su separación)
+        local line_w  = (pnum_x - g.label_gap) - g.x0
+
+        -- 1) Todo en una línea: título + punto + cartel
+        local inline_avail = line_w - (title_w + g.dot_gap + dot_w + g.tail_gap)
+        for _i, txt in ipairs(cands) do
+            if label_w(txt) <= inline_avail then
+                plan = { mode = "inline", text = txt }
+                return
+            end
+        end
+
+        -- Elige el cartel que entra en `avail`; si ninguno entra pero hay un mínimo de lugar, lo corta con "…"
+        local function pick_label(avail)
+            for _i, txt in ipairs(cands) do
+                if label_w(txt) <= avail then return txt, nil end
+            end
+            if avail >= self.S(24) then return cands[2], avail end
+            return nil, nil
+        end
+        local own_line_avail = g.row_w - g.x0 - g.stack_right
+
+        local p = { mode = "stack" }
+        local words = {}
+        for w in g.title:gmatch("%S+") do words[#words + 1] = w end
+
+        -- 2a) El título entero (con el punto) entra en la 1ª línea: el cartel va solo en la 2ª
+        if title_w + g.dot_gap + dot_w <= line_w then
+            p.l1 = g.title
+            p.label, p.label_max = pick_label(own_line_avail)
+            p.label_after = false
+            plan = p
+            return
+        end
+
+        -- 2b) Se parte el título en dos líneas (greedy por palabras)
+        local n1, line1 = 0, ""
+        for i, w in ipairs(words) do
+            local cand = (line1 == "") and w or (line1 .. " " .. w)
+            if measureTextW(face, bold, cand) <= line_w then line1 = cand; n1 = i else break end
+        end
+        -- Si todo el título entró en la 1ª línea pero sin lugar para el punto, la última palabra baja a la 2ª
+        if n1 == #words and #words >= 2 then
+            n1 = #words - 1
+            line1 = table.concat(words, " ", 1, n1)
+        end
+
+        if n1 == 0 or n1 == #words then
+            -- Una sola palabra enorme: se corta en la 1ª línea y el cartel va solo en la 2ª
+            p.l1 = g.title
+            p.l1_max = line_w - g.dot_gap - dot_w
+            p.label, p.label_max = pick_label(own_line_avail)
+            p.label_after = false
+            plan = p
+            return
+        end
+
+        local rest = table.concat(words, " ", n1 + 1, #words)
+        local rest_w = measureTextW(face, bold, rest)
+        p.l1, p.l2 = line1, rest
+        if rest_w + g.dot_gap + dot_w <= line_w then
+            p.label, p.label_max = pick_label(line_w - (rest_w + g.dot_gap + dot_w + g.tail_gap))
+            p.label_after = true
+        else
+            -- Ni dos líneas alcanzan para el título: se corta el final y no hay cartel
+            p.l2_max = line_w - g.dot_gap - dot_w
+        end
+        plan = p
+    end)
+    self._origin_plan_cache = { key = key, plan = plan }
+    return plan or nil
+end
+
+-- Pinta la fila de origen expandida (dos líneas) según el plan "stack".
+-- `o`: row_rect, ch_x, tw_title (widget del título), dot_widget, dot_gap, tail_gap, color, paint_dot(x, y)
+function ScrubberToc:_paintOriginStack(bb, plan, o)
+    local S = self.S
+    local tw = o.tw_title
+    local function setTitle(txt, maxw)
+        tw.max_width = maxw
+        tw.text = nil
+        tw:setText(txt)
+        return tw:getSize()
+    end
+
+    local sz1 = setTitle(plan.l1, plan.l1_max)
+    local line_gap = S(4)
+    local block_h = sz1.h + line_gap + sz1.h
+    local y1 = o.row_rect.y + math.floor((o.row_rect.h - block_h) / 2)
+    local y2 = y1 + sz1.h + line_gap
+
+    tw:paintTo(bb, o.ch_x, y1)
+    local last_w, last_y = sz1.w, y1
+    if plan.l2 then
+        local sz2 = setTitle(plan.l2, plan.l2_max)
+        tw:paintTo(bb, o.ch_x, y2)
+        last_w, last_y = sz2.w, y2
+    end
+
+    -- Punto de origen al final de la última línea del título
+    local dsz = o.dot_widget:getSize()
+    o.paint_dot(o.ch_x + last_w + o.dot_gap, last_y + math.floor((sz1.h - dsz.h) / 2))
+
+    if plan.label then
+        local lw = self:_getOriginLabelWidget({ text = plan.label, max_w = plan.label_max }, o.color)
+        if lw then
+            local lx = plan.label_after and (o.ch_x + last_w + o.dot_gap + dsz.w + o.tail_gap) or o.ch_x
+            lw:paintTo(bb, lx, y2)
+        end
+    end
+end
+
+-- Widget (reutilizable) con el texto del plan, listo para pintar
+function ScrubberToc:_getOriginLabelWidget(plan, color)
+    if not plan then return nil end
+    if not self._tw_origin_time then
+        self._tw_origin_time = TextWidget:new{ text = "", face = self.font_item, fgcolor = color }
+    end
+    local tw = self._tw_origin_time
+    tw.fgcolor = color
+    tw.max_width = plan.max_w
+    tw.truncate_with_ellipsis = plan.max_w ~= nil
+    tw.text = nil
+    tw:setText(plan.text)
+    return tw
+end
+
 function ScrubberToc:_getActiveChapterIndex()
     if (self._slider and self._slider._dragging) or self._repeat_running then 
         return nil 
@@ -1226,10 +1439,36 @@ function ScrubberToc:_paintToImpl(bb, x, y)
         self._tw_toc_empty:paintTo(bb, math.floor((sw - esz.w)/2), self._list_y + math.floor((self._list_avail_h - esz.h)/2))
     else
         local curr_y = self._list_y
+
+        -- Plan del time left en la fila del capítulo de origen (si está en esta página del índice)
+        local origin_idx = self:_getChapterIndexForPage(self._origin_page)
+        local plan = nil
+        if origin_idx >= start_idx and origin_idx <= end_idx then
+            local och = self._filtered_toc[origin_idx]
+            local depth = och.depth
+            plan = self:_planOriginLabel(och, {
+                title = (depth ~= 0 and depth ~= 1) and ("• " .. och.title) or och.title,
+                bold = (origin_idx == active_ch_idx),
+                pnum_str = _("Page") .. " " .. self:_chapterDispPage(och),
+                x0 = (depth == 0) and S(12) or S(40),
+                row_w = sw - S(24),
+                pnum_pad = S(14), dot_gap = S(8), tail_gap = S(6), label_gap = S(14), stack_right = S(14),
+            })
+        end
+        -- Si el cartel no entra en la línea, la fila de origen ocupa dos "slots". La cantidad de filas por
+        -- página no cambia: en esa página los slots se achican un poco para que todo siga entrando.
+        local slot_h = self._row_h
+        if plan and plan.mode == "stack" then
+            slot_h = math.min(self._row_h, math.floor(self._list_avail_h / ((end_idx - start_idx + 1) + 1)))
+        end
+        local line_h = slot_h - S(4)
+
         for i = start_idx, end_idx do
             local ch = self._filtered_toc[i]
             local is_active = (i == active_ch_idx)
-            local row_rect = Geom:new{ x = S(12), y = curr_y, w = sw - S(24), h = self._row_h - S(4) }
+            local is_stack_row = (plan ~= nil and plan.mode == "stack" and i == origin_idx)
+            local this_slots_h = is_stack_row and (slot_h * 2) or slot_h
+            local row_rect = Geom:new{ x = S(12), y = curr_y, w = sw - S(24), h = this_slots_h - S(4) }
 
             if is_active then
                 paintRoundRect(bb, row_rect.x, row_rect.y, row_rect.w, row_rect.h, S(8), Blitbuffer.COLOR_BLACK)
@@ -1259,7 +1498,7 @@ function ScrubberToc:_paintToImpl(bb, x, y)
             
             local pnum_sz = tw_pnum:getSize()
             local pnum_x = row_rect.x + row_rect.w - pnum_sz.w - S(14)
-            local pnum_y = row_rect.y + math.floor((row_rect.h - pnum_sz.h) / 2)
+            local pnum_y = row_rect.y + math.floor((row_rect.h - pnum_sz.h) / 2)   -- centrado en toda la fila (también si ocupa dos)
             tw_pnum:paintTo(bb, pnum_x, pnum_y)
 
             local ch_title_text = ch.title
@@ -1276,36 +1515,61 @@ function ScrubberToc:_paintToImpl(bb, x, y)
 
             local is_origin_ch = (i == self:_getChapterIndexForPage(self._origin_page))
             local dot_gap = S(8)
-            local origin_dot_w = is_origin_ch and S(14) or 0
+            local pnum_gap = S(14)   -- separación mínima entre el título (o el punto) y el "Page N"
 
-            local max_ch_w = row_rect.w - pnum_sz.w - (ch_x - row_rect.x) - S(16) - origin_dot_w
+            if is_origin_ch and not self._tw_origin_dot then
+                self._tw_origin_dot = TextWidget:new{ text = "•", face = self.font_item, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+            end
+
+            local max_ch_w
+            if is_origin_ch then
+                -- El punto gris va después del título y no se pega al "Page N"
+                max_ch_w = (pnum_x - pnum_gap) - ch_x - dot_gap - self._tw_origin_dot:getSize().w
+            else
+                max_ch_w = row_rect.w - pnum_sz.w - (ch_x - row_rect.x) - S(24)
+            end
             
             if not self._tw_ch_normal then
                 self._tw_ch_normal = TextWidget:new{ text = "", face = self.font_item, fgcolor = Blitbuffer.COLOR_BLACK, truncate_with_ellipsis = true }
                 self._tw_ch_bold   = TextWidget:new{ text = "", face = self.font_item, bold = true, fgcolor = Blitbuffer.COLOR_WHITE, truncate_with_ellipsis = true }
             end
             local tw_ch = is_active and self._tw_ch_bold or self._tw_ch_normal
-            tw_ch.max_width = max_ch_w
-            tw_ch.text = nil
-            tw_ch:setText(ch_title_text)
-            
-            local ch_sz = tw_ch:getSize()
-            local ch_y = row_rect.y + math.floor((row_rect.h - ch_sz.h) / 2)
-            tw_ch:paintTo(bb, ch_x, ch_y)
 
-            if is_origin_ch then
-                local dot_color = is_active and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_DARK_GRAY
-                if not self._tw_origin_dot then
-                    self._tw_origin_dot = TextWidget:new{ text = "•", face = self.font_item, fgcolor = dot_color }
-                else
-                    self._tw_origin_dot.fgcolor = dot_color
+            local dot_color = is_active and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_DARK_GRAY
+            if is_origin_ch then self._tw_origin_dot.fgcolor = dot_color end
+
+            if is_stack_row then
+                -- Fila expandida: título en una o dos líneas, punto y time left (ver _planOriginLabel)
+                self:_paintOriginStack(bb, plan, {
+                    row_rect = row_rect, ch_x = ch_x, tw_title = tw_ch,
+                    dot_widget = self._tw_origin_dot, dot_gap = dot_gap, tail_gap = S(6), color = dot_color,
+                    paint_dot = function(x, y) self._tw_origin_dot:paintTo(bb, x, y) end,
+                })
+            else
+                tw_ch.max_width = max_ch_w
+                tw_ch.text = nil
+                tw_ch:setText(ch_title_text)
+
+                local ch_sz = tw_ch:getSize()
+                local ch_y = row_rect.y + math.floor((line_h - ch_sz.h) / 2)
+                tw_ch:paintTo(bb, ch_x, ch_y)
+
+                if is_origin_ch then
+                    local dot_y = row_rect.y + math.floor((line_h - self._tw_origin_dot:getSize().h) / 2)
+                    self._tw_origin_dot:paintTo(bb, ch_x + ch_sz.w + dot_gap, dot_y)
+
+                    -- Time left a la derecha del punto (solo si el plan es "inline")
+                    local tw_left = plan and self:_getOriginLabelWidget(plan, dot_color)
+                    if tw_left then
+                        local lsz = tw_left:getSize()
+                        local tx = ch_x + ch_sz.w + dot_gap + self._tw_origin_dot:getSize().w + S(6)
+                        tw_left:paintTo(bb, tx, row_rect.y + math.floor((line_h - lsz.h) / 2))
+                    end
                 end
-                local dot_y = row_rect.y + math.floor((row_rect.h - self._tw_origin_dot:getSize().h) / 2)
-                self._tw_origin_dot:paintTo(bb, ch_x + ch_sz.w + dot_gap, dot_y)
             end
 
             table.insert(self._toc_rows, { dimen = row_rect, index = i, page = ch.page })
-            curr_y = curr_y + self._row_h
+            curr_y = curr_y + this_slots_h
         end
     end
 
@@ -2127,6 +2391,9 @@ function ScrubberToc:onCloseWidget()
         end
     end
     
+    -- Aparte de la lista: si es nil (el time left no se mostró) ipairs cortaría la liberación del resto
+    if self._tw_origin_time and self._tw_origin_time.free then pcall(function() self._tw_origin_time:free() end) end
+    self._tw_origin_time = nil
     for _, w in ipairs(widgets_to_free) do
         if w and w.free then pcall(function() w:free() end) end
     end

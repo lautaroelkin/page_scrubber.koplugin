@@ -410,11 +410,35 @@ function TocLandscapeView.paint(toc, bb)
     toc._toc_rows = {}
     local r_y = toc._list_y
 
+    -- Plan del time left en la fila del capítulo de origen (si está en esta página del índice)
+    local plan = nil
+    if origin_ch_idx >= start_idx and origin_ch_idx <= end_idx then
+        local oe = toc._filtered_toc[origin_ch_idx]
+        local o_indent = (oe.depth or 0) * S(18)
+        plan = toc:_planOriginLabel(oe, {
+            title = ((oe.depth or 0) > 1) and ("• " .. oe.title) or oe.title,
+            bold = (origin_ch_idx == active_ch_idx),
+            pnum_str = _("Page") .. " " .. toc:_chapterDispPage(oe),
+            x0 = S(10) + o_indent,
+            row_w = rd.w,
+            pnum_pad = S(10), dot_gap = S(6), tail_gap = S(6), label_gap = S(12), stack_right = S(10),
+        })
+    end
+    -- Si el cartel no entra en la línea, la fila de origen ocupa dos "slots"; en esa página los slots se
+    -- achican un poco para que sigan entrando todas las filas (la paginación no cambia).
+    local slot_h = toc._row_h
+    if plan and plan.mode == "stack" then
+        slot_h = math.min(toc._row_h, math.floor(toc._list_avail_h / ((end_idx - start_idx + 1) + 1)))
+    end
+    local line_h = slot_h - S(4)
+
     for i = start_idx, end_idx do
         local entry = toc._filtered_toc[i]
         local is_act = (i == active_ch_idx)
         local is_origin_ch = (i == origin_ch_idx)
-        local row_rect = Geom:new{ x = rd.x, y = r_y, w = rd.w, h = toc._row_h - S(4) }
+        local is_stack_row = (plan ~= nil and plan.mode == "stack" and is_origin_ch)
+        local this_slots_h = is_stack_row and (slot_h * 2) or slot_h
+        local row_rect = Geom:new{ x = rd.x, y = r_y, w = rd.w, h = this_slots_h - S(4) }
 
         if is_act then
             paintRoundRect(bb, row_rect.x, row_rect.y, row_rect.w, row_rect.h, S(8), Blitbuffer.COLOR_BLACK)
@@ -430,37 +454,67 @@ function TocLandscapeView.paint(toc, bb)
         local tw_p = is_act and toc._tw_pnum_bold or toc._tw_pnum_normal
         tw_p:setText(_("Page") .. " " .. disp_p)
         local psz = tw_p:getSize()
-        tw_p:paintTo(bb, row_rect.x + row_rect.w - psz.w - S(10), row_rect.y + math.floor((row_rect.h - psz.h)/2))
+        local pnum_x = row_rect.x + row_rect.w - psz.w - S(10)
+        -- Centrado en toda la fila (también cuando ocupa dos líneas)
+        tw_p:paintTo(bb, pnum_x, row_rect.y + math.floor((row_rect.h - psz.h)/2))
 
         local tw_c = is_act and toc._tw_ch_bold or toc._tw_ch_normal
         local indent = (entry.depth or 0) * S(18)
         local ch_title = ((entry.depth or 0) > 1) and ("• " .. entry.title) or entry.title
-        local origin_dot_w = is_origin_ch and S(14) or 0
-        tw_c.max_width = row_rect.w - psz.w - indent - S(24) - origin_dot_w
-        tw_c:setText(ch_title)
-        
-        local ch_sz = tw_c:getSize()
         local ch_x = row_rect.x + S(10) + indent
-        local ch_y = row_rect.y + math.floor((row_rect.h - ch_sz.h)/2)
-        tw_c:paintTo(bb, ch_x, ch_y)
+        local dot_gap = S(6)
+        local pnum_gap = S(12)   -- separación mínima entre el título (o el punto) y el "Page N"
 
-        -- Punto gris de origen
-        if is_origin_ch then
-            local dot_color = is_act and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_DARK_GRAY
-            if not toc._tw_origin_dot then
-                toc._tw_origin_dot = TextWidget:new{ text = "•", face = toc.font_item, fgcolor = dot_color }
+        if is_origin_ch and not toc._tw_origin_dot then
+            toc._tw_origin_dot = TextWidget:new{ text = "•", face = toc.font_item, fgcolor = Blitbuffer.COLOR_DARK_GRAY }
+        end
+        local dot_color = is_act and Blitbuffer.COLOR_LIGHT_GRAY or Blitbuffer.COLOR_DARK_GRAY
+        if is_origin_ch then toc._tw_origin_dot.fgcolor = dot_color end
+
+        if is_stack_row then
+            -- Fila expandida: título en una o dos líneas, punto y time left (ver _planOriginLabel)
+            toc:_paintOriginStack(bb, plan, {
+                row_rect = row_rect, ch_x = ch_x, tw_title = tw_c,
+                dot_widget = toc._tw_origin_dot, dot_gap = dot_gap, tail_gap = S(6), color = dot_color,
+                paint_dot = function(x, y)
+                    toc._tw_origin_dot:paintTo(bb, x, y)
+                    toc._tw_origin_dot:paintTo(bb, x + 1, y)
+                    toc._tw_origin_dot:paintTo(bb, x, y + 1)
+                end,
+            })
+        else
+            if is_origin_ch then
+                -- El punto gris va después del título y no se pega al "Page N"
+                tw_c.max_width = (pnum_x - pnum_gap) - ch_x - dot_gap - toc._tw_origin_dot:getSize().w
             else
-                toc._tw_origin_dot.fgcolor = dot_color
+                tw_c.max_width = row_rect.w - psz.w - indent - S(30)
             end
-            local dot_y = row_rect.y + math.floor((row_rect.h - toc._tw_origin_dot:getSize().h) / 2)
-            local dot_x = ch_x + ch_sz.w + S(6)
-            toc._tw_origin_dot:paintTo(bb, dot_x, dot_y)
-            toc._tw_origin_dot:paintTo(bb, dot_x + 1, dot_y)
-            toc._tw_origin_dot:paintTo(bb, dot_x, dot_y + 1)
+            tw_c:setText(ch_title)
+
+            local ch_sz = tw_c:getSize()
+            local ch_y = row_rect.y + math.floor((line_h - ch_sz.h)/2)
+            tw_c:paintTo(bb, ch_x, ch_y)
+
+            -- Punto gris de origen
+            if is_origin_ch then
+                local dot_y = row_rect.y + math.floor((line_h - toc._tw_origin_dot:getSize().h) / 2)
+                local dot_x = ch_x + ch_sz.w + dot_gap
+                toc._tw_origin_dot:paintTo(bb, dot_x, dot_y)
+                toc._tw_origin_dot:paintTo(bb, dot_x + 1, dot_y)
+                toc._tw_origin_dot:paintTo(bb, dot_x, dot_y + 1)
+
+                -- Time left a la derecha del punto (solo si el plan es "inline")
+                local tw_left = plan and toc:_getOriginLabelWidget(plan, dot_color)
+                if tw_left then
+                    local lsz = tw_left:getSize()
+                    local tx = dot_x + toc._tw_origin_dot:getSize().w + S(6)
+                    tw_left:paintTo(bb, tx, row_rect.y + math.floor((line_h - lsz.h) / 2))
+                end
+            end
         end
 
         table.insert(toc._toc_rows, { dimen = row_rect, index = i, page = entry.page })
-        r_y = r_y + toc._row_h
+        r_y = r_y + this_slots_h
     end
 
     -- =========================================================================

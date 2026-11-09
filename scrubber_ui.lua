@@ -4047,7 +4047,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     if pr_h < S(40) then pr_h = S(40) end
     if lm_w < S(40) then lm_w = S(40) end
     
-    local header_h = S(30)
+    local header_h = S(36)   -- un poco más alto: el encabezado "Page" respira mejor frente a las filas
     local black_line_thickness = S(0)
     local available_list_h = math.max(S(50), available_menu_h - header_h - black_line_thickness)
     
@@ -4717,7 +4717,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     local active_fixed_icon = is_page_bmed and self.icon_box_minus_fill or self.icon_box_plus
     local bsz_f = active_fixed_icon and active_fixed_icon:getSize() or {w = S(22), h = S(22)}
-    local btn_xf = lm_x + lm_w - bsz_f.w - S(12)
+    local btn_xf = lm_x + lm_w - bsz_f.w - S(19)   -- misma columna de íconos que las filas de la lista
     
     if not self._tw_row_normal then
         self._tw_row_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", S_MEDIANO), fgcolor = Blitbuffer.COLOR_BLACK }
@@ -4733,15 +4733,15 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     tw_pg_f:setText(tostring(disp_f))
     
     local pt_sz = tw_pg_f:getSize()
-    local f_area_x = lm_x + b_thick
+    local f_area_x = lm_x + S(19) + S(14)
     local f_area_w = (btn_xf - S(8)) - f_area_x
     local f_show_dot = is_f_sel and self._details_open
-    local ptx = f_area_x + math.max(f_show_dot and S(30) or S(10), math.floor((f_area_w - pt_sz.w) / 2))
+    local ptx = f_area_x + math.max(S(4), math.floor((f_area_w - pt_sz.w) / 2))
     local pty = fx_y + math.floor((fx_h - pt_sz.h) / 2) + S(2)
 
     if f_show_dot then
         local dot_d = S(8)
-        paintRoundRect(bb, lm_x + b_thick + S(17), fx_y + math.floor((fx_h - dot_d) / 2), dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_DARK_GRAY)
+        paintRoundRect(bb, lm_x + S(19), fx_y + math.floor((fx_h - dot_d) / 2), dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_DARK_GRAY)
     end
     tw_pg_f:paintTo(bb, ptx, pty)
 
@@ -4900,7 +4900,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     end
 
     local hsz = self._tw_header_page:getSize()
-    local htx = lm_x + S(15)
+    local htx = lm_x + S(19)   -- mismo x que el puntito de las filas
     local hty = menu_y + S(2) + math.floor((header_h - S(2) - hsz.h) / 2)
     self._tw_header_page:paintTo(bb, htx, hty)
 
@@ -4911,16 +4911,21 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local f_h = S(20)
         local f_w = S(18) 
         
-        local start_x = htx + hsz.w + S(12) 
-        local max_w_avail = (lm_x + lm_w - S(4)) - start_x
-        
         local num_f = #present_filters
-        local f_gap = S(4)
+        local f_gap = S(10)
+
+        -- Alineados a la derecha: el último filtro queda centrado sobre la columna de íconos de las filas
+        local col_icon_w = (self.icon_box_arrow and self.icon_box_arrow:getSize().w) or S(22)
+        local col_center = lm_x + lm_w - S(19) - math.floor(col_icon_w / 2)
+        local right_edge = col_center + math.floor(f_w / 2)
+        local min_start  = htx + hsz.w + S(10)
+
         local total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
-        
-        if total_needed > max_w_avail and num_f > 1 then
-            f_gap = math.floor((max_w_avail - (num_f * f_w)) / (num_f - 1))
+        if right_edge - total_needed < min_start and num_f > 1 then
+            f_gap = math.floor(((right_edge - min_start) - (num_f * f_w)) / (num_f - 1))
+            total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
         end
+        local start_x = right_edge - total_needed
 
         local curr_f_x = start_x
         local curr_f_y = menu_y + math.floor((header_h - f_h) / 2)
@@ -5008,7 +5013,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 -- Puntito blanco a la izquierda: aparece solo cuando el panel de detalle está abierto en esta fila
                 if self._details_open then
                     local dot_d = S(8)
-                    paintRoundRect(bb, lm_x + b_thick + pill_inset + S(12), current_row_y + math.floor((row_h - dot_d) / 2),
+                    paintRoundRect(bb, lm_x + S(19), current_row_y + math.floor((row_h - dot_d) / 2),
                         dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
                 end
             end
@@ -5028,7 +5033,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 active_row_icon = self.icon_box_arrow
             end
             local rm_sz = active_row_icon and active_row_icon:getSize() or {w = S(22), h = S(22)}
-            local rm_x = lm_x + lm_w - rm_sz.w - S(12)
+            -- Margen derecho S(19): simétrico al del puntito (S(19) desde el borde) dentro de la pastilla
+            local rm_x = lm_x + lm_w - rm_sz.w - S(19)
             
             if active_row_icon then
                 local ix = rm_x
@@ -5088,9 +5094,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
             -- Número de página (con su superíndice) centrado entre el borde izquierdo y el ícono de la fila
             local group_w = tw_pg_sz.w + (tw_super_sz and (S(2) + tw_super_sz.w) or 0)
-            local area_x = lm_x + b_thick
+            local area_x = lm_x + S(19) + S(14)   -- justo después del hueco del puntito (siempre reservado)
             local area_w = (rm_x - S(8)) - area_x
-            local pg_x = area_x + math.max((is_r_sel and self._details_open) and S(30) or S(10), math.floor((area_w - group_w) / 2))
+            local pg_x = area_x + math.max(S(4), math.floor((area_w - group_w) / 2))
             local pg_y = current_row_y + math.floor((row_h - tw_pg_sz.h) / 2) + S(2) - 1
 
             tw_pg:paintTo(bb, pg_x, pg_y)
@@ -6509,7 +6515,7 @@ function PageScrubber:_closeReturn()
     end)
 end
 
-function PageScrubber:_closeStay(on_closed_callback)
+function PageScrubber:_closeStay(on_closed_callback, immediate)
     if self._closing then return end
     self._closing = true
     self:_cancelHold()
@@ -6529,7 +6535,12 @@ function PageScrubber:_closeStay(on_closed_callback)
         end
     end
 
-    if on_closed_callback then
+    if on_closed_callback and immediate then
+        -- Salida instantánea (KiKome): sin refresco completo del libro ni espera,
+        -- porque la pantalla de KiKome se sube enseguida y repinta todo una sola vez.
+        UIManager:close(self)
+        pcall(on_closed_callback)
+    elseif on_closed_callback then
         UIManager:close(self)
         UIManager:setDirty(nil, "full")
         UIManager:scheduleIn(0.18, function()
@@ -6594,17 +6605,71 @@ PageScrubber.executeAction = PageScrubber._closeAndShow
 PageScrubber.executeScrubberAction = PageScrubber._closeAndShow
 PageScrubber._closeAndRun = PageScrubber._closeAndShow
 
+-- KiKome (si está instalado, activo y con "Instant exit from books" encendido):
+-- devuelve su módulo Park cuando puede estacionar el libro abierto (la pantalla de
+-- KiKome desde la que se abrió sigue debajo del lector). nil en cualquier otro caso:
+-- plugin ausente/desactivado, opción apagada, o libro abierto desde otro lado.
+function PageScrubber:_kikomePark()
+    local ok, Park = pcall(require, "kobold.ui.park")
+    if not (ok and type(Park) == "table" and Park.canPark and Park.park) then return nil end
+    local rui = self.ui
+    if not (rui and rui.document) then
+        local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
+        rui = ok_rui and ReaderUI and ReaderUI.instance or nil
+    end
+    if not (rui and rui.document) then return nil end
+    local ok_can, can = pcall(Park.canPark, rui)
+    if ok_can and can then return Park, rui end
+    return nil
+end
+
+-- Bookshelf (plugin de terceros, no se modifica): si el libro se abrió desde su
+-- estantería y su opción de "hot parking" está activa, devuelve su instancia de
+-- plugin. Su Bookshelf:onHome estaciona el libro con la misma ruta instantánea que
+-- su propio gesto/pestaña "File browser". nil en cualquier otro caso (plugin ausente,
+-- parking apagado, libro abierto desde el explorador, libro ya estacionado).
+function PageScrubber:_bookshelfPark()
+    local ui = self.ui
+    local bs = ui and ui.document and ui.bookshelf
+    if not (type(bs) == "table" and bs.onHome and bs._isShowing) then return nil end
+    local BPark = package.loaded["lib/bookshelf_reader_park"]
+    if not (type(BPark) == "table" and BPark.enabled and BPark.isParked) then return nil end
+    local ok_en, enabled = pcall(BPark.enabled)
+    if not (ok_en and enabled) then return nil end
+    local ok_sh, showing = pcall(bs._isShowing, bs)
+    if not (ok_sh and showing) then return nil end
+    local ok_pk, parked = pcall(BPark.isParked)
+    if ok_pk and parked then return nil end
+    return bs
+end
+
 -- Botón Library: va al destino de "Start with..." de KOReader.
 --   * "homescreen_simpleui" -> evento de SimpleUI (el mismo del gesto "Go to Homescreen").
 --   * resto -> cierre nativo del libro (ReaderUI:onClose + showFileManager, igual que
 --     ReaderUI:onHome) y, EN EL MISMO TICK, ir a home_dir y abrir historial/favoritos/atajos
 --     como hace reader.lua al arrancar (sin esperar con timers, para que no se vea el explorador).
+--   * Start with = KiKome ("kobold_home"), con "Instant exit from books" encendido y el libro
+--     abierto desde KiKome: el libro se estaciona con Park.park y KiKome aparece al instante.
+--   * Start with = Bookshelf, con su "hot parking" activo y el libro abierto desde su estantería:
+--     se llama a Bookshelf:onHome, que estaciona el libro igual que su propio botón de salida.
+--   * Cualquier otro caso: salida de siempre.
 -- Nunca toca self después del cierre del scrubber.
 function PageScrubber:_goToLibrary()
     local ui = self.ui
     local start_with = G_reader_settings and G_reader_settings:readSetting("start_with") or "filemanager"
 
-    self:_closeStay(function()
+    -- Salida instantánea: se decide ANTES de cerrar el scrubber y según "Start with".
+    -- "kobold_home" (KiKome) -> estaciona con KiKome; "bookshelf" -> estaciona con
+    -- Bookshelf; cualquier otro destino (explorador, historial, favoritos, SimpleUI...)
+    -- sigue la salida de siempre hacia ese destino.
+    local KiPark, ki_rui, BsPlugin
+    if start_with == "kobold_home" then
+        KiPark, ki_rui = self:_kikomePark()
+    elseif start_with == "bookshelf" then
+        BsPlugin = self:_bookshelfPark()
+    end
+
+    local function exitNormal()
         -- 1) SimpleUI homescreen
         if start_with == "homescreen_simpleui" and ui and ui.handleEvent then
             local ok, handled = pcall(function()
@@ -6661,7 +6726,26 @@ function PageScrubber:_goToLibrary()
             if tries < 30 then UIManager:scheduleIn(0.1, poll) end
         end
         UIManager:scheduleIn(0.2, poll)
-    end)
+    end
+
+    if KiPark or BsPlugin then
+        self:_closeStay(function()
+            local parked = false
+            pcall(function()
+                if KiPark then
+                    parked = KiPark.park(ki_rui) and true or false
+                else
+                    parked = BsPlugin:onHome() and true or false
+                end
+            end)
+            if parked then return end
+            -- No se pudo estacionar: salida de siempre (con el refresco que se saltó).
+            UIManager:setDirty(nil, "full")
+            UIManager:scheduleIn(0.18, function() pcall(exitNormal) end)
+        end, true)
+    else
+        self:_closeStay(exitNormal)
+    end
 end
 
 function PageScrubber:_startHold(action)

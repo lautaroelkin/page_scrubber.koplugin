@@ -334,6 +334,15 @@ local LAMP_Y_NUDGE = 0
 -- Gris clarito de la pastilla que aparece un instante al presionar una pestaña
 local PRESSED_TAB_BG = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
 
+-- Fila de estado: fondo de la pastilla, divisores y color del ítem mientras se lo presiona
+local STATUS_PILL_BG    = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
+local STATUS_DIVIDER    = Blitbuffer.COLOR_LIGHT_GRAY
+local STATUS_PRESSED_BG = Blitbuffer.COLOR_GRAY_B or Blitbuffer.COLOR_LIGHT_GRAY
+
+-- Switch del frontlight (más chico que el de KiKome, que es 52 x 28)
+local SWITCH_W = 36
+local SWITCH_H = 20
+
 -- ==========================================
 -- WIDGET PRINCIPAL CON PESTAÑAS (PULIDO)
 -- ==========================================
@@ -375,6 +384,7 @@ function ScrubberMenu:init()
     self.icon_sun = loadSvg("sun.svg", scale(32), scale(32))
     self.icon_warehouse = loadSvg("warehouse.svg", icon_sz, icon_sz)
     self.icon_wifi = loadSvg("zero.svg", icon_sz, icon_sz)
+    self.icon_search = loadSvg("search.svg", icon_sz, icon_sz)
     self.icon_chevron_right = loadSvg("chevron-right.svg", scale(16), scale(16))
     self.tw_check = TextWidget:new{
         text = "✓",
@@ -573,9 +583,26 @@ local function paintBatteryIcon(bb, x, y, w, h, pct)
     if fw > 0 and fh > 0 then bb:paintRect(fx, fy, fw, fh, BLACK) end
 end
 
+-- Switch on / off pintado a mano (igual que el de KiKome): así queda exactamente centrado en su fila y no depende
+-- de ningún glifo de la fuente. Encendido: píldora negra con la perilla blanca a la derecha.
+-- Apagado: píldora blanca con borde negro y la perilla negra a la izquierda.
+local function paintSwitch(bb, x, y, w, h, on)
+    local border = math.max(2, scale(2))
+    local gap = math.max(2, scale(2))
+    local r = math.floor(h / 2)
+    paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
+    if not on then
+        paintRoundRect(bb, x + border, y + border, w - border * 2, h - border * 2, math.max(1, r - border), Blitbuffer.COLOR_WHITE)
+    end
+    local k = h - 2 * (border + gap)
+    local kx = on and (x + w - border - gap - k) or (x + border + gap)
+    paintRoundRect(bb, kx, y + border + gap, k, k, math.floor(k / 2), on and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK)
+end
+
 -- Fila de estado en el espacio entre los dos swatches (día / noche) y la fila de sol / acciones / ajustes (el tamaño del menú no cambia).
--- Un solo grupo centrado: hora · estudio (solo si está activo en este libro) · wifi · batería (solo el ícono, el relleno ya refleja
--- el porcentaje), separados por puntitos y limitados al ancho de los swatches de arriba.
+-- Una pastilla gris clarito con ranuras de igual ancho: hora · estudio (solo si está activo en este libro) · wifi · batería
+-- (ícono + porcentaje, con rayo si está cargando), separadas por divisores finos y limitadas al ancho de los swatches de arriba.
+-- Cada ranura entera es una zona de toque y se marca al presionarla (wifi y estudio).
 function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
     self._status_dimens = {}
     local BLACK = Blitbuffer.COLOR_BLACK
@@ -586,8 +613,8 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
     local cy = center_y or (top + math.floor(row_h / 2))
     local frees = {}
 
-    local function textPart(text)
-        local tw = TextWidget:new{ text = text, face = face, fgcolor = BLACK }
+    local function textPart(text, bold)
+        local tw = TextWidget:new{ text = text, face = face, fgcolor = BLACK, bold = bold or false }
         frees[#frees + 1] = tw
         local sz = tw:getSize()
         return { w = sz.w, draw = function(x) tw:paintTo(bb, x, cy - math.floor(sz.h / 2)) end }
@@ -603,7 +630,7 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
     local left, right = {}, {}
 
     -- Hora
-    left[#left + 1] = { key = "time", parts = { textPart(getTimeStr()) } }
+    left[#left + 1] = { key = "time", parts = { textPart(getTimeStr(), true) } }
 
     -- Estudio: alert-circle.svg (el mismo del botón Study del split) con la cantidad por estudiar;
     -- award.svg si ya está todo completo
@@ -629,17 +656,29 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
         } } }
     end
 
-    -- Batería: solo el ícono (si el dispositivo la informa)
+    -- Batería: rayo (solo si carga) + ícono + porcentaje (si el dispositivo la informa).
+    -- `droppable` = cuántas piezas del final se sacan si el porcentaje no entra en su ranura.
     do
-        local pct = getBattery()
+        local pct, charging = getBattery()
         if pct then
-            right[#right + 1] = { key = "battery", parts = {
-                { w = ic_w, draw = function(x) paintBatteryIcon(bb, x, cy - math.floor(ic_h / 2), ic_w, ic_h, pct) end },
-            } }
+            local parts = {}
+            if charging then
+                local bolt = svgPart("zap.svg")
+                if bolt then
+                    parts[#parts + 1] = bolt
+                    parts[#parts + 1] = { w = math.floor(gap / 2) }
+                end
+            end
+            parts[#parts + 1] = {
+                w = ic_w,
+                draw = function(x) paintBatteryIcon(bb, x, cy - math.floor(ic_h / 2), ic_w, ic_h, pct) end,
+            }
+            parts[#parts + 1] = { w = gap }
+            parts[#parts + 1] = textPart(tostring(pct) .. "%")
+            right[#right + 1] = { key = "battery", parts = parts, droppable = 2 }
         end
     end
 
-    -- Un solo grupo centrado horizontalmente en la fila, con puntitos como separadores.
     -- Orden de siempre: hora · estudio · wifi · batería (estudio y batería solo si existen).
     local by_key = {}
     for _i, it in ipairs(left) do by_key[it.key] = it end
@@ -651,7 +690,7 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
     local n = #items
     if n == 0 then return end
 
-    -- Límites de la fila = bordes exteriores de los botones día / noche (el grupo nunca se sale de ahí)
+    -- Límites de la fila = bordes exteriores de los botones día / noche (nada se sale de ahí)
     local row_x = r.x + pad
     local row_w = r.w - pad * 2
     local sd, sn = self.swatch_day_dimen, self.swatch_night_dimen
@@ -660,47 +699,55 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
         row_w = (sn.x + sn.w) - sd.x
     end
 
-    local total = 0
+    -- Ranuras de igual ancho, una por ítem
+    local slot_w = math.floor(row_w / n)
+
+    local function itemWidth(it)
+        local w = 0
+        for _j, p in ipairs(it.parts) do w = w + p.w end
+        return w
+    end
     for _i, it in ipairs(items) do
-        it.w = 0
-        for _j, p in ipairs(it.parts) do it.w = it.w + p.w end
-        total = total + it.w
+        it.w = itemWidth(it)
+        -- Si el porcentaje no entra en su ranura, se muestra solo el ícono
+        if it.droppable and it.w > slot_w - scale(8) then
+            for _k = 1, it.droppable do it.parts[#it.parts] = nil end
+            it.w = itemWidth(it)
+        end
     end
 
-    local dot_d = math.max(2, scale(3))      -- diámetro del puntito separador
-    local gap_side = scale(16)               -- espacio a cada lado del puntito
-    if n > 1 then
-        -- Si no entra, se achica el espacio (con un mínimo) para no salirse de los bordes
-        local max_gap = math.floor((row_w - total - (n - 1) * dot_d) / ((n - 1) * 2))
-        gap_side = math.max(scale(6), math.min(gap_side, max_gap))
-    end
-    local group_w = total + (n - 1) * (dot_d + 2 * gap_side)
-    local x = row_x + math.floor((row_w - group_w) / 2)
+    -- Pastilla de fondo
+    local pill_r = math.floor(row_h / 2)
+    paintRoundRect(bb, row_x, top, row_w, row_h, pill_r, STATUS_PILL_BG)
 
-    local dot_cx = {}
+    local inset = math.max(1, scale(2))
+    local div_h = math.floor(row_h * 0.5)
     for i, it in ipairs(items) do
-        it.x = x
-        local ix = x
+        local sx = row_x + (i - 1) * slot_w
+        local sw = (i == n) and (row_x + row_w - sx) or slot_w
+
+        -- Ranura presionada: se marca un instante, como las pestañas
+        if self._pressed_status == it.key then
+            paintRoundRect(bb, sx + inset, top + inset, sw - inset * 2, row_h - inset * 2,
+                math.max(1, pill_r - inset), STATUS_PRESSED_BG)
+        end
+
+        -- Contenido centrado en su ranura
+        local ix = sx + math.floor((sw - it.w) / 2)
         for _j, p in ipairs(it.parts) do
             if p.draw then p.draw(ix) end
             ix = ix + p.w
         end
-        x = x + it.w
-        if i < n then
-            local dx = x + gap_side
-            paintRoundRect(bb, dx, cy - math.floor(dot_d / 2), dot_d, dot_d, math.floor(dot_d / 2), BLACK)
-            dot_cx[i] = dx + math.floor(dot_d / 2)
-            x = dx + dot_d + gap_side
-        end
-    end
 
-    -- Zonas de toque: cada ítem llega hasta el puntito vecino (y hasta los bordes de la fila en los extremos)
-    for i, it in ipairs(items) do
-        local zl = (i == 1) and row_x or dot_cx[i - 1]
-        local zr = (i == n) and (row_x + row_w) or dot_cx[i]
+        -- Divisor fino entre ranuras
+        if i < n then
+            bb:paintRect(sx + sw - 1, cy - math.floor(div_h / 2), math.max(1, scale(1)), div_h, STATUS_DIVIDER)
+        end
+
+        -- Zona de toque = la ranura entera
         self._status_dimens[#self._status_dimens + 1] = {
             key = it.key,
-            dimen = Geom:new{ x = zl, y = top, w = zr - zl, h = row_h },
+            dimen = Geom:new{ x = sx, y = top, w = sw, h = row_h },
         }
     end
     for _i, w in ipairs(frees) do pcall(function() w:free() end) end
@@ -1138,6 +1185,24 @@ function ScrubberMenu:getActionIcon(act)
     return "package.svg"
 end
 
+-- Cierra el menú (y el scrubber) y abre el buscador de texto del libro de KOReader
+-- (el mismo de Menú > Búsqueda > "Book text search"), para encontrar una palabra o nombre puntual.
+function ScrubberMenu:openBookSearch()
+    local ui = self.ui or (self.scrubber_ui and self.scrubber_ui.ui)
+    self:closeEntireWidget()
+    UIManager:nextTick(function()
+        if not ui then return end
+        local opened = false
+        local search = ui.search
+        if search and type(search.onShowFulltextSearchInput) == "function" then
+            opened = pcall(function() search:onShowFulltextSearchInput() end)
+        end
+        if not opened then
+            pcall(function() ui:handleEvent(Event:new("ShowFulltextSearchInput")) end)
+        end
+    end)
+end
+
 function ScrubberMenu:executeQuickAction(action_id)
     self:closeEntireWidget()
     UIManager:nextTick(function()
@@ -1302,59 +1367,61 @@ function ScrubberMenu:paintTo(bb, x, y)
             bottom_y = swatch_y + swatch_h + scale(24)
         end
 
-        -- Tres celdas que reparten todo el ancho: [luz (sol + toggle)] [acciones] [ajustes]
+        -- Cuatro celdas que reparten todo el ancho: [luz (sol + toggle)] [buscar] [acciones] [ajustes]
         local row_x = r.x + pad
         local row_w = r.w - pad * 2
-        local cw1 = math.floor(row_w * 0.46)
-        local cw = math.floor((row_w - cw1) / 2)
         local cell_y = bottom_y - scale(2)
         local cell_h = bottom_h + scale(4)
 
         -- Celda 1: sol + toggle (mismo toggle que los ajustes), centrados en su celda
         local sun_sz = scale(32)
         local is_fl = self:isFrontlightOn()
-        local tw_toggle = TextWidget:new{
-            text = is_fl and "\u{EC20}" or "\u{EC21}",
-            face = Font:getFace("cfont", scaleText(16)),
-            fgcolor = is_fl and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
-        }
-        local tsz = tw_toggle:getSize()
-        local group_w = sun_sz + scale(10) + tsz.w
+        local sw_w, sw_h = scale(SWITCH_W), scale(SWITCH_H)
+        local group_w = sun_sz + scale(8) + sw_w
+
+        -- La celda de la luz se lleva lo que necesita su grupo (sol + toggle); el resto se reparte en 3 iguales
+        local cw1 = math.max(math.floor(row_w * 0.34), group_w + scale(12))
+        local cw = math.floor((row_w - cw1) / 3)
+
         local sun_x = row_x + math.floor((cw1 - group_w) / 2)
         local sun_y = bottom_y + math.floor((bottom_h - sun_sz) / 2)
         if self.icon_sun then self.icon_sun:paintTo(bb, sun_x, sun_y) end
-        tw_toggle:paintTo(bb, sun_x + sun_sz + scale(10), bottom_y + math.floor((bottom_h - tsz.h) / 2))
-        tw_toggle:free()
+        paintSwitch(bb, sun_x + sun_sz + scale(8), bottom_y + math.floor((bottom_h - sw_h) / 2), sw_w, sw_h, is_fl)
         self.row_light_dimen = Geom:new{ x = row_x, y = cell_y, w = cw1, h = cell_h }
 
-        -- Celda 2: acciones del scrubber (centrado)
-        self.btn_actions_dimen = Geom:new{ x = row_x + cw1, y = cell_y, w = cw, h = cell_h }
-        if self.icon_warehouse then
-            local isz = self.icon_warehouse:getSize()
-            local ix = row_x + cw1 + math.floor((cw - isz.w) / 2)
-            local iy = bottom_y + math.floor((bottom_h - isz.h) / 2)
-            self.icon_warehouse:paintTo(bb, ix, iy)
-        end
-
-        -- Celda 3: ajustes (centrado); al presionar se marca con el recuadro negro
-        local set_cx = row_x + cw1 + cw
-        self.btn_wifi_dimen = Geom:new{ x = set_cx, y = cell_y, w = row_x + row_w - set_cx, h = cell_h }
+        -- Ícono centrado en su celda; al presionar se marca con el recuadro negro (igual que ajustes)
         local box_sz = scale(40)
-        local box_x = set_cx + math.floor((cw - box_sz) / 2)
-        local box_y = bottom_y + math.floor((bottom_h - box_sz) / 2)
-        if self.icon_wifi then
-            local isz = self.icon_wifi:getSize()
-            local ix = set_cx + math.floor((cw - isz.w) / 2)
+        local function paintCellIcon(icon, cell_x, cell_w, pressed)
+            if not icon then return end
+            local isz = icon:getSize()
+            local ix = cell_x + math.floor((cell_w - isz.w) / 2)
             local iy = bottom_y + math.floor((bottom_h - isz.h) / 2)
-            if self._pressed_btn == "wifi" then
+            if pressed then
+                local box_x = cell_x + math.floor((cell_w - box_sz) / 2)
+                local box_y = bottom_y + math.floor((bottom_h - box_sz) / 2)
                 paintRoundRect(bb, box_x, box_y, box_sz, box_sz, scale(8), Blitbuffer.COLOR_BLACK)
                 bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
-                self.icon_wifi:paintTo(bb, ix, iy)
+                icon:paintTo(bb, ix, iy)
                 bb:invertRect(ix, iy, isz.w, isz.h)
             else
-                self.icon_wifi:paintTo(bb, ix, iy)
+                icon:paintTo(bb, ix, iy)
             end
         end
+
+        -- Celda 2: buscador de texto del libro
+        local search_x = row_x + cw1
+        self.btn_search_dimen = Geom:new{ x = search_x, y = cell_y, w = cw, h = cell_h }
+        paintCellIcon(self.icon_search, search_x, cw, self._pressed_btn == "search")
+
+        -- Celda 3: acciones del scrubber (centrado)
+        local actions_x = search_x + cw
+        self.btn_actions_dimen = Geom:new{ x = actions_x, y = cell_y, w = cw, h = cell_h }
+        paintCellIcon(self.icon_warehouse, actions_x, cw, false)
+
+        -- Celda 4: ajustes (centrado); al presionar se marca con el recuadro negro
+        local set_cx = actions_x + cw
+        self.btn_wifi_dimen = Geom:new{ x = set_cx, y = cell_y, w = row_x + row_w - set_cx, h = cell_h }
+        paintCellIcon(self.icon_wifi, set_cx, cw, self._pressed_btn == "wifi")
 
         -- Última fila: estado (wifi · hora · estudio · batería), debajo de sol / acciones / ajustes
 
@@ -1774,14 +1841,33 @@ function ScrubberMenu:onTap(arg1, arg2)
         -- Fila de estado: estudio abre las tarjetas, wifi conecta / desconecta
         for _i, sd in ipairs(self._status_dimens or {}) do
             if ges.pos:intersectWith(sd.dimen) then
-                if sd.key == "study" then
-                    self:openStudy()
-                elseif sd.key == "wifi" then
-                    self:toggleWifi()
-                    self:refreshMenu()
+                if sd.key == "study" or sd.key == "wifi" then
+                    local key = sd.key
+                    self._pressed_status = key
+                    UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+                    UIManager:scheduleIn(0.06, function()
+                        self._pressed_status = nil
+                        if self._closed then return end
+                        if key == "study" then
+                            self:openStudy()
+                        else
+                            self:toggleWifi()
+                            self:refreshMenu()
+                        end
+                    end)
                 end
                 return true
             end
+        end
+
+        if self.btn_search_dimen and ges.pos:intersectWith(self.btn_search_dimen) then
+            self._pressed_btn = "search"
+            UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+            UIManager:scheduleIn(0.06, function()
+                self._pressed_btn = nil
+                self:openBookSearch()
+            end)
+            return true
         end
 
         if self.btn_actions_dimen and ges.pos:intersectWith(self.btn_actions_dimen) then
@@ -1979,7 +2065,8 @@ function ScrubberMenu:onCloseWidget()
     local to_free = {
         self.icon_sun, self.icon_warehouse, self.icon_wifi,
         self.icon_chevron_right,
-        self.tw_check
+        self.tw_check,
+        self.icon_search
     }
     for _, w in ipairs(to_free) do
         if w and w.free then pcall(function() w:free() end) end
