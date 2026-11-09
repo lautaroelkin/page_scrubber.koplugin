@@ -644,3 +644,6 @@ msgstr "Barra de progreso"
 
 msgid "Breadcrumb pins in slider"
 msgstr "Pines de recorrido en la barra"
+
+msgid "left"
+msgstr "restantes"
