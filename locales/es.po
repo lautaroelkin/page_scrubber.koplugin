@@ -405,6 +405,33 @@ msgstr "solo cursiva"
 msgid "Multi Grid: Show 9 pages"
 msgstr "Multi-Grid: Mostrar 9 páginas"
 
+msgid "Brightness"
+msgstr "Brillo"
+
+msgid "Rotate"
+msgstr "Rotar"
+
+msgid "Columns"
+msgstr "Columnas"
+
+msgid "Page view"
+msgstr "Vista de página"
+
+msgid "Rounded style"
+msgstr "Estilo redondeado"
+
+msgid "Grid"
+msgstr "Grid"
+
+msgid "Simple Grid"
+msgstr "Simple Grid"
+
+msgid "Multi Grid"
+msgstr "Multi Grid"
+
+msgid "Split menu"
+msgstr "Menú dividido"
+
 msgid "bold italic only"
 msgstr "solo negrita y cursiva"
 
