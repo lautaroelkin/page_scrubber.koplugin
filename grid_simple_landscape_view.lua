@@ -79,11 +79,23 @@ local function getLandscapeAspectRatio(scrubber)
     return scrubber._sh / scrubber._sw
 end
 
+
+-- Estilo cuadrado del Simple Grid (Appearance > Rounded style apagado): sin esquinas redondeadas ni sombra, y los botones
+-- (al presionarlos) también cuadrados. Se lee en cada pintada, así el cambio se ve al instante.
+local function squareStyle()
+    -- "Rounded style" (Appearance): si todavía no se tocó, se respeta la elección del viejo "Square style"
+    local v = G_reader_settings and G_reader_settings:readSetting("page_scrubber_rounded_simple")
+    if v == nil then
+        return (G_reader_settings and G_reader_settings:isTrue("page_scrubber_simple_grid_square")) and true or false
+    end
+    return not v
+end
+
 local GridSimpleLandscapeView = {}
 
 -- Altura del efecto de ‹ › como fracción de la altura de la página (más chico = más bajo).
 -- Siempre queda centrado en la altura de las flechas y es igual para los dos lados.
-local SIDE_PILL_H_RATIO = 0.40
+local SIDE_PILL_H_RATIO = 0.24
 
 -- Pinta un icono en BLANCO sobre el efecto negro. Se dibuja el icono (en negro) en un buffer
 -- temporal de grises y solo se escriben en pantalla los píxeles con "tinta", con su
@@ -171,7 +183,7 @@ function GridSimpleLandscapeView.pressRect(scrubber, which)
         if not (nd and pg) then return nil end
         local min_top = nd.y + S(2)
         local max_bottom = pg.y + pg.h
-        local h = math.max(math.floor(pg.h * SIDE_PILL_H_RATIO), S(64))
+        local h = math.max(math.floor(pg.h * SIDE_PILL_H_RATIO), S(52))   -- mínimo: que entre la flecha (44)
         h = math.min(h, max_bottom - min_top)
         local cy = pn.y + math.floor(pn.h / 2)       -- centro de las flechas
         local top = cy - math.floor(h / 2)
@@ -221,6 +233,7 @@ function GridSimpleLandscapeView.pressRect(scrubber, which)
     end
 
     if w <= 0 or h <= 0 then return nil end
+    if squareStyle() then rad = 0 end
     return Geom:new{ x = x, y = y, w = w, h = h }, rad
 end
 
@@ -278,14 +291,17 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
 
     scrubber._gs_panel_dimen = Geom:new{ x = panel_x, y = panel_y, w = panel_w, h = panel_h }
 
+    local square = squareStyle()
     local shadow_offset = S(4)
-    local radius = S(16)
+    local radius = square and 0 or S(16)
     local border = S(2)
 
-    -- Sombra y marco de la tarjeta
-    paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    -- Sombra y marco de la tarjeta (sin sombra en estilo cuadrado)
+    if not square then
+        paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    end
     paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, square and 0 or math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
     -- Efecto al apretar ‹ › (negro, redondeado). Se pinta antes que iconos y textos.
     -- El de la ✕ se pinta al final de la tarjeta para que la página no lo tape.
@@ -470,7 +486,7 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
         if is_disabled then return end
         if is_p then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
-            local btn_rad = is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8)
+            local btn_rad = square and 0 or (is_bm_ctrl and math.floor(math.min(dim.w, dim.h) / 2) or S(8))
             local bg_y = dim.y
             paintRoundRect(bb, dim.x, bg_y, dim.w, dim.h, btn_rad, Blitbuffer.COLOR_BLACK)
             if widget.text then
@@ -586,7 +602,7 @@ function GridSimpleLandscapeView.paint(scrubber, bb)
         scrubber._grid_back_dimen = Geom:new{ x = bx, y = l2_y, w = bw, h = mark_sz }
 
         if is_back_p then
-            paintRoundRect(bb, bx, l2_y, bw, mark_sz, S(6), Blitbuffer.COLOR_BLACK)
+            paintRoundRect(bb, bx, l2_y, bw, mark_sz, square and 0 or S(6), Blitbuffer.COLOR_BLACK)
             scrubber._tw_lnd_back.fgcolor = Blitbuffer.COLOR_WHITE
             scrubber._tw_lnd_back:paintTo(bb, bx + S(7), l2_y + math.floor((mark_sz - bsz.h)/2))
         else

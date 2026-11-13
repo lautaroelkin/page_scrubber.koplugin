@@ -115,6 +115,18 @@ local function paintRoundRect(bb, x, y, w, h, r, color)
     paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
 end
 
+-- Estilo cuadrado del Simple Grid (Appearance > Rounded style apagado): los botones compartidos de la barra de abajo
+-- se marcan sin redondeo al presionarlos, pero solo cuando se está en Simple Grid.
+local function squareSimpleGrid(self)
+    if self._view_mode ~= "grid_simple" or G_reader_settings == nil then return false end
+    -- "Rounded style" (Appearance): si todavía no se tocó, se respeta la elección del viejo "Square style"
+    local v = G_reader_settings and G_reader_settings:readSetting("page_scrubber_rounded_simple")
+    if v == nil then
+        return (G_reader_settings and G_reader_settings:isTrue("page_scrubber_simple_grid_square")) and true or false
+    end
+    return not v
+end
+
 -- Redibuja el contorno de un recuadro redondeado POR ENCIMA de lo que haya adentro (una imagen a
 -- pantalla completa queda "detras" del borde). Las esquinas de afuera del contorno quedan blancas.
 local function paintFrameOver(bb, x, y, w, h, r, thick)
@@ -629,8 +641,11 @@ function PageScrubber:init()
     self.icon_details_shrink = createSafeIcon("\u{2921}", "shrink.svg", S(22))   -- panel expandido -> normal
 
     local filter_icon_sz = S(14)
-    self.icon_filter_hl_on  = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
-    self.icon_filter_hl_off = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    self.icon_filter_hl_on   = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_hl_off  = createSafeIcon("\u{ED51}", "droplet.svg", filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
+    self.icon_filter_note_on = createSafeIcon("\u{F040}", "pencil-line.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_bm_on   = createSafeIcon("\u{F02E}", "gravity-ui--bookmark-fill.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
+    self.icon_filter_img_on  = createSafeIcon("\u{F03E}", "image.svg", filter_icon_sz, Blitbuffer.COLOR_BLACK)
     -- Carpetas del tab de imagenes: favoritas / generales / basura (encendido = negro, apagado = gris)
     self.icon_img_fav_on   = createSafeIcon("*", "img-folder-fav.svg",     filter_icon_sz, Blitbuffer.COLOR_BLACK)
     self.icon_img_fav_off  = createSafeIcon("*", "img-folder-fav.svg",     filter_icon_sz, Blitbuffer.COLOR_DARK_GRAY)
@@ -1332,12 +1347,157 @@ function PageScrubber:_getSelectedColorInfo(tab)
     return nil
 end
 
--- Círculo con el color de resaltado (aro + relleno)
+-- Círculo con el color de resaltado (aro opcional + relleno)
 function PageScrubber:_paintColorDot(bb, x, y, d, key, ring_color)
     local ok, CFM = pcall(require, "color_filter_menu")
     if ok and CFM and CFM.paintDot then
-        CFM.paintDot(bb, x, y, d, key, ring_color or Blitbuffer.COLOR_BLACK)
+        if ring_color then
+            CFM.paintDot(bb, x, y, d, key, ring_color)
+        else
+            CFM.paintDot(bb, x, y, d, key, nil, 0)
+        end
     end
+end
+
+-- Mini-indicador a la izquierda del número en las filas del split menu (color o ícono de tipo)
+function PageScrubber:_paintRowVisualHint(bb, x, row_y, row_h, item_obj, is_r_sel)
+    local tab = self._active_tab
+    if tab ~= "bookmarks" and tab ~= "highlights" and tab ~= "notes" and tab ~= "images" then
+        return
+    end
+    if tab ~= "bookmarks" and type(item_obj) ~= "table" then
+        return
+    end
+
+    local S = self.S
+    local style_icon = nil
+    local color_key = nil
+    local chip_key = nil
+
+    if tab == "bookmarks" then
+        style_icon = self.icon_filter_bm_on
+    elseif tab == "images" then
+        if item_obj.is_fav then
+            style_icon = self.icon_img_fav_on
+        elseif item_obj.cls == "junk" then
+            style_icon = self.icon_img_junk_on
+        elseif item_obj.cls == "general" then
+            style_icon = self.icon_img_gen_on
+        else
+            style_icon = self.icon_filter_img_on
+        end
+    else
+        local no_style_filter = (self._hl_filter == nil)
+        local no_color_filter = (self._hl_color_filter == nil)
+        local ann = item_obj.annotation
+        local is_pure_note = (ann ~= nil and ann.drawer == nil and type(item_obj.note) == "string" and item_obj.note ~= "")
+        local htype = item_obj.type
+
+        -- Siempre el SVG del estilo
+        if is_pure_note then
+            style_icon = self.icon_filter_note_on
+        elseif htype == "invert" then
+            style_icon = self.icon_filter_inv_on
+        elseif htype == "underline" then
+            style_icon = self.icon_filter_ul_on
+        elseif htype == "strikethrough" then
+            style_icon = self.icon_filter_st_on
+        else
+            style_icon = self.icon_filter_hl_on   -- (la nota se marca con el lápiz junto al número)
+        end
+
+        -- El color va de fondo del SVG, solo si ese estilo tiene 2+ colores distintos (también con filtros activos)
+        if not is_pure_note and htype ~= "invert" and item_obj.color
+           and self:_hasMultiHighlightColor(tab, htype) then
+            chip_key = item_obj.color
+        end
+    end
+
+    if color_key then
+        local dot_d = S(10)
+        local dy = row_y + math.floor((row_h - dot_d) / 2)
+        local ring = is_r_sel and nil or Blitbuffer.COLOR_BLACK
+        self:_paintColorDot(bb, x, dy, dot_d, color_key, ring)
+    elseif style_icon then
+        local isz = style_icon:getSize()
+        local iy = row_y + math.floor((row_h - isz.h) / 2)
+        if chip_key then
+            -- Color de fondo detrás del SVG (el SVG queda negro encima, legible incluso con amarillos)
+            local okc, CFM = pcall(require, "color_filter_menu")
+            if okc and CFM and CFM.paintChip then
+                local pad = S(3)
+                CFM.paintChip(bb, x - pad, iy - pad, isz.w + pad * 2, isz.h + pad * 2, S(5), chip_key)
+            end
+            -- SVG más grueso: se pinta tres veces con 1px de diferencia
+            style_icon:paintTo(bb, x, iy)
+            style_icon:paintTo(bb, x + 1, iy)
+            style_icon:paintTo(bb, x, iy + 1)
+        elseif is_r_sel then
+            bb:paintRect(x, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
+            style_icon:paintTo(bb, x, iy)
+            bb:invertRect(x, iy, isz.w, isz.h)
+        else
+            style_icon:paintTo(bb, x, iy)
+        end
+    end
+end
+
+-- Ancho del lápiz si este highlight lo lleva (solo pestaña highlights con nota); nil si no
+function PageScrubber:_noteMarkWidth(item_obj)
+    if self._active_tab ~= "highlights" or type(item_obj) ~= "table" then return nil end
+    if type(item_obj.note) ~= "string" or item_obj.note == "" then return nil end
+    local icon = self.icon_filter_note_on
+    return icon and icon:getSize().w or nil
+end
+
+-- Si el lápiz no entra, corre el número a la izquierda (hasta min_x); si ni así entra, no se dibuja.
+-- Devuelve el x del número y si hay que dibujar el lápiz.
+function PageScrubber:_fitNoteMark(item_obj, pg_x, min_x, group_w, limit)
+    local w = self:_noteMarkWidth(item_obj)
+    if not w then return pg_x, false end
+    local gap = self.S(8)
+    if pg_x + group_w + gap + w <= limit then return pg_x, true end
+    local new_x = limit - w - gap - group_w
+    if new_x >= min_x then return new_x, true end
+    return pg_x, false
+end
+
+-- Lápiz a la derecha del número de página: solo en la pestaña de highlights, si ese highlight tiene nota
+function PageScrubber:_paintRowNoteMark(bb, x, row_y, row_h, item_obj, is_r_sel, max_x)
+    if self._active_tab ~= "highlights" or type(item_obj) ~= "table" then return end
+    if type(item_obj.note) ~= "string" or item_obj.note == "" then return end
+    local icon = self.icon_filter_note_on
+    if not icon then return end
+    local isz = icon:getSize()
+    if max_x and (x + isz.w) > max_x then return end
+    local iy = row_y + math.floor((row_h - isz.h) / 2)
+    if is_r_sel then
+        bb:paintRect(x, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
+        icon:paintTo(bb, x, iy)
+        bb:invertRect(x, iy, isz.w, isz.h)
+    else
+        icon:paintTo(bb, x, iy)
+    end
+end
+
+-- ¿Hay 2+ colores distintos entre las anotaciones de un estilo (por defecto los highlights "normales") de la pestaña?
+function PageScrubber:_hasMultiHighlightColor(tab, htype)
+    tab = tab or self._active_tab
+    htype = htype or "normal"
+    local list = (tab == "notes") and self._cached_notes or self._cached_hl
+    if type(list) ~= "table" then return false end
+    local c = self._multi_hl_color_cache
+    if c and c.list == list and c.n == #list and c.tab == tab and c.htype == htype then return c.val end
+    local first, val = nil, false
+    for _, it in ipairs(list) do
+        local ann = it.annotation
+        if it.type == htype and it.color and not (ann and ann.drawer == nil) then
+            if not first then first = it.color
+            elseif it.color ~= first then val = true; break end
+        end
+    end
+    self._multi_hl_color_cache = { list = list, n = #list, tab = tab, htype = htype, val = val }
+    return val
 end
 
 function PageScrubber:_hasMultiColor(tab)
@@ -2429,46 +2589,87 @@ function PageScrubber:_updateGridPages()
         end
 
         local req_page = slot.page
-        local timed_out = false
+        local settled = false   -- ya se contabilizó esta tarea (éxito, fallo o timeout)
+        local retried = false
 
-        UIManager:scheduleIn(6.9, function()
-            if self._closing or timed_out or self._grid_batch_seq ~= current_seq then return end
-            timed_out = true
-            if slot.loading then
+        -- La contabilidad de tareas se hace una sola vez; una respuesta tardía igual puede curar el "!"
+        local function settle()
+            if settled then return end
+            settled = true
+            -- Un lote viejo (otra secuencia) no toca los contadores ni dispara refrescos del lote actual
+            if self._closing or self._grid_batch_seq ~= current_seq then return end
+            self._tasks_in_flight = self._tasks_in_flight - 1
+            checkFinished()
+            if on_complete then on_complete() end
+        end
+
+        local function slotIsCurrent()
+            return not self._closing and self._grid_batch_seq == current_seq and self._grid_tiles[idx] == slot
+        end
+
+        -- Procesa y guarda la miniatura. Se cachea siempre (sirve aunque la grilla ya haya cambiado)
+        local function applyTile(tile)
+            local processed = processTile(tile, expected_req_w, expected_req_h)
+            if not (processed and processed.bb) then return false end
+            self:_cacheTile(req_page, processed.bb, processed.is_scaled, expected_req_w, expected_req_h)
+            if slotIsCurrent() then
+                slot.tile_bb = processed.bb
+                slot.is_scaled = processed.is_scaled
+                slot.loading = false
+                slot.error = nil
+            end
+            return true
+        end
+
+        local function markFailed()
+            if slotIsCurrent() and not slot.tile_bb then
                 slot.loading = false
                 slot.error = true
                 self._failed_pages = self._failed_pages or {}
                 self._failed_pages[req_page] = true
-                refreshSlotIndividually(idx)
-                self._tasks_in_flight = self._tasks_in_flight - 1
-                checkFinished()
-                if on_complete then on_complete() end
             end
+        end
+
+        -- Un solo reintento en segundo plano con otro lote: si la primera peticion quedo atascada
+        -- (cola ocupada tras el split), esta o la tardia desaparecen el "!" cuando llegan
+        local function retryInBackground()
+            if retried or self._closing then return end
+            retried = true
+            thumbnail:getPageThumbnail(req_page, expected_req_w, expected_req_h, req_batch_id .. "_r",
+                function(tile)
+                    if self._closing or not tile or slot.tile_bb then return end
+                    if applyTile(tile) and slotIsCurrent() then
+                        refreshSlotIndividually(idx)
+                    end
+                end)
+        end
+
+        UIManager:scheduleIn(6.9, function()
+            if self._closing or settled or slot.tile_bb then return end
+            if self._grid_batch_seq ~= current_seq then settled = true; return end
+            markFailed()
+            refreshSlotIndividually(idx)
+            settle()
+            retryInBackground()
         end)
 
         thumbnail:getPageThumbnail(req_page, expected_req_w, expected_req_h, req_batch_id,
             function(tile, resp_batch_id)
-                if self._closing or timed_out or self._grid_batch_seq ~= current_seq then return end
-                timed_out = true
-
-                local processed = processTile(tile, expected_req_w, expected_req_h)
-                if processed and processed.bb and self._grid_tiles[idx] then
-                    self._grid_tiles[idx].tile_bb = processed.bb
-                    self._grid_tiles[idx].is_scaled = processed.is_scaled
-                    self._grid_tiles[idx].loading = false
-                    self._grid_tiles[idx].error = nil
-                    self:_cacheTile(req_page, processed.bb, processed.is_scaled, expected_req_w, expected_req_h)
-                elseif self._grid_tiles[idx] then
-                    self._grid_tiles[idx].loading = false
-                    self._grid_tiles[idx].error = true
-                    self._failed_pages = self._failed_pages or {}
-                    self._failed_pages[req_page] = true
+                if self._closing or slot.tile_bb then return end
+                if self._grid_batch_seq ~= current_seq then
+                    settled = true
+                    if tile then applyTile(tile) end   -- solo cachea (slotIsCurrent evita tocar el grid actual)
+                    return
                 end
-
-                refreshSlotIndividually(idx)
-                self._tasks_in_flight = self._tasks_in_flight - 1
-                checkFinished()
-                if on_complete then on_complete() end
+                if tile and applyTile(tile) then
+                    refreshSlotIndividually(idx)
+                    settle()
+                else
+                    markFailed()
+                    refreshSlotIndividually(idx)
+                    settle()
+                    retryInBackground()
+                end
             end
         )
     end
@@ -2580,6 +2781,7 @@ function PageScrubber:_paintGrid(bb)
         local rect = self:_gridSlotDimen(idx)
         local is_cur = (idx == 2)
         local border = self.S(1)   -- la pagina del medio con el mismo grosor que las de los costados
+        local rad = self:_pageRadius("grid", self.S(10))
 
         if slot and slot.page then
             if slot.tile_bb and slot.mode == "grid" then
@@ -2609,6 +2811,7 @@ function PageScrubber:_paintGrid(bb)
                 local box_w = rect.w
                 local box_h = is_fixed_page and blit_h or rect.h
 
+                local snap = self:_beginPageFrame(bb, box_x, box_y, box_w, box_h, rad)
                 bb:paintRect(box_x, box_y, box_w, box_h, Blitbuffer.COLOR_WHITE)
 
                 if blit_w > 0 and blit_h > 0 then
@@ -2622,7 +2825,7 @@ function PageScrubber:_paintGrid(bb)
                 end
 
                 if self._grid_flash_idx == idx then
-                    bb:paintRect(box_x, box_y, box_w, box_h, Blitbuffer.COLOR_BLACK)
+                    bb:paintRect(box_x, box_y, box_w, box_h, Blitbuffer.COLOR_BLACK)   -- las esquinas de afuera se restauran abajo
                 end
 
                 local is_bmed = self._cached_bms_map and self._cached_bms_map[tonumber(slot.page)]
@@ -2657,12 +2860,13 @@ function PageScrubber:_paintGrid(bb)
                     paintRoundRect(bb, dx, dy, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
                 end
 
-                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                self:_endPageFrame(bb, box_x, box_y, box_w, box_h, rad, border, snap)
 
             elseif slot.error then
                 if not is_fixed_page then
+                    local esnap = self:_beginPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad)
                     bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
-                    bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+                    self:_endPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad, border, esnap)
                 end
                 if not self._tw_grid_error then
                     self._tw_grid_error = TextWidget:new{
@@ -2675,10 +2879,11 @@ function PageScrubber:_paintGrid(bb)
                     rect.y + math.floor((rect.h - etsz.h) / 2))
             elseif slot.loading then
                 if not is_fixed_page then
+                    local lsnap = self:_beginPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad)
                     bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
                     bb:paintRect(rect.x + math.floor(rect.w / 2) - 1, rect.y + math.floor(rect.h / 2) - 1,
                         2, 2, Blitbuffer.COLOR_GRAY)
-                    bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0)
+                    self:_endPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad, border, lsnap)
                 end
             end
         end
@@ -3124,6 +3329,56 @@ function PageScrubber:_restoreCorners(bb, snap)
     end
 end
 
+-- ---- Rounded style (Ajustes > Appearance > Rounded style) ----
+-- Un toggle por vista con previsualizacion de paginas. Encendido (por defecto) las paginas van con
+-- esquinas redondeadas; apagado, con esquinas cuadradas. "simple" hereda la eleccion del viejo
+-- "Square style" mientras no se toque el toggle nuevo.
+local ROUNDED_STYLE_KEYS = {
+    grid   = "page_scrubber_rounded_grid",         -- 3-Page Grid (multiview)
+    simple = "page_scrubber_rounded_simple",       -- Simple Grid
+    multi  = "page_scrubber_rounded_multigrid",    -- Multi Grid (miniaturas 3x2 / 3x3)
+    split  = "page_scrubber_rounded_split",        -- Split menu (polaroid)
+}
+
+function PageScrubber:_isSquare(view)
+    if not G_reader_settings then return false end
+    if view == "simple" then
+        -- "Rounded style" (Appearance): si todavía no se tocó, se respeta la elección del viejo "Square style"
+        local v = G_reader_settings and G_reader_settings:readSetting("page_scrubber_rounded_simple")
+        if v == nil then
+            return (G_reader_settings and G_reader_settings:isTrue("page_scrubber_simple_grid_square")) and true or false
+        end
+        return not v
+    end
+    local key = ROUNDED_STYLE_KEYS[view]
+    if not key then return false end
+    return not G_reader_settings:nilOrTrue(key)
+end
+
+-- Radio de las esquinas de una pagina previsualizada: 0 en estilo cuadrado
+function PageScrubber:_pageRadius(view, r)
+    if self:_isSquare(view) then return 0 end
+    return r
+end
+
+-- Misma tecnica que la polaroid del split: se guardan las esquinas del fondo ANTES de pintar la pagina
+-- (_beginPageFrame) y, al terminar, se dibuja el contorno redondeado encima y se restauran esas esquinas
+-- (_endPageFrame). Asi el fondo (blanco o wallpaper) queda intacto fuera de la curva. Con r == 0 es el
+-- contorno cuadrado de siempre.
+function PageScrubber:_beginPageFrame(bb, x, y, w, h, r)
+    if r <= 0 then return nil end
+    return self:_snapCorners(bb, x, y, w, h, r)
+end
+
+function PageScrubber:_endPageFrame(bb, x, y, w, h, r, thick, snap)
+    if r <= 0 then
+        bb:paintBorder(x, y, w, h, thick, Blitbuffer.COLOR_BLACK, 0)
+        return
+    end
+    paintFrameOver(bb, x, y, w, h, r, thick)
+    self:_restoreCorners(bb, snap)
+end
+
 -- Copia / restaura una region entera (el modo expandido tapa la columna derecha: se restaura el fondo
 -- que habia debajo en vez de pintar un rectangulo blanco)
 function PageScrubber:_snapRegion(bb, x, y, w, h)
@@ -3409,7 +3664,7 @@ function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, ful
 
     -- Contorno y fondo: mismo estilo que la polaroid
     paintRoundRect(bb, x, y, w, h, radius, BLACK)
-    paintRoundRect(bb, x + thick, y + thick, w - thick * 2, h - thick * 2, math.max(1, radius - thick), WHITE)
+    paintRoundRect(bb, x + thick, y + thick, w - thick * 2, h - thick * 2, radius > 0 and math.max(1, radius - thick) or 0, WHITE)
 
     local ix, iw = x + thick, w - thick * 2
     local top_y = y + thick
@@ -3823,13 +4078,22 @@ function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, ful
         ltw:setText(link_text)
         local lsz = ltw:getSize()
         local ly = nav_y - link_h
-        local lx = ix + math.floor((iw - lsz.w) / 2)
+        -- Tab de imagenes: a la izquierda del texto va el SVG segun el tipo de imagen (favorita / general / basura)
+        local t_icon = data.title_icon
+        local t_isz = t_icon and t_icon:getSize() or nil
+        local t_gap = S(8)
+        local group_w = lsz.w + (t_isz and (t_isz.w + t_gap) or 0)
+        local gx0 = ix + math.floor((iw - group_w) / 2)
+        local lx = gx0 + (t_isz and (t_isz.w + t_gap) or 0)
         local ty = ly + math.floor((link_h - lsz.h) / 2)
+        if t_icon then
+            t_icon:paintTo(bb, gx0, ly + math.floor((link_h - t_isz.h) / 2))
+        end
         ltw:paintTo(bb, lx, ty)
         bb:paintRect(lx, ty + lsz.h, lsz.w, math.max(1, S(2)), BLACK)   -- subrayado negro (todo el texto)
         self._details_link_dimen = Geom:new{ x = ix, y = ly, w = iw, h = link_h }   -- toda la fila es tocable
         if self._pressed_btn == "details_link" then
-            bb:invertRect(lx - S(6), ly + S(2), lsz.w + S(12), link_h - S(4))
+            bb:invertRect(gx0 - S(6), ly + S(2), group_w + S(12), link_h - S(4))
         end
     end
 
@@ -4196,7 +4460,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             end
 
             if sel_key then
-                self:_paintColorDot(bb, ix, iy, isz.w, sel_key, Blitbuffer.COLOR_WHITE)
+                self:_paintColorDot(bb, ix, iy, isz.w, sel_key, nil)
                 self._tw_tab_color_name:paintTo(bb, nx, ny)
             elseif icon_widget then
                 if is_active then
@@ -4243,9 +4507,12 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local card_w = pr_w
     local card_h = pr_h + status_h
     
-    self._card_snap = self:_snapCorners(bb, card_x, card_y, card_w, card_h, box_radius)   -- esquinas de afuera (fondo)
-    paintRoundRect(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
+    -- Rounded style del split: la polaroid (pagina + chin) y el panel de detalles comparten el radio
+    local card_radius = self:_pageRadius("split", box_radius)
+    local card_inner_r = card_radius > 0 and math.max(1, card_radius - b_thick) or 0
+    self._card_snap = self:_snapCorners(bb, card_x, card_y, card_w, card_h, card_radius)   -- esquinas de afuera (fondo)
+    paintRoundRect(bb, card_x, card_y, card_w, card_h, card_radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, card_inner_r, Blitbuffer.COLOR_WHITE)
 
     local tile = self._grid_tiles[2] or {}
     -- Si el panel de detalles esta abierto (se pinto en el frame anterior) cubre toda la tarjeta:
@@ -4282,9 +4549,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             bb:blitFrom(tile.tile_bb, ox, oy, src_x, src_y, blit_w, blit_h)
 
             -- Recorte suave de las esquinas superiores de la miniatura para no deformar la curva
-            local r_in = math.max(1, box_radius - b_thick)
-            for j = 0, box_radius - 1 do
-                local arc_out = math.ceil(math.sqrt(box_radius*box_radius - (box_radius - j - 0.5)*(box_radius - j - 0.5)))
+            local r_in = math.max(1, card_radius - b_thick)
+            for j = 0, card_radius - 1 do
+                local arc_out = math.ceil(math.sqrt(card_radius*card_radius - (card_radius - j - 0.5)*(card_radius - j - 0.5)))
                 local arc_in = 0
                 if j >= b_thick and (j - b_thick) < r_in then
                     local k = j - b_thick
@@ -4292,8 +4559,8 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 end
                 local w_c = arc_out - arc_in
                 if w_c > 0 then
-                    bb:paintRect(card_x + box_radius - arc_out, card_y + j, w_c, 1, Blitbuffer.COLOR_BLACK)
-                    bb:paintRect(card_x + card_w - box_radius + arc_in, card_y + j, w_c, 1, Blitbuffer.COLOR_BLACK)
+                    bb:paintRect(card_x + card_radius - arc_out, card_y + j, w_c, 1, Blitbuffer.COLOR_BLACK)
+                    bb:paintRect(card_x + card_w - card_radius + arc_in, card_y + j, w_c, 1, Blitbuffer.COLOR_BLACK)
                 end
             end
         end
@@ -4421,21 +4688,16 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         end
     end
 
+    -- Sin ícono en la franja inferior: el tipo ya se ve en el SVG de la fila seleccionada del menú,
+    -- así el texto arranca en el margen izquierdo y tiene más ancho
     local pad_x = S(14)
-    local gap = S(8)
     
-    local isz = active_pol_icon and active_pol_icon:getSize() or {w = S(20), h = S(20)}
-    local text_max_w = card_w - (pad_x * 2) - isz.w - gap
+    local text_max_w = card_w - (pad_x * 2)
     local clean_str = text_str:gsub("\n", " "):gsub("\r", "")
     
     local ix = card_x + pad_x
-    local iy = card_y + pr_h + math.floor((status_h - isz.h) / 2)
     
-    if active_pol_icon then
-        active_pol_icon:paintTo(bb, ix, iy)
-    end
-    
-    local tx = ix + isz.w + gap
+    local tx = ix
     if not self._tw_preview_text then
         self._tw_preview_text = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK, truncate_with_ellipsis = true }
     end
@@ -4456,7 +4718,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     self._card_snap = nil
 
     if not (self._details_open and self._details_expanded) then
-        local okp, errp = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, lm_x + lm_w - card_x)
+        local okp, errp = pcall(self._paintDetailsPanel, self, bb, card_x, card_y, card_w, card_h, card_radius, b_thick, lm_x + lm_w - card_x)
         if not okp then
             logger.warn("page-scrubber details panel error:", errp)
             self._details_open = false
@@ -5010,12 +5272,15 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 paintRoundRect(bb, lm_x + b_thick + pill_inset, current_row_y + pill_pad_y,
                     lm_w - (b_thick + pill_inset) * 2, pill_h,
                     math.min(S(14), math.floor(pill_h / 2)), Blitbuffer.COLOR_BLACK)
-                -- Puntito blanco a la izquierda: aparece solo cuando el panel de detalle está abierto en esta fila
-                if self._details_open then
-                    local dot_d = S(8)
-                    paintRoundRect(bb, lm_x + S(19), current_row_y + math.floor((row_h - dot_d) / 2),
-                        dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
-                end
+            end
+
+            -- Puntito blanco si el panel de detalle está abierto en esta fila; si no, pista visual de tipo/color
+            if is_r_sel and self._details_open then
+                local dot_d = S(8)
+                paintRoundRect(bb, lm_x + S(19), current_row_y + math.floor((row_h - dot_d) / 2),
+                    dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
+            else
+                self:_paintRowVisualHint(bb, lm_x + S(19), current_row_y, row_h, item_obj, is_r_sel)
             end
             
             -- Línea Hairline divisoria color Gris Claro (no se dibuja pegada a la pastilla)
@@ -5097,11 +5362,16 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local area_x = lm_x + S(19) + S(14)   -- justo después del hueco del puntito (siempre reservado)
             local area_w = (rm_x - S(8)) - area_x
             local pg_x = area_x + math.max(S(4), math.floor((area_w - group_w) / 2))
+            local show_note_mark
+            pg_x, show_note_mark = self:_fitNoteMark(item_obj, pg_x, area_x + S(4), group_w, rm_x - S(8))
             local pg_y = current_row_y + math.floor((row_h - tw_pg_sz.h) / 2) + S(2) - 1
 
             tw_pg:paintTo(bb, pg_x, pg_y)
             if tw_super then
                 tw_super:paintTo(bb, pg_x + tw_pg_sz.w + S(2), pg_y - S(3))
+            end
+            if show_note_mark then
+                self:_paintRowNoteMark(bb, pg_x + group_w + S(8), current_row_y, row_h, item_obj, is_r_sel)
             end
             
             local t_dim = Geom:new{ x = rm_x - S(10), y = current_row_y, w = rm_sz.w + S(20), h = row_h }
@@ -5297,7 +5567,7 @@ function PageScrubber:_paintBackLabel(bb)
 
     local is_pressed = (self._pressed_btn == "grid_back")
     if is_pressed then
-        paintRoundRect(bb, self._grid_back_dimen.x, self._grid_back_dimen.y, self._grid_back_dimen.w, self._grid_back_dimen.h, S(8), Blitbuffer.COLOR_BLACK)
+        paintRoundRect(bb, self._grid_back_dimen.x, self._grid_back_dimen.y, self._grid_back_dimen.w, self._grid_back_dimen.h, squareSimpleGrid(self) and 0 or S(8), Blitbuffer.COLOR_BLACK)
         self._tw_grid_back_icon.fgcolor = Blitbuffer.COLOR_WHITE
         self._tw_grid_back.fgcolor = Blitbuffer.COLOR_WHITE
         
@@ -6312,7 +6582,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
         if is_pressed then
             local is_bm_ctrl = (btn_id == "ctrl_prev" or btn_id == "ctrl_next")
             if is_bm_ctrl then
-                local btn_rad = math.floor(math.min(dimen.w, dimen.h) / 2)
+                local btn_rad = squareSimpleGrid(self) and 0 or math.floor(math.min(dimen.w, dimen.h) / 2)
                 paintRoundRect(bb, dimen.x, dimen.y, dimen.w, dimen.h, btn_rad, Blitbuffer.COLOR_BLACK)
                 if tw.text then
                     tw.fgcolor = Blitbuffer.COLOR_WHITE
@@ -6325,7 +6595,7 @@ function PageScrubber:_paintToImpl(bb, x, y)
                 end
             else
                 local pad = S(6)
-                paintRoundRect(bb, draw_x - pad, draw_y - pad, tsz.w + pad*2, tsz.h + pad*2, S(8), Blitbuffer.COLOR_BLACK)
+                paintRoundRect(bb, draw_x - pad, draw_y - pad, tsz.w + pad*2, tsz.h + pad*2, squareSimpleGrid(self) and 0 or S(8), Blitbuffer.COLOR_BLACK)
                 bb:paintRect(draw_x, draw_y, tsz.w, tsz.h, Blitbuffer.COLOR_WHITE)
                 tw:paintTo(bb, draw_x, draw_y)
                 bb:invertRect(draw_x, draw_y, tsz.w, tsz.h)

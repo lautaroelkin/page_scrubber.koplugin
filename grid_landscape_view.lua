@@ -180,6 +180,8 @@ function GridLandscapeView.paint(scrubber, bb)
         local slot = scrubber._grid_tiles[idx]
         local is_cur = (idx == 2)
         local border = is_cur and S(3) or S(1)
+        -- Rounded style (3-Page Grid): redondeado por defecto
+        local rad = scrubber:_pageRadius("grid", S(10))
 
         local box_x = start_x + (idx - 1) * (item_w + gap)
         local box_y = start_y
@@ -228,6 +230,7 @@ function GridLandscapeView.paint(scrubber, bb)
                     blit_w = sw - ox
                 end
 
+                local snap = scrubber:_beginPageFrame(bb, pg_x, pg_y, pg_w, pg_h, rad)
                 if blit_w > 0 and blit_h > 0 then
                     bb:paintRect(ox, oy, blit_w, blit_h, Blitbuffer.COLOR_WHITE)
                     bb:blitFrom(render_bb, ox, oy, src_x, src_y, blit_w, blit_h)
@@ -274,12 +277,14 @@ function GridLandscapeView.paint(scrubber, bb)
                     paintRoundRect(bb, dx, dy, dot_sz, dot_sz, math.floor(dot_sz / 2), Blitbuffer.COLOR_DARK_GRAY)
                 end
 
-                bb:paintBorder(pg_x, pg_y, pg_w, pg_h, border, Blitbuffer.COLOR_BLACK, 0)
+                scrubber:_endPageFrame(bb, pg_x, pg_y, pg_w, pg_h, rad, border, snap)
             else
                 local ox = math.max(0, box_x)
                 local ow = math.min(sw - ox, (box_x + box_w) - ox)
+                local nsnap = nil
                 if ow > 0 then
                     if not is_fixed then
+                        nsnap = scrubber:_beginPageFrame(bb, box_x, box_y, box_w, box_h, rad)
                         bb:paintRect(ox, box_y, ow, box_h, Blitbuffer.COLOR_WHITE)
                     end
                     if slot.error then
@@ -295,7 +300,7 @@ function GridLandscapeView.paint(scrubber, bb)
                     end
                 end
                 if not is_fixed then
-                    bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                    scrubber:_endPageFrame(bb, box_x, box_y, box_w, box_h, rad, border, nsnap)
                 end
             end
         end

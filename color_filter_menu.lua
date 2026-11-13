@@ -501,5 +501,16 @@ ColorFilterMenu.Swatch = ColorSwatchMenu
 
 ColorFilterMenu.resolveColor = resolveColor
 ColorFilterMenu.paintDot = paintDot
+ColorFilterMenu.resolveColor = resolveColor
+
+-- Cuadradito redondeado relleno con el color de resaltado (fondo de un SVG)
+function ColorFilterMenu.paintChip(bb, x, y, w, h, r, key)
+    local c = resolveColor(key)
+    if bb.blendRectRGB32 or bb.paintRectRGB32 then
+        paintCornerRectRGB32(bb, x, y, w, h, r, c)
+    else
+        paintRoundRect(bb, x, y, w, h, r, c)
+    end
+end
 
 return ColorFilterMenu

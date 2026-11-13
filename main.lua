@@ -7,6 +7,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local ReaderUI        = require("apps/reader/readerui")
 local UIManager       = require("ui/uimanager")
 local Device          = require("device")
+local ScrubberState   = require("scrubber_state")
 
 -- Lector de .po en vivo
 local _dict = {}
@@ -111,6 +112,8 @@ end
 function ReaderUI:onPageScrubberLaunch(mode, tab, page)
     local ui = self
     if not ui.document then return end
+    -- Rotando la pantalla: no se abre nada con las medidas de la orientación anterior
+    if ScrubberState.rotating then return true end
 
     local target_mode = mode or "grid"
     local target_tab = tab or "bookmarks"
@@ -118,6 +121,7 @@ function ReaderUI:onPageScrubberLaunch(mode, tab, page)
 
     UIManager:nextTick(function()
         if not ui or not ui.document then return end
+        if ScrubberState.rotating then return end
         local ScrubberUI = require("scrubber_ui")
         UIManager:show(ScrubberUI:new{
             ui                = ui,
@@ -139,6 +143,7 @@ function ReaderUI:onPageScrubberMenuBM() self:onPageScrubberLaunch("split", "boo
 function ReaderUI:onPageScrubberMenuHL() self:onPageScrubberLaunch("split", "highlights") end
 
 function ReaderUI:onPageScrubberToc()
+    if ScrubberState.rotating then return true end
     local ui = self
     if not ui.document then return end
     UIManager:nextTick(function()
@@ -154,6 +159,7 @@ function ReaderUI:onPageScrubberToc()
 end
 
 function ReaderUI:onPageScrubberTocExpanded()
+    if ScrubberState.rotating then return true end
     local ui = self
     if not ui.document then return end
     UIManager:nextTick(function()
@@ -204,6 +210,7 @@ end
 -- Abre el split y, apenas termina de construirse, el Review Card (ver initial_open_review en scrubber_ui.lua).
 -- Respeta el modo estudio (Off / Everywhere / Only in a folder): si no está activo para este libro, solo avisa.
 function ReaderUI:onPageScrubberStudy()
+    if ScrubberState.rotating then return true end
     local ui = self
     if not ui.document then return end
 
@@ -230,6 +237,7 @@ function ReaderUI:onPageScrubberStudy()
 end
 
 function ReaderUI:onPageScrubberQuickMenu()
+    if ScrubberState.rotating then return true end
     local ui = self
     if not ui.document then return end
     UIManager:nextTick(function()

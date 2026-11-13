@@ -26,6 +26,54 @@ pcall(function() ReaderHighlight = require("apps/reader/modules/readerhighlight"
 
 local modern_plugin_buttons_shared = {}
 
+-- Recupera botones del diccionario que otros plugins YA registraron con ReaderDictionary:addToDictButtons.
+-- Nuestro parche de addToDictButtons solo ve los registros posteriores a él: un plugin que se carga antes
+-- (p. ej. OfflineTranslate y su botón "Learned") quedaba fuera del popup. Se buscan, de forma defensiva:
+--   * campos del diccionario (instancia y clase) cuyo nombre contiene "button"
+--   * tablas capturadas como upvalues por la función addToDictButtons original
+local function harvestSpecs(tbl, depth)
+    if type(tbl) ~= "table" or depth > 2 then return end
+    for _, v in pairs(tbl) do
+        if type(v) == "table" then
+            if v.id and type(v.callback) == "function" then
+                if not modern_plugin_buttons_shared[v.id] then
+                    modern_plugin_buttons_shared[v.id] = v
+                end
+            else
+                harvestSpecs(v, depth + 1)
+            end
+        end
+    end
+end
+
+local function harvestExistingDictButtons(dictionary, add_fn)
+    if type(dictionary) ~= "table" then return end
+    pcall(function()
+        local sources = { dictionary }
+        local mt = getmetatable(dictionary)
+        if mt and type(mt.__index) == "table" then table.insert(sources, mt.__index) end
+        for _, src in ipairs(sources) do
+            for k, v in pairs(src) do
+                if type(k) == "string" and type(v) == "table" and k:lower():find("button") then
+                    harvestSpecs(v, 0)
+                end
+            end
+        end
+    end)
+    local fn = add_fn or dictionary._ps_orig_addToDictButtons or dictionary.addToDictButtons
+    if type(fn) == "function" and type(debug) == "table" and type(debug.getupvalue) == "function" then
+        pcall(function()
+            for i = 1, 20 do
+                local name, val = debug.getupvalue(fn, i)
+                if not name then break end
+                if type(val) == "table" and val ~= dictionary and val ~= _G then
+                    harvestSpecs(val, 1)
+                end
+            end
+        end)
+    end
+end
+
 -- ==========================================
 -- FASTDICT: MOTOR STARDIC EN MEMORIA
 -- ==========================================
@@ -750,7 +798,7 @@ function FloatingDict:discoverExternalButtons(dict_self, word, result, result_in
         highlight = active_highlight,
         selected_text = active_selected_text,
         text = word,
-        word = word,
+        word = clean_w,   -- como el popup nativo: la palabra consultada, sin puntuación alrededor
         clean_text = clean_w,
         clean_word = clean_w,
         lookupword = result.word or word,
@@ -833,6 +881,7 @@ function FloatingDict:discoverExternalButtons(dict_self, word, result, result_in
     end
     
     if dict_self then
+        harvestExistingDictButtons(dict_self)
         scan_for_buttons(dict_self.dict_plugin_buttons)
         scan_for_buttons(dict_self.dict_buttons_by_id)
         scan_for_buttons(dict_self.dict_buttons)
@@ -3251,6 +3300,9 @@ function FloatingDict:patchSystem()
     if dictionary and not dictionary._ps_fdict_addbuttons_patched then
         if type(dictionary.addToDictButtons) == "function" then
             local original_addToDictButtons = dictionary.addToDictButtons
+            dictionary._ps_orig_addToDictButtons = original_addToDictButtons
+            -- botones registrados antes que nuestro parche (plugins que cargan primero)
+            harvestExistingDictButtons(dictionary, original_addToDictButtons)
             dictionary.addToDictButtons = function(dict_self, spec)
                 if spec and spec.id then
                     modern_plugin_buttons_shared[spec.id] = spec

@@ -221,7 +221,15 @@ function GridSixLandscapeView.paint(scrubber, bb)
         local is_origin = (slot and slot.page and tonumber(slot.page) == tonumber(scrubber._origin_page))
         local border = is_origin and S(3) or S(1)
 
-        bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
+        -- Rounded style (Multi Grid): redondeado por defecto. Con tile se evita el relleno blanco de la
+        -- celda (la miniatura lo cubre) para que las esquinas de afuera conserven el fondo.
+        local rad = scrubber:_pageRadius("multi", S(isNineMode() and 7 or 9))
+        local has_tile = (slot and slot.page and slot.tile_bb) and true or false
+        local snap = nil
+        if rad <= 0 or not has_tile then
+            if slot and slot.page then snap = scrubber:_beginPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad) end
+            bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
+        end
 
         if slot and slot.page then
             if slot.tile_bb then
@@ -242,13 +250,14 @@ function GridSixLandscapeView.paint(scrubber, bb)
                 local ox = rect.x + math.floor((rect.w - bw) / 2)
                 local oy = rect.y + math.floor((rect.h - bh) / 2)
 
-                bb:blitFrom(render_bb, ox, oy, 0, 0, bw, bh)
-                if must_free then pcall(function() render_bb:free() end) end
-
                 local box_x, box_y, box_w, box_h = ox, oy, bw, bh
                 if not (bw < rect.w - 2 or bh < rect.h - 2) then
                     box_x, box_y, box_w, box_h = rect.x, rect.y, rect.w, rect.h
                 end
+                if rad > 0 then snap = scrubber:_beginPageFrame(bb, box_x, box_y, box_w, box_h, rad) end
+
+                bb:blitFrom(render_bb, ox, oy, 0, 0, bw, bh)
+                if must_free then pcall(function() render_bb:free() end) end
 
                 local is_bmed = false
                 for _, bmp in ipairs(all_bms) do
@@ -269,7 +278,7 @@ function GridSixLandscapeView.paint(scrubber, bb)
                     drawBookmarkRibbon(bb, rx, ry, rw, rh, Blitbuffer.COLOR_BLACK)
                 end
 
-                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                scrubber:_endPageFrame(bb, box_x, box_y, box_w, box_h, rad, border, snap)
 
                 -- Pastilla con número de página
                 if not scrubber._tw_gsix_page then
@@ -286,14 +295,22 @@ function GridSixLandscapeView.paint(scrubber, bb)
                 paintRoundRect(bb, bx, by, badge_w, badge_h, math.floor(badge_h / 2), Blitbuffer.COLOR_BLACK)
                 scrubber._tw_gsix_page:paintTo(bb, bx + math.floor((badge_w - tsz.w)/2), by + math.floor((badge_h - tsz.h)/2))
             elseif slot.error then
-                if not is_fixed then bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0) end
+                if not is_fixed then
+                    scrubber:_endPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad, border, snap)
+                elseif snap then
+                    scrubber:_restoreCorners(bb, snap)
+                end
                 if not scrubber._tw_grid_error then
                     scrubber._tw_grid_error = TextWidget:new{ text = "!", face = Font:getFace("cfont", S(32)), fgcolor = Blitbuffer.COLOR_BLACK }
                 end
                 local etsz = scrubber._tw_grid_error:getSize()
                 scrubber._tw_grid_error:paintTo(bb, rect.x + math.floor((rect.w - etsz.w)/2), rect.y + math.floor((rect.h - etsz.h)/2))
             elseif slot.loading then
-                if not is_fixed then bb:paintBorder(rect.x, rect.y, rect.w, rect.h, border, Blitbuffer.COLOR_BLACK, 0) end
+                if not is_fixed then
+                    scrubber:_endPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad, border, snap)
+                elseif snap then
+                    scrubber:_restoreCorners(bb, snap)
+                end
                 bb:paintRect(rect.x + math.floor(rect.w/2) - 1, rect.y + math.floor(rect.h/2) - 1, 2, 2, Blitbuffer.COLOR_GRAY)
             end
         end

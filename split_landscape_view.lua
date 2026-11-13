@@ -110,7 +110,7 @@ function SplitLandscapeView.getThumbDims(scrubber)
     local S = scrubber.S
     local top_h = scrubber._top_bar_dimen.h
     local bar_h = S(6) * 2 + S(38) * 2 + S(4)
-    local avail_h = sh - top_h - bar_h - S(20)
+    local avail_h = sh - top_h - bar_h - S(11) * 2   -- mismo edge_gap arriba y abajo que en paint()
     local avail_w = sw - (S(16) * 2) - S(16)
 
     local tab_h = S(34)
@@ -165,13 +165,15 @@ function SplitLandscapeView.paint(scrubber, bb)
     local gap_col = S(16)
     local tab_h = S(34)
     local tab_sp_y = S(6)
-    local avail_h = bar_y - top_h - S(20)
+    -- Mismo espacio arriba (entre la barra superior / línea gris y las pestañas) y abajo (entre el split menu y la línea negra de la barra inferior)
+    local edge_gap = S(11)
+    local avail_h = bar_y - top_h - edge_gap * 2
     local avail_w = sw - (pad_x * 2) - gap_col
 
     local card_w = math.floor(avail_w * 0.60)
     local col_right_w = avail_w - card_w
 
-    local tab_draw_y = top_h + S(2)
+    local tab_draw_y = top_h + edge_gap
     local card_y = tab_draw_y + tab_h + tab_sp_y
     local card_h = avail_h - tab_h - tab_sp_y
     local box_radius = S(12)
@@ -339,9 +341,12 @@ function SplitLandscapeView.paint(scrubber, bb)
     -- =========================================================
     scrubber._split_preview_dimen = Geom:new{ x = card_x, y = card_y, w = card_w, h = card_h }
 
-    scrubber._card_snap = scrubber:_snapCorners(bb, card_x, card_y, card_w, card_h, box_radius)   -- esquinas de afuera (fondo)
-    paintRoundRect(bb, card_x, card_y, card_w, card_h, box_radius, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, math.max(1, box_radius - b_thick), Blitbuffer.COLOR_WHITE)
+    -- Rounded style del split: la polaroid (pagina + chin) y el panel de detalles comparten el radio
+    local card_radius = scrubber:_pageRadius("split", box_radius)
+    local card_inner_r = card_radius > 0 and math.max(1, card_radius - b_thick) or 0
+    scrubber._card_snap = scrubber:_snapCorners(bb, card_x, card_y, card_w, card_h, card_radius)   -- esquinas de afuera (fondo)
+    paintRoundRect(bb, card_x, card_y, card_w, card_h, card_radius, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, card_x + b_thick, card_y + b_thick, card_w - b_thick*2, card_h - b_thick*2, card_inner_r, Blitbuffer.COLOR_WHITE)
 
     local tile = scrubber._grid_tiles[2] or {}
     -- Si el panel de detalles esta abierto (se pinto en el frame anterior) cubre toda la tarjeta:
@@ -370,7 +375,7 @@ function SplitLandscapeView.paint(scrubber, bb)
         bb:blitFrom(render_bb, ox, oy, 0, 0, draw_w, draw_h)
 
         -- Protege la curva superior: restablece el contorno negro en los vértices
-        local r_in = math.max(1, box_radius - b_thick)
+        local r_in = card_radius > 0 and math.max(1, card_radius - b_thick) or 0
         for k = 0, r_in - 1 do
             local arc_in = math.ceil(math.sqrt(r_in*r_in - (r_in-k-0.5)*(r_in-k-0.5)))
             local diff = r_in - arc_in
@@ -512,13 +517,12 @@ function SplitLandscapeView.paint(scrubber, bb)
         end
     end
 
+    -- Sin ícono en la franja inferior: el tipo ya se ve en el SVG de la fila seleccionada del menú derecho,
+    -- así el texto arranca en el margen izquierdo y tiene más ancho
     local pad_x_chin = S(14)
-    local isz_chin = active_pol_icon and active_pol_icon:getSize() or { w = S(20), h = S(20) }
     local cix = card_x + pad_x_chin
-    local ciy = status_y + math.floor((status_h - isz_chin.h) / 2)
-    if active_pol_icon then active_pol_icon:paintTo(bb, cix, ciy) end
 
-    local ctx = cix + isz_chin.w + S(8)
+    local ctx = cix
     if not scrubber._tw_preview_text then
         scrubber._tw_preview_text = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK, truncate_with_ellipsis = true }
     end
@@ -538,7 +542,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     local det_full_w = (menu_x + col_right_w) - card_x
     local det_expanded = scrubber._details_open and scrubber._details_expanded
     if not det_expanded then
-        local okp, errp = pcall(scrubber._paintDetailsPanel, scrubber, bb, card_x, card_y, card_w, card_h, box_radius, b_thick, det_full_w)
+        local okp, errp = pcall(scrubber._paintDetailsPanel, scrubber, bb, card_x, card_y, card_w, card_h, card_radius, b_thick, det_full_w)
         if not okp then
             logger.warn("page-scrubber details panel error:", errp)
             scrubber._details_open = false
@@ -765,7 +769,7 @@ function SplitLandscapeView.paint(scrubber, bb)
         scrubber._tw_header_page = TextWidget:new{ text = _("Page"), face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
     end
     local hsz = scrubber._tw_header_page:getSize()
-    local htx = menu_x + S(14)
+    local htx = menu_x + S(19)   -- mismo x que el puntito / SVG de las filas
     local hty = list_card_y + math.floor((header_h - hsz.h)/2)
     scrubber._tw_header_page:paintTo(bb, htx, hty)
 
@@ -794,15 +798,21 @@ function SplitLandscapeView.paint(scrubber, bb)
     if #present_filters >= 2 then
         local f_h = S(20)
         local f_w = S(18)
-        local start_x = htx + hsz.w + S(10)
-        local max_w_avail = (menu_x + col_right_w - S(4)) - start_x
         local num_f = #present_filters
-        local f_gap = S(4)
-        local total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
+        local f_gap = S(10)
 
-        if total_needed > max_w_avail and num_f > 1 then
-            f_gap = math.floor((max_w_avail - (num_f * f_w)) / (num_f - 1))
+        -- Alineados a la derecha: el último filtro queda centrado sobre la columna de íconos de las filas
+        local col_icon_w = (scrubber.icon_box_arrow and scrubber.icon_box_arrow:getSize().w) or S(22)
+        local col_center = menu_x + col_right_w - S(19) - math.floor(col_icon_w / 2)
+        local right_edge = col_center + math.floor(f_w / 2)
+        local min_start  = htx + hsz.w + S(10)
+
+        local total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
+        if right_edge - total_needed < min_start and num_f > 1 then
+            f_gap = math.floor(((right_edge - min_start) - (num_f * f_w)) / (num_f - 1))
+            total_needed = (num_f * f_w) + ((num_f - 1) * f_gap)
         end
+        local start_x = right_edge - total_needed
 
         local curr_f_x = start_x
         local curr_f_y = list_card_y + math.floor((header_h - f_h) / 2)
@@ -919,16 +929,19 @@ function SplitLandscapeView.paint(scrubber, bb)
                 paintRoundRect(bb, menu_x + b_thick + pill_inset, r_y + pill_pad_y,
                     col_right_w - (b_thick + pill_inset) * 2, pill_h,
                     math.min(S(14), math.floor(pill_h / 2)), Blitbuffer.COLOR_BLACK)
-                -- Puntito blanco a la izquierda: aparece solo cuando el panel de detalle está abierto en esta fila
-                if scrubber._details_open then
-                    local dot_d = S(8)
-                    paintRoundRect(bb, menu_x + b_thick + pill_inset + S(12), r_y + math.floor((row_h - dot_d) / 2),
-                        dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
-                end
             else
                 if i > start_i and not row_is_selected(i - 1) then
                     bb:paintRect(menu_x + S(14), r_y, col_right_w - S(28), 1, Blitbuffer.COLOR_LIGHT_GRAY)
                 end
+            end
+
+            -- Puntito blanco si el panel de detalle está abierto en esta fila; si no, SVG de tipo / punto de color (como en vertical)
+            if is_sel and scrubber._details_open then
+                local dot_d = S(8)
+                paintRoundRect(bb, menu_x + S(19), r_y + math.floor((row_h - dot_d) / 2),
+                    dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_WHITE)
+            else
+                scrubber:_paintRowVisualHint(bb, menu_x + S(19), r_y, row_h, item_obj, is_sel)
             end
 
             local row_icon
@@ -940,10 +953,10 @@ function SplitLandscapeView.paint(scrubber, bb)
                 row_icon = scrubber.icon_box_arrow
             end
             local risz = row_icon and row_icon:getSize() or { w = S(22), h = S(22) }
-            local rix = menu_x + col_right_w - risz.w - S(14)
+            local rix = menu_x + col_right_w - risz.w - S(19)   -- simétrico al margen del puntito/SVG (S(19))
             local riy = r_y + math.floor((row_h - risz.h) / 2)
 
-            -- Número de página (con su superíndice) centrado entre el borde izquierdo y el ícono de la fila
+            -- Número de página (con su superíndice)
             local tw_p = is_sel and scrubber._tw_row_bold or scrubber._tw_row_normal
             tw_p.fgcolor = is_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
             tw_p:setText(tostring(scrubber:_getDisplayPageInfo(p)))
@@ -956,13 +969,19 @@ function SplitLandscapeView.paint(scrubber, bb)
                 tw_sup_sz = tw_sup:getSize()
             end
             local group_w = tw_p_sz.w + (tw_sup_sz and (S(2) + tw_sup_sz.w) or 0)
-            local area_x = menu_x + b_thick
-            local area_w = (rix - S(8)) - area_x
-            local pg_x = area_x + math.max((is_sel and scrubber._details_open) and S(30) or S(10), math.floor((area_w - group_w) / 2))
+            -- Alineado a la izquierda, justo después de la columna del SVG (S(19) + 14 de ícono + 10 de aire)
+            local pg_x = menu_x + S(19) + S(14) + S(10)
+            local pg_max_x = rix - S(8) - group_w
+            if pg_x > pg_max_x then pg_x = math.max(menu_x + S(19) + S(14) + S(4), pg_max_x) end
+            local show_note_mark
+            pg_x, show_note_mark = scrubber:_fitNoteMark(item_obj, pg_x, menu_x + S(19) + S(14) + S(4), group_w, rix - S(8))
             local pg_y = r_y + math.floor((row_h - tw_p_sz.h)/2)
             tw_p:paintTo(bb, pg_x, pg_y)
             if tw_sup then
                 tw_sup:paintTo(bb, pg_x + tw_p_sz.w + S(2), pg_y - S(2))
+            end
+            if show_note_mark then
+                scrubber:_paintRowNoteMark(bb, pg_x + group_w + S(8), r_y, row_h, item_obj, is_sel)
             end
 
             if row_icon then
@@ -1031,18 +1050,16 @@ function SplitLandscapeView.paint(scrubber, bb)
     local is_f_bmed = scrubber:_isCurrentPageBookmarked(fixed_p)
     local fx_icon = is_f_bmed and scrubber.icon_box_minus_fill or scrubber.icon_box_plus
     local fisz = fx_icon and fx_icon:getSize() or { w = S(22), h = S(22) }
-    local fix = menu_x + col_right_w - fisz.w - S(14)
+    local fix = menu_x + col_right_w - fisz.w - S(19)
     local fiy = fx_y + math.floor((fx_h - fisz.h) / 2)
 
     -- Número centrado entre el borde izquierdo y el ícono; si está seleccionada, círculo negro a su izquierda
     local tw_f_sz = tw_f:getSize()
-    local f_area_x = menu_x + b_thick
-    local f_area_w = (fix - S(8)) - f_area_x
     local f_show_dot = is_f_sel and scrubber._details_open
-    local f_px = f_area_x + math.max(f_show_dot and S(30) or S(10), math.floor((f_area_w - tw_f_sz.w) / 2))
+    local f_px = menu_x + S(19) + S(14) + S(10)
     if f_show_dot then
         local dot_d = S(8)
-        paintRoundRect(bb, menu_x + b_thick + S(17), fx_y + math.floor((fx_h - dot_d) / 2), dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_DARK_GRAY)
+        paintRoundRect(bb, menu_x + S(19), fx_y + math.floor((fx_h - dot_d) / 2), dot_d, dot_d, math.floor(dot_d / 2), Blitbuffer.COLOR_GRAY_9 or Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_DARK_GRAY)
     end
     tw_f:paintTo(bb, f_px, fx_y + math.floor((fx_h - tw_f_sz.h)/2))
 

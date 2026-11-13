@@ -37,6 +37,18 @@ local function paintRoundRect(bb, x, y, w, h, r, color)
     paintCornerRect(bb, x, y, w, h, r, color, true, true, true, true)
 end
 
+
+-- Estilo cuadrado del Simple Grid (Appearance > Rounded style apagado): sin esquinas redondeadas ni sombra, y los botones
+-- (al presionarlos) también cuadrados. Se lee en cada pintada, así el cambio se ve al instante.
+local function squareStyle()
+    -- "Rounded style" (Appearance): si todavía no se tocó, se respeta la elección del viejo "Square style"
+    local v = G_reader_settings and G_reader_settings:readSetting("page_scrubber_rounded_simple")
+    if v == nil then
+        return (G_reader_settings and G_reader_settings:isTrue("page_scrubber_simple_grid_square")) and true or false
+    end
+    return not v
+end
+
 local GridSimpleView = {}
 
 local function getPageAspectRatio(scrubber)
@@ -53,7 +65,7 @@ end
 
 -- Altura del efecto de ‹ › como fracción de la altura de la página (más chico = más bajo).
 -- Siempre queda centrado en la altura de las flechas y es igual para los dos lados.
-local SIDE_PILL_H_RATIO = 0.40
+local SIDE_PILL_H_RATIO = 0.24
 
 -- Pinta un icono en BLANCO sobre el efecto negro. Se dibuja el icono (en negro) en un buffer
 -- temporal de grises y solo se escriben en pantalla los píxeles con "tinta", con su
@@ -142,7 +154,7 @@ function GridSimpleView.pressRect(scrubber, which)
         if not (nd and pg) then return nil end
         local min_top = nd.y + S(2)
         local max_bottom = pg.y + pg.h
-        local h = math.floor(pg.h * SIDE_PILL_H_RATIO)
+        local h = math.max(math.floor(pg.h * SIDE_PILL_H_RATIO), S(52))   -- mínimo: que entre la flecha (44)
         h = math.min(h, max_bottom - min_top)
         local cy = pn.y + math.floor(pn.h / 2)       -- centro de las flechas
         local top = cy - math.floor(h / 2)
@@ -186,6 +198,7 @@ function GridSimpleView.pressRect(scrubber, which)
     end
 
     if w <= 0 or h <= 0 then return nil end
+    if squareStyle() then rad = 0 end
     return Geom:new{ x = x, y = y, w = w, h = h }, rad
 end
 
@@ -220,16 +233,19 @@ function GridSimpleView.paint(scrubber, bb)
 
     scrubber._gs_panel_dimen = Geom:new{ x = panel_x, y = panel_y, w = panel_w, h = panel_h }
 
+    local square = squareStyle()
     local shadow_offset = S(5)
-    local radius = S(18)
+    local radius = square and 0 or S(18)
     local border = S(2)
 
-    -- Sombra gris clásica offset inferior
-    paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    -- Sombra gris clásica offset inferior (no hay en estilo cuadrado)
+    if not square then
+        paintRoundRect(bb, panel_x, panel_y + shadow_offset, panel_w, panel_h, radius, Blitbuffer.COLOR_DARK_GRAY)
+    end
     -- Contorno negro de la tarjeta
     paintRoundRect(bb, panel_x, panel_y, panel_w, panel_h, radius, Blitbuffer.COLOR_BLACK)
     -- Relleno blanco interior
-    paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
+    paintRoundRect(bb, panel_x + border, panel_y + border, panel_w - border*2, panel_h - border*2, square and 0 or math.max(1, radius - border), Blitbuffer.COLOR_WHITE)
 
     -- Efecto al apretar: ✕ circular; ‹ › ocupan todo su espacio tocable, con bordes redondeados.
     -- Se pinta antes que iconos y textos para que queden por encima.

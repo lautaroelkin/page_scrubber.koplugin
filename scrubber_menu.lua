@@ -12,6 +12,8 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local Event           = require("ui/event")
+local logger          = require("logger")
+local ScrubberState   = require("scrubber_state")
 local Notification    = require("ui/widget/notification")
 local _               = require("gettext")
 
@@ -324,9 +326,16 @@ local function getSymbolsFace(size)
     return Font:getFace("cfont", size)
 end
 
--- Fila de estado (unidades de escala)
-local STATUS_ROW_H = 28      -- alto de la fila
-local STATUS_ROW_TOP = 12    -- distancia desde la línea de las pestañas hasta la fila
+-- Pie de estado (unidades de escala): alto total, incluida la línea fina que lo separa del resto
+local STATUS_FOOTER_H = 30
+
+-- Guarda el nivel de la luz en los ajustes de KOReader (se define más abajo, junto a saveLight; los gestos del
+-- slider la usan antes en el archivo)
+local saveLightNow
+
+-- Alto útil del contenido del menú (debajo de las pestañas), igual en todas las pestañas y subvistas:
+-- 5 filas de lista de 36 + el pie de paginación de 32
+local QUICK_CONTENT_H = 212
 
 -- Ajuste fino vertical del ícono de la lámpara (en unidades de escala; positivo = más abajo)
 local LAMP_Y_NUDGE = 0
@@ -334,14 +343,13 @@ local LAMP_Y_NUDGE = 0
 -- Gris clarito de la pastilla que aparece un instante al presionar una pestaña
 local PRESSED_TAB_BG = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
 
--- Fila de estado: fondo de la pastilla, divisores y color del ítem mientras se lo presiona
-local STATUS_PILL_BG    = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
+-- Líneas finas del menú rápido (pie de estado y divisor de la luz) y fondo de un ítem del pie mientras se lo presiona
 local STATUS_DIVIDER    = Blitbuffer.COLOR_LIGHT_GRAY
-local STATUS_PRESSED_BG = Blitbuffer.COLOR_GRAY_B or Blitbuffer.COLOR_LIGHT_GRAY
+local STATUS_PRESSED_BG = Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
 
 -- Switch del frontlight (más chico que el de KiKome, que es 52 x 28)
-local SWITCH_W = 36
-local SWITCH_H = 20
+local SWITCH_W = 40
+local SWITCH_H = 22
 
 -- ==========================================
 -- WIDGET PRINCIPAL CON PESTAÑAS (PULIDO)
@@ -381,10 +389,15 @@ function ScrubberMenu:init()
     self._fl_on = self:readInitialFrontlightState()
 
     local icon_sz = scale(32)
-    self.icon_sun = loadSvg("sun.svg", scale(32), scale(32))
     self.icon_warehouse = loadSvg("warehouse.svg", icon_sz, icon_sz)
     self.icon_wifi = loadSvg("zero.svg", icon_sz, icon_sz)
-    self.icon_search = loadSvg("search.svg", icon_sz, icon_sz)
+    self.icon_search = loadSvg("search.svg", scale(18), scale(18))
+    self.icon_rotate = loadSvg("rotate-screen.svg", icon_sz, icon_sz)
+    -- Íconos de las píldoras de la pestaña Aa: columnas (una / dos) y modo de vista (página / continuo)
+    self.icon_col_one = loadSvg("columns-one.svg", scale(20), scale(20))
+    self.icon_col_two = loadSvg("columns-two.svg", scale(20), scale(20))
+    self.icon_view_page = loadSvg("view-page.svg", scale(20), scale(20))
+    self.icon_view_cont = loadSvg("view-continuous.svg", scale(20), scale(20))
     self.icon_chevron_right = loadSvg("chevron-right.svg", scale(16), scale(16))
     self.tw_check = TextWidget:new{
         text = "✓",
@@ -401,6 +414,14 @@ function ScrubberMenu:init()
         self.ges_events = {
             Tap   = { GestureRange:new{ ges = "tap",   range = self.dimen } },
             Swipe = { GestureRange:new{ ges = "swipe", range = self.dimen } },
+            -- Slider de brillo: arrastrar la perilla (pan, o mantener y arrastrar) y toques rápidos en − / +
+            -- (que pueden llegar como doble toque o como una pulsación un poco larga)
+            Pan         = { GestureRange:new{ ges = "pan",          range = self.dimen } },
+            PanRelease  = { GestureRange:new{ ges = "pan_release",  range = self.dimen } },
+            Hold        = { GestureRange:new{ ges = "hold",         range = self.dimen } },
+            HoldPan     = { GestureRange:new{ ges = "hold_pan",     range = self.dimen } },
+            HoldRelease = { GestureRange:new{ ges = "hold_release", range = self.dimen } },
+            DoubleTap   = { GestureRange:new{ ges = "double_tap",   range = self.dimen } },
         }
     end
 end
@@ -599,18 +620,106 @@ local function paintSwitch(bb, x, y, w, h, on)
     paintRoundRect(bb, kx, y + border + gap, k, k, math.floor(k / 2), on and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK)
 end
 
--- Fila de estado en el espacio entre los dos swatches (día / noche) y la fila de sol / acciones / ajustes (el tamaño del menú no cambia).
--- Una pastilla gris clarito con ranuras de igual ancho: hora · estudio (solo si está activo en este libro) · wifi · batería
--- (ícono + porcentaje, con rayo si está cargando), separadas por divisores finos y limitadas al ancho de los swatches de arriba.
--- Cada ranura entera es una zona de toque y se marca al presionarla (wifi y estudio).
-function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
+-- Píldora de contorno negro (el buscador del menú rápido y las opciones de la pestaña Aa): el contorno tiene el
+-- mismo grosor que el de los swatches; al presionarla se invierte (fondo negro, contenido blanco).
+-- Devuelve el color del contenido y el del fondo para dibujar adentro.
+local function paintPill(bb, x, y, w, h, pressed)
+    local bw = math.max(2, scale(2))
+    local r = math.floor(h / 2)
+    paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
+    if not pressed then
+        paintRoundRect(bb, x + bw, y + bw, w - bw * 2, h - bw * 2, math.max(1, r - bw), Blitbuffer.COLOR_WHITE)
+        return Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE
+    end
+    return Blitbuffer.COLOR_WHITE, Blitbuffer.COLOR_BLACK
+end
+
+-- Ícono SVG (negro sobre transparente) dentro de una píldora; si está invertida se ve blanco sobre negro
+local function paintIconOn(bb, icon, x, y, inverted)
+    if not icon then return end
+    local isz = icon:getSize()
+    if inverted then
+        bb:paintRect(x, y, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
+        icon:paintTo(bb, x, y)
+        bb:invertRect(x, y, isz.w, isz.h)
+    else
+        icon:paintTo(bb, x, y)
+    end
+end
+
+-- Control segmentado: píldora de contorno negro con dos opciones (ícono + etiqueta opcional).
+-- La elegida va en una cápsula negra con contenido blanco; la otra, negro sobre blanco.
+local function paintSegmented(bb, x, y, w, h, icons, labels, selected)
+    if type(labels) == "number" then
+        selected = labels
+        labels = nil
+    end
+    local bw = math.max(2, scale(2))
+    local r = math.floor(h / 2)
+    paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
+    paintRoundRect(bb, x + bw, y + bw, w - bw * 2, h - bw * 2, math.max(1, r - bw), Blitbuffer.COLOR_WHITE)
+
+    local seg_w = math.floor(w / 2)
+    local inset = bw + scale(2)
+    local sx = x + (selected - 1) * seg_w
+    local sw = (selected == 2) and (x + w - sx) or seg_w
+    local ch = h - inset * 2
+    paintRoundRect(bb, sx + inset, y + inset, sw - inset * 2, ch, math.floor(ch / 2), Blitbuffer.COLOR_BLACK)
+
+    local lbl_face = Font:getFace("cfont", scaleText(11))
+    local gap = scale(5)
+
+    for i = 1, 2 do
+        local is_sel = (i == selected)
+        local slot_x = x + (i - 1) * seg_w
+        local slot_w = (i == 2) and (w - seg_w) or seg_w
+        local icon = icons and icons[i]
+        local isz = icon and icon:getSize() or { w = 0, h = 0 }
+
+        local tw, lsz
+        local lbl = labels and labels[i]
+        if lbl and lbl ~= "" then
+            local max_lbl_w = slot_w - isz.w - scale(14)
+            if max_lbl_w >= scale(18) then
+                tw = TextWidget:new{
+                    text = lbl,
+                    face = lbl_face,
+                    bold = is_sel,
+                    fgcolor = is_sel and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK,
+                    max_width = max_lbl_w,
+                    truncate_with_ellipsis = true,
+                }
+                lsz = tw:getSize()
+            end
+        end
+
+        local total_w = isz.w + (tw and ((isz.w > 0 and gap or 0) + lsz.w) or 0)
+        local cx = slot_x + math.floor((slot_w - total_w) / 2)
+
+        if icon then
+            paintIconOn(bb, icon, cx, y + math.floor((h - isz.h) / 2), is_sel)
+            cx = cx + isz.w + gap
+        end
+        if tw then
+            tw:paintTo(bb, cx, y + math.floor((h - lsz.h) / 2))
+            tw:free()
+        end
+    end
+end
+
+-- Pie de estado: va abajo de todo el menú rápido (el tamaño del menú no cambia), separado por una línea fina.
+-- Hora y estudio (solo si está activo en este libro) a la izquierda; wifi y batería (ícono + porcentaje, con rayo si carga)
+-- a la derecha, alineados con los bordes de los botones de arriba. Sin fondo ni divisores: solo texto e íconos.
+-- Cada ítem es una zona de toque y se marca un instante al presionarlo (wifi y estudio).
+function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h)
     self._status_dimens = {}
     local BLACK = Blitbuffer.COLOR_BLACK
-    local ic_h = scale(14)                 -- alto común de TODOS los íconos de la fila
+    local ic_h = scale(14)                 -- alto común de TODOS los íconos del pie
     local ic_w = math.floor(ic_h * 1.5)    -- caja del wifi y de la batería (mismo ancho y alto)
     local gap = scale(4)
     local face = Font:getFace("cfont", scaleText(10))
-    local cy = center_y or (top + math.floor(row_h / 2))
+    local line_h = math.max(1, scale(1))
+    local cy = top + line_h + math.floor((row_h - line_h) / 2)
     local frees = {}
 
     local function textPart(text, bold)
@@ -626,7 +735,6 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
         return { w = sz.w, draw = function(x) ic:paintTo(bb, x, cy - math.floor(sz.h / 2)) end }
     end
 
-    -- Izquierda: hora · estudio. Derecha: wifi · batería (solo el ícono).
     local left, right = {}, {}
 
     -- Hora
@@ -657,7 +765,8 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
     end
 
     -- Batería: rayo (solo si carga) + ícono + porcentaje (si el dispositivo la informa).
-    -- `droppable` = cuántas piezas del final se sacan si el porcentaje no entra en su ranura.
+    -- `droppable` = cuántas piezas del final se sacan si todo junto no entra en la fila.
+    local battery
     do
         local pct, charging = getBattery()
         if pct then
@@ -675,85 +784,130 @@ function ScrubberMenu:_paintStatusRow(bb, r, pad, top, row_h, center_y)
             }
             parts[#parts + 1] = { w = gap }
             parts[#parts + 1] = textPart(tostring(pct) .. "%")
-            right[#right + 1] = { key = "battery", parts = parts, droppable = 2 }
+            battery = { key = "battery", parts = parts, droppable = 2 }
+            right[#right + 1] = battery
         end
     end
 
-    -- Orden de siempre: hora · estudio · wifi · batería (estudio y batería solo si existen).
-    local by_key = {}
-    for _i, it in ipairs(left) do by_key[it.key] = it end
-    for _i, it in ipairs(right) do by_key[it.key] = it end
-    local items = {}
-    for _i, k in ipairs({ "time", "study", "wifi", "battery" }) do
-        if by_key[k] then items[#items + 1] = by_key[k] end
-    end
-    local n = #items
-    if n == 0 then return end
-
-    -- Límites de la fila = bordes exteriores de los botones día / noche (nada se sale de ahí)
     local row_x = r.x + pad
     local row_w = r.w - pad * 2
-    local sd, sn = self.swatch_day_dimen, self.swatch_night_dimen
-    if sd and sn then
-        row_x = sd.x
-        row_w = (sn.x + sn.w) - sd.x
-    end
-
-    -- Ranuras de igual ancho, una por ítem
-    local slot_w = math.floor(row_w / n)
+    local item_gap = scale(18)
 
     local function itemWidth(it)
         local w = 0
         for _j, p in ipairs(it.parts) do w = w + p.w end
         return w
     end
-    for _i, it in ipairs(items) do
-        it.w = itemWidth(it)
-        -- Si el porcentaje no entra en su ranura, se muestra solo el ícono
-        if it.droppable and it.w > slot_w - scale(8) then
-            for _k = 1, it.droppable do it.parts[#it.parts] = nil end
+    local function groupWidth(list)
+        local w = 0
+        for _i, it in ipairs(list) do
             it.w = itemWidth(it)
+            w = w + it.w + (_i > 1 and item_gap or 0)
         end
+        return w
+    end
+    local lw, rw = groupWidth(left), groupWidth(right)
+    -- Si no entra todo, la batería queda solo con el ícono
+    if battery and lw + rw + item_gap > row_w then
+        for _k = 1, battery.droppable do battery.parts[#battery.parts] = nil end
+        rw = groupWidth(right)
     end
 
-    -- Pastilla de fondo
-    local pill_r = math.floor(row_h / 2)
-    paintRoundRect(bb, row_x, top, row_w, row_h, pill_r, STATUS_PILL_BG)
+    -- Línea fina que separa el pie del resto del menú
+    bb:paintRect(row_x, top, row_w, line_h, STATUS_DIVIDER)
 
-    local inset = math.max(1, scale(2))
-    local div_h = math.floor(row_h * 0.5)
-    for i, it in ipairs(items) do
-        local sx = row_x + (i - 1) * slot_w
-        local sw = (i == n) and (row_x + row_w - sx) or slot_w
+    local half = math.floor(item_gap / 2)
+    local function drawGroup(list, x0)
+        local x = x0
+        for _i, it in ipairs(list) do
+            local zx, zw = x - half, it.w + item_gap
 
-        -- Ranura presionada: se marca un instante, como las pestañas
-        if self._pressed_status == it.key then
-            paintRoundRect(bb, sx + inset, top + inset, sw - inset * 2, row_h - inset * 2,
-                math.max(1, pill_r - inset), STATUS_PRESSED_BG)
+            -- Ítem presionado: se marca un instante, como las pestañas
+            if self._pressed_status == it.key then
+                paintRoundRect(bb, zx, top + line_h + scale(3), zw, row_h - line_h - scale(6), scale(8), STATUS_PRESSED_BG)
+            end
+
+            local ix = x
+            for _j, p in ipairs(it.parts) do
+                if p.draw then p.draw(ix) end
+                ix = ix + p.w
+            end
+
+            -- Zona de toque = el ítem con aire a los lados, de alto completo
+            self._status_dimens[#self._status_dimens + 1] = {
+                key = it.key,
+                dimen = Geom:new{ x = zx, y = top, w = zw, h = row_h },
+            }
+            x = x + it.w + item_gap
         end
-
-        -- Contenido centrado en su ranura
-        local ix = sx + math.floor((sw - it.w) / 2)
-        for _j, p in ipairs(it.parts) do
-            if p.draw then p.draw(ix) end
-            ix = ix + p.w
-        end
-
-        -- Divisor fino entre ranuras
-        if i < n then
-            bb:paintRect(sx + sw - 1, cy - math.floor(div_h / 2), math.max(1, scale(1)), div_h, STATUS_DIVIDER)
-        end
-
-        -- Zona de toque = la ranura entera
-        self._status_dimens[#self._status_dimens + 1] = {
-            key = it.key,
-            dimen = Geom:new{ x = sx, y = top, w = sw, h = row_h },
-        }
     end
+    drawGroup(left, row_x)
+    drawGroup(right, row_x + row_w - rw)
+
     for _i, w in ipairs(frees) do pcall(function() w:free() end) end
 end
 
-function ScrubberMenu:onHold() return true end
+-- Una pulsación larga sobre la perilla empieza el arrastre; sobre − / + cuenta como un toque.
+-- Fuera del slider no se hace nada (el evento sigue su camino, como antes).
+function ScrubberMenu:onHold(arg1, arg2)
+    local ges = arg2 or arg1
+    if not (ges and ges.pos) or self.active_tab ~= "quick" or not self._light_hit then return false end
+    if self:_lightGrab(ges.pos) then
+        self._light_drag = true
+        self:_lightDragTo(ges.pos.x)
+        return true
+    end
+    local h = self._light_hit
+    if h.minus and (ges.pos:intersectWith(h.minus) or ges.pos:intersectWith(h.plus)) then
+        return self:_onLightTap(ges.pos)
+    end
+    return false
+end
+
+function ScrubberMenu:onPan(arg1, arg2)
+    local ges = arg2 or arg1
+    if not (ges and ges.pos) then return false end
+    if not self._light_drag then
+        if self.active_tab ~= "quick" or not self._light_hit then return false end
+        -- Los desplazamientos verticales no son para un slider horizontal
+        if ges.direction == "north" or ges.direction == "south" then return false end
+        if not self:_lightGrab(ges.pos) then return false end
+        self._light_drag = true
+    end
+    self:_lightDragTo(ges.pos.x)
+    return true
+end
+
+function ScrubberMenu:onHoldPan(arg1, arg2)
+    local ges = arg2 or arg1
+    if not (self._light_drag and ges and ges.pos) then return false end
+    self:_lightDragTo(ges.pos.x)
+    return true
+end
+
+function ScrubberMenu:_endLightDrag()
+    if not self._light_drag then return false end
+    self._light_drag = false
+    saveLightNow()
+    return true
+end
+function ScrubberMenu:onPanRelease() return self:_endLightDrag() end
+function ScrubberMenu:onHoldRelease() return self:_endLightDrag() end
+
+-- Toques rápidos en − / + o sobre el slider pueden llegar como doble toque: cuentan igual que un toque
+function ScrubberMenu:onDoubleTap(arg1, arg2)
+    local ges = arg2 or arg1
+    if not (ges and ges.pos) then return false end
+    if self.active_tab == "typo" then
+        return self:onTap(arg1, arg2)
+    end
+    if self.active_tab ~= "quick" or not self._light_hit then return false end
+    local h = self._light_hit
+    if h.track and (ges.pos:intersectWith(h.track) or ges.pos:intersectWith(h.minus) or ges.pos:intersectWith(h.plus)) then
+        return self:_onLightTap(ges.pos)
+    end
+    return false
+end
 
 function ScrubberMenu:onSwipe(arg1, arg2)
     local ges = arg2 or arg1
@@ -807,17 +961,17 @@ end
 
 function ScrubberMenu:updateLayout()
     local sw = Screen:getWidth()
-    self.tab_h = scale(36)
+    self.tab_h = scale(42)
 
     -- Tamaño unificado y fijo: la ventana NUNCA cambia de tamaño
-    self.card_w = scale(256)
-    self.card_h = self.tab_h + scale(164) + scale(4) -- el contenido (164) entra 4 filas de lista + el pie de paginación
+    self.card_w = scale(266)
+    self.card_h = self.tab_h + scale(QUICK_CONTENT_H) + scale(4) -- el contenido entra 5 filas de lista + el pie de paginación
 
     -- Subvistas paginadas (fuentes y acciones)
-    self.fonts_per_page = 4
-    self.actions_per_page = 4
-    self.font_row_h = scale(34)
-    self.font_footer_h = scale(28)
+    self.fonts_per_page = 5
+    self.actions_per_page = 5
+    self.font_row_h = scale(36)
+    self.font_footer_h = scale(32)
 
     local top_bar = self.scrubber_ui and self.scrubber_ui._top_bar_dimen
     local top_bar_bottom = top_bar and (top_bar.y + top_bar.h) or scale(58)
@@ -1014,6 +1168,155 @@ function ScrubberMenu:changeBookLineSpacing(delta)
     self:refreshMenu()
 end
 
+-- Columnas del libro (1 o 2): es la opción "Columns" de KOReader (visible_pages), solo para libros reflowables
+function ScrubberMenu:getBookColumns()
+    local ui = self.ui
+    local v
+    pcall(function()
+        if ui and ui.document and ui.document.configurable then v = ui.document.configurable.visible_pages end
+        if not v and ui and ui.rolling then v = ui.rolling.visible_pages end
+        if not v and ui and ui.font and ui.font.configurable then v = ui.font.configurable.visible_pages end
+    end)
+    return (tonumber(v) == 2) and 2 or 1
+end
+
+-- "rolling" = libro reflowable (EPUB, etc.), "paging" = documento con páginas fijas (PDF, DjVu, CBZ…)
+function ScrubberMenu:getDocKind()
+    local ui = self.ui
+    if ui and ui.rolling then return "rolling" end
+    if ui and ui.paging then return "paging" end
+    return nil
+end
+
+-- Columnas del libro reflowable: 1 o 2
+function ScrubberMenu:setColumns(n)
+    local ui = self.ui
+    if not (ui and ui.rolling) or n == self:getBookColumns() then return end
+    pcall(function()
+        -- Igual que el diálogo de KOReader: primero el valor guardado del libro, después el evento
+        local conf = ui.document and ui.document.configurable
+        if conf then conf.visible_pages = n end
+        ui:handleEvent(Event:new("SetVisiblePages", n))
+    end)
+    self._typo_changed = true
+    self:refreshMenu()
+end
+
+-- Modo de vista de un documento con páginas: página a página / continuo (scroll)
+function ScrubberMenu:isContinuousView()
+    local v
+    pcall(function() v = self.ui.view and self.ui.view.page_scroll end)
+    return v == true or (type(v) == "number" and v ~= 0)
+end
+
+function ScrubberMenu:setViewMode(continuous)
+    local ui = self.ui
+    if not (ui and ui.paging) or continuous == self:isContinuousView() then return end
+    pcall(function()
+        -- Igual que el diálogo de KOReader: primero el valor guardado del documento, después el evento
+        local conf = ui.document and ui.document.configurable
+        if conf then conf.page_scroll = continuous and 1 or 0 end
+        ui:handleEvent(Event:new("SetScrollMode", continuous))
+        -- Si el evento esperaba 0 / 1 en vez de true / false y no cambió nada, se prueba de esa forma
+        if self:isContinuousView() ~= continuous then
+            ui:handleEvent(Event:new("SetScrollMode", continuous and 1 or 0))
+        end
+    end)
+    self._typo_changed = true
+    self:refreshMenu()
+end
+
+-- ¿La instancia pertenece a la clase (o a una subclase)?
+local function isOfClass(widget, cls)
+    local mt = getmetatable(widget)
+    while mt do
+        if mt == cls then return true end
+        mt = getmetatable(mt)
+    end
+    return false
+end
+
+-- Cierra TODO lo del plugin que haya en la pila de ventanas (scrubber, índice, menús, ajustes). Devuelve cuántos cerró.
+local function closeScrubberWidgets()
+    local stack = UIManager._window_stack
+    if type(stack) ~= "table" then return 0 end
+    local classes = {}
+    for _i, name in ipairs({ "scrubber_ui", "scrubber_menu", "scrubber_toc", "scrubber_settings" }) do
+        local ok, cls = pcall(require, name)
+        if ok and type(cls) == "table" then classes[#classes + 1] = cls end
+    end
+    local victims = {}
+    for _i, win in ipairs(stack) do
+        local w = win and win.widget
+        if w then
+            for _j, cls in ipairs(classes) do
+                if isOfClass(w, cls) then victims[#victims + 1] = w; break end
+            end
+        end
+    end
+    for _i, w in ipairs(victims) do
+        pcall(function() UIManager:close(w) end)
+    end
+    return #victims
+end
+
+-- Rota la pantalla: de vertical a horizontal (y de horizontal otra vez a vertical).
+-- El scrubber se arma con el tamaño de pantalla con el que se abrió y no sabe re-acomodarse: si hay uno abierto
+-- (o aparece uno) mientras se rota, se pinta con medidas viejas y queda roto. Por eso:
+--   1. se marca "rotando": durante ese lapso el plugin no abre ningún scrubber / menú nuevo (un gesto que llegue
+--      justo después de cerrarse el menú podía lanzar uno con las medidas de la orientación anterior);
+--   2. se cierra de verdad todo lo del plugin que esté abierto, en el momento;
+--   3. se rota con el libro ya repintado;
+--   4. después de rotar se vuelve a barrer la pila por si quedó o apareció algo, y se repinta todo.
+function ScrubberMenu:rotateScreen()
+    local ui = self.ui
+    if not (Screen and ui) then return end
+    if ScrubberState.rotating then return end
+    local landscape = false
+    pcall(function() landscape = (Screen:getScreenMode() == "landscape") end)
+    local target = landscape and Screen.DEVICE_ROTATED_UPRIGHT or Screen.DEVICE_ROTATED_COUNTER_CLOCKWISE
+    if target == nil then return end
+
+    ScrubberState.rotating = true
+    -- Pase lo que pase, el bloqueo se levanta solo
+    UIManager:scheduleIn(2.5, function() ScrubberState.rotating = false end)
+
+    local function doRotate()
+        pcall(function() ui:handleEvent(Event:new("SetRotationMode", target)) end)
+        -- Respaldo: si nadie atendió el evento (la rotación quedó igual), se rota a mano como hace KOReader
+        pcall(function()
+            if Screen:getRotationMode() ~= target then
+                Screen:setRotationMode(target)
+                local size = Screen:getSize()
+                ui:handleEvent(Event:new("SetDimensions", size))
+                if ui.onScreenResize then ui:onScreenResize(size) end
+            end
+        end)
+        UIManager:setDirty("all", "full")
+
+        -- Barridos finales: si quedó (o apareció) algo del plugin, se cierra y se repinta todo
+        UIManager:scheduleIn(0.35, function()
+            local n = closeScrubberWidgets()
+            if n > 0 then
+                logger.warn("PageScrubber: tras rotar quedaron abiertos " .. n .. " widgets del plugin; se cerraron")
+            end
+            UIManager:setDirty("all", "full")
+        end)
+        UIManager:scheduleIn(1.0, function()
+            local n = closeScrubberWidgets()
+            if n > 0 then
+                logger.warn("PageScrubber: tras rotar apareció " .. n .. " widget del plugin; se cerró")
+                UIManager:setDirty("all", "full")
+            end
+        end)
+    end
+
+    UIManager:close(self)
+    closeScrubberWidgets()
+    UIManager:setDirty(nil, "full")
+    UIManager:scheduleIn(0.25, doRotate)
+end
+
 -- Estado REAL del frontlight: igual que el slider de brightness (luz prendida = intensidad > 0).
 -- nil si no se puede saber.
 function ScrubberMenu:getRealFrontlightState()
@@ -1086,6 +1389,10 @@ local function saveLight()
     end
 end
 
+saveLightNow = function()
+    saveLight()
+end
+
 -- Enciende o apaga el frontlight igual que el slider de brightness:
 --   apagado = intensidad 0 (slider al mínimo); prendido = intensidad > 0 (slider corrido un poquito a la derecha).
 function ScrubberMenu:setFrontlight(on)
@@ -1134,6 +1441,178 @@ end
 
 function ScrubberMenu:toggleFrontlight()
     self:setFrontlight(not self:isFrontlightOn())
+end
+
+-- ==========================================
+-- SLIDER DE BRILLO (el de KiKome, en el menú rápido)
+-- ==========================================
+
+-- Datos del slider para este dispositivo (nil si no hay acceso directo al nivel de la luz).
+-- El mínimo es el primer nivel que realmente ilumina: el 0 apaga la luz y eso lo hace solo el toggle.
+function ScrubberMenu:_getLightSlider()
+    local ok, res = pcall(function()
+        local powerd = Device.getPowerDevice and Device:getPowerDevice()
+        if not (powerd and Device.hasFrontlight and Device:hasFrontlight()
+                and type(powerd.setIntensity) == "function" and type(powerd.frontlightIntensity) == "function") then
+            return nil
+        end
+        local base = tonumber(powerd.fl_min) or 0
+        return {
+            powerd = powerd,
+            base = base,
+            min = base + 1,
+            max = tonumber(powerd.fl_max) or 100,
+            cur = tonumber(powerd:frontlightIntensity()) or 0,
+        }
+    end)
+    return ok and res or nil
+end
+
+-- Aplica un nivel nuevo y repinta solo el bloque de brillo
+function ScrubberMenu:_setLightLevel(value)
+    local sl = self:_getLightSlider()
+    if not sl then return end
+    local v = math.max(sl.min, math.min(sl.max, math.floor(value + 0.5)))
+    if v == sl.cur then return end
+    local powerd = sl.powerd
+    pcall(function()
+        powerd:setIntensity(v)
+        -- Si ese nivel cuenta como apagado en este dispositivo, se sube hasta que prenda (como KiKome)
+        local try = v
+        while try < sl.max and (tonumber(powerd:frontlightIntensity()) or 0) <= 0 do
+            try = try + 1
+            powerd:setIntensity(try)
+        end
+        if type(powerd.updateResumeFrontlightState) == "function" then
+            powerd:updateResumeFrontlightState()
+        end
+    end)
+    self._fl_dirty = true
+    UIManager:setDirty(self, "ui", self._light_block_dimen or expandRect(self.popup_rect, scale(8)))
+end
+
+-- Zona donde se agarra la perilla: el riel entero y medio botón de margen a cada lado
+function ScrubberMenu:_lightGrab(pos)
+    local h = self._light_hit
+    if self.active_tab ~= "quick" or not (h and h.track) then return false end
+    local m = scale(15)
+    local area = Geom:new{ x = h.track.x - m, y = h.track.y, w = h.track.w + 2 * m, h = h.track.h }
+    return pos:intersectWith(area)
+end
+
+function ScrubberMenu:_lightDragTo(x)
+    local h = self._light_hit
+    local sl = self:_getLightSlider()
+    if not (h and h.track and sl) then return end
+    local frac = math.max(0, math.min(1, (x - h.track.x) / h.track.w))
+    self:_setLightLevel(sl.base + frac * (sl.max - sl.base))
+end
+
+-- Toques del bloque de brillo. Devuelve true si el toque era suyo.
+function ScrubberMenu:_onLightTap(pos)
+    local h = self._light_hit
+    if not h then return false end
+
+    if h.toggle and pos:intersectWith(h.toggle) then
+        self:toggleFrontlight()
+        self:refreshMenu()
+        return true
+    end
+
+    local sl = self:_getLightSlider()
+    if not (sl and h.track) then return false end
+    -- − / + mueven 1% del recorrido (al menos un nivel)
+    local step = math.max(1, math.floor((sl.max - sl.min) / 100 + 0.5))
+    if pos:intersectWith(h.minus) then
+        -- Con la luz apagada "−" no la prende
+        if sl.cur > 0 then self:_setLightLevel(sl.cur - step) end
+        return true
+    elseif pos:intersectWith(h.plus) then
+        self:_setLightLevel(sl.cur + step)
+        return true
+    elseif pos:intersectWith(h.track) then
+        local frac = math.max(0, math.min(1, (pos.x - h.track.x) / h.track.w))
+        self:_setLightLevel(sl.base + frac * (sl.max - sl.base))
+        return true
+    end
+    return false
+end
+
+-- Bloque de brillo: arriba el título con el % y el toggle (mismo toggle de siempre) a la derecha;
+-- abajo [−] slider [+] con el riel gris, el relleno negro y la perilla de aro.
+function ScrubberMenu:_paintLightBlock(bb, x, w, y, head_h, head_gap, slider_h, sl)
+    local BLACK = Blitbuffer.COLOR_BLACK
+    local is_fl = self:isFrontlightOn()
+    local frac = 0
+    if sl then
+        frac = math.max(0, math.min(1, (sl.cur - sl.base) / math.max(sl.max - sl.base, 1)))
+    end
+
+    -- Cabecera
+    local face = Font:getFace("cfont", scaleText(11))
+    local tw_title = TextWidget:new{ text = _("Brightness"), face = face, bold = false, fgcolor = BLACK }
+    local tsz = tw_title:getSize()
+    tw_title:paintTo(bb, x, y + math.floor((head_h - tsz.h) / 2))
+    tw_title:free()
+    if sl then
+        local tw_pct = TextWidget:new{
+            text = string.format("%d%%", math.floor(frac * 100 + 0.5)),
+            face = face, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local psz = tw_pct:getSize()
+        tw_pct:paintTo(bb, x + tsz.w + scale(8), y + math.floor((head_h - psz.h) / 2))
+        tw_pct:free()
+    end
+
+    local sw_w, sw_h = scale(SWITCH_W), scale(SWITCH_H)
+    local sw_x = x + w - sw_w
+    paintSwitch(bb, sw_x, y + math.floor((head_h - sw_h) / 2), sw_w, sw_h, is_fl)
+
+    local hp = scale(12)
+    self._light_hit = {
+        toggle = Geom:new{ x = sw_x - hp, y = y - scale(4), w = sw_w + hp + scale(8), h = head_h + scale(8) },
+    }
+    self._light_block_dimen = Geom:new{ x = x - scale(6), y = y - scale(2), w = w + scale(12), h = head_h + head_gap + slider_h + scale(4) }
+
+    if not sl then return end
+
+    -- Slider
+    local sy = y + head_h + head_gap
+    local cy = sy + math.floor(slider_h / 2)
+    local touch_h = scale(36)                 -- la zona de toque es más alta que lo que se ve
+    local ty0 = cy - math.floor(touch_h / 2)
+    local label_w = scale(22)
+    local gap = scale(6)
+    local knob = scale(20)
+    local track_h = scale(4)
+    local track_x = x + label_w + gap
+    local track_w = w - 2 * (label_w + gap)
+
+    -- Signos − / + dibujados a mano (sin círculo), centrados en su caja
+    local arm = scale(14)
+    local th = math.max(2, scale(2))
+    local plus_x = x + w - label_w
+    -- (pegados a los bordes de la fila, alineados con el título y con el toggle)
+    bb:paintRect(x, cy - math.floor(th / 2), arm, th, BLACK)
+    bb:paintRect(x + w - arm, cy - math.floor(th / 2), arm, th, BLACK)
+    bb:paintRect(x + w - math.floor((arm + th) / 2), cy - math.floor(arm / 2), th, arm, BLACK)
+
+    -- Riel gris, relleno negro hasta la perilla y perilla de aro
+    local kx = math.max(0, math.min(track_w - knob, math.floor(frac * track_w) - math.floor(knob / 2)))
+    local fill_w = math.max(track_h, kx + math.floor(knob / 2))
+    local tr = math.floor(track_h / 2)
+    local ty = cy - tr
+    paintRoundRect(bb, track_x, ty, track_w, track_h, tr, Blitbuffer.COLOR_LIGHT_GRAY)
+    paintRoundRect(bb, track_x, ty, fill_w, track_h, tr, BLACK)
+    local ring = math.max(2, scale(2))
+    local ky = cy - math.floor(knob / 2)
+    paintRoundRect(bb, track_x + kx, ky, knob, knob, math.floor(knob / 2), BLACK)
+    paintRoundRect(bb, track_x + kx + ring, ky + ring, knob - 2 * ring, knob - 2 * ring, math.floor((knob - 2 * ring) / 2), Blitbuffer.COLOR_WHITE)
+
+    local half_gap = math.floor(gap / 2)
+    self._light_hit.minus = Geom:new{ x = x, y = ty0, w = label_w + half_gap, h = touch_h }
+    self._light_hit.plus  = Geom:new{ x = plus_x - half_gap, y = ty0, w = label_w + half_gap, h = touch_h }
+    self._light_hit.track = Geom:new{ x = track_x, y = ty0, w = track_w, h = touch_h }
 end
 
 function ScrubberMenu:isNightMode()
@@ -1252,7 +1731,7 @@ function ScrubberMenu:paintTo(bb, x, y)
             or (self._pressed_btn == "tab_typo" and self.tab_typo_dimen)
         if pressed then
             local pin = scale(6)
-            paintRoundRect(bb, pressed.x + pin, tab_y + scale(3), pressed.w - pin * 2, tab_h - scale(11), scale(10), PRESSED_TAB_BG)
+            paintRoundRect(bb, pressed.x + pin, tab_y + scale(4), pressed.w - pin * 2, tab_h - scale(12), scale(10), PRESSED_TAB_BG)
         end
     end
 
@@ -1292,6 +1771,7 @@ function ScrubberMenu:paintTo(bb, x, y)
     end
 
     local content_top = tab_y + tab_h
+    local content_h = scale(QUICK_CONTENT_H)
 
     -- ====================================================
     -- CONTENIDO PESTAÑA 1: RÁPIDO
@@ -1299,11 +1779,23 @@ function ScrubberMenu:paintTo(bb, x, y)
     if self.active_tab == "quick" then
         local show_status = self:_statusRowEnabled()
 
-        -- Orden vertical: botones día / noche → fila de estado (opcional) → sol / acciones / ajustes.
-        -- Con la fila de estado se compacta; sin ella se usa el layout del menú viejo (24 / 24)
+        -- Orden vertical: botones día / noche → brillo (título + toggle, y debajo el slider) → buscar / acciones /
+        -- ajustes → pie de estado (opcional). El contenido útil mide siempre content_h: se descuenta el pie (si está)
+        -- y lo que queda se reparte en cuatro espacios iguales, medidos entre lo que SE VE de cada fila (los
+        -- márgenes internos de las cajas de toque no cuentan): arriba · swatches→brillo · brillo→íconos · abajo.
         if not show_status then self._status_dimens = {} end
-        local swatch_y = content_top + scale(show_status and 14 or 24)
-        local swatch_h = scale(48)
+        local footer_h = show_status and scale(STATUS_FOOTER_H) or 0
+        local swatch_h = scale(40)
+        local light_slider = self:_getLightSlider()   -- nil: el dispositivo no da acceso al nivel → solo queda el toggle
+        local head_h = scale(24)                       -- cabecera: lo que mide el toggle
+        local head_gap = scale(6)                      -- aire entre la cabecera y el slider
+        local slider_h = light_slider and scale(20) or 0   -- alto visible del slider = la perilla (la zona de toque es más alta)
+        local block_h = head_h + (light_slider and (head_gap + slider_h) or 0)
+        local bottom_h = scale(44)                     -- caja de toque de los íconos de abajo
+        local icon_vis = scale(34)                     -- alto visible de la fila de abajo: lo que mide la píldora de búsqueda
+        local G = math.floor((content_h - footer_h - swatch_h - block_h - icon_vis) / 4)
+        local swatch_y = content_top + G
+        local block_y = swatch_y + swatch_h + G
         local gap = scale(14)
         local swatch_w = math.floor((r.w - (pad * 2) - gap) / 2)
         local swatch_r = scale(8)
@@ -1351,53 +1843,40 @@ function ScrubberMenu:paintTo(bb, x, y)
             self.tw_check:paintTo(bb, night_x + math.floor((swatch_w - csz.w) / 2), swatch_y + math.floor((swatch_h - csz.h) / 2))
         end
 
-        local bottom_y
-        local bottom_h = scale(48)
-        if show_status then
-            -- Fila de estado entre los botones día / noche y la fila de abajo (usa el ancho de los swatches ya dibujados).
-            -- Centrada en el hueco VISIBLE: desde el borde de abajo de los swatches hasta el borde de arriba de los
-            -- íconos de la fila inferior (que tienen su propio margen interno dentro de bottom_h).
-            local status_h = scale(STATUS_ROW_H)
-            local sw_end   = swatch_y + swatch_h
-            bottom_y = sw_end + scale(40)
-            local icons_top = bottom_y + math.floor((bottom_h - scale(32)) / 2)
-            local center_y  = sw_end + math.floor((icons_top - sw_end) / 2)
-            self:_paintStatusRow(bb, r, pad, center_y - math.floor(status_h / 2), status_h, center_y)
-        else
-            bottom_y = swatch_y + swatch_h + scale(24)
-        end
-
-        -- Cuatro celdas que reparten todo el ancho: [luz (sol + toggle)] [buscar] [acciones] [ajustes]
+        -- Brillo: título + % + toggle a la derecha; debajo [−] slider [+] (como el popup de brillo de KiKome)
         local row_x = r.x + pad
         local row_w = r.w - pad * 2
-        local cell_y = bottom_y - scale(2)
-        local cell_h = bottom_h + scale(4)
+        self:_paintLightBlock(bb, row_x, row_w, block_y, head_h, head_gap, slider_h, light_slider)
 
-        -- Celda 1: sol + toggle (mismo toggle que los ajustes), centrados en su celda
-        local sun_sz = scale(32)
-        local is_fl = self:isFrontlightOn()
-        local sw_w, sw_h = scale(SWITCH_W), scale(SWITCH_H)
-        local group_w = sun_sz + scale(8) + sw_w
+        -- Fila de abajo: sus íconos quedan a G del bloque de brillo
+        local bottom_y = block_y + block_h + G - math.floor((bottom_h - icon_vis) / 2)
 
-        -- La celda de la luz se lleva lo que necesita su grupo (sol + toggle); el resto se reparte en 3 iguales
-        local cw1 = math.max(math.floor(row_w * 0.34), group_w + scale(12))
-        local cw = math.floor((row_w - cw1) / 3)
+        -- Pie de estado: pegado al borde de abajo del contenido
+        if show_status then
+            self:_paintStatusRow(bb, r, pad, content_top + content_h - footer_h, footer_h)
+        end
 
-        local sun_x = row_x + math.floor((cw1 - group_w) / 2)
-        local sun_y = bottom_y + math.floor((bottom_h - sun_sz) / 2)
-        if self.icon_sun then self.icon_sun:paintTo(bb, sun_x, sun_y) end
-        paintSwitch(bb, sun_x + sun_sz + scale(8), bottom_y + math.floor((bottom_h - sw_h) / 2), sw_w, sw_h, is_fl)
-        self.row_light_dimen = Geom:new{ x = row_x, y = cell_y, w = cw1, h = cell_h }
+        -- Fila de abajo: [ Search 🔍 ] ····· [acciones] [ajustes]. Todo queda DENTRO de los bordes de los swatches
+        -- (row_x … row_x + row_w): la píldora de búsqueda ocupa lo que sobra a la izquierda y los dos íconos van
+        -- juntos a la derecha, con el de ajustes tocando el borde de adentro del cuadrado de noche.
+        local isz_box = scale(32)
+        local icon_gap = scale(4)
+        local pill_gap = scale(10)
+        local set_x = row_x + row_w - isz_box
+        local act_x = set_x - icon_gap - isz_box
+        local pill_w = act_x - pill_gap - row_x
+        local pill_h = scale(34)
+        local pill_y = bottom_y + math.floor((bottom_h - pill_h) / 2)
 
-        -- Ícono centrado en su celda; al presionar se marca con el recuadro negro (igual que ajustes)
-        local box_sz = scale(40)
-        local function paintCellIcon(icon, cell_x, cell_w, pressed)
+        -- Ícono centrado en center_x; al presionar se marca con el recuadro negro centrado sobre el ícono
+        local box_sz = scale(38)
+        local function paintCellIcon(icon, center_x, pressed)
             if not icon then return end
             local isz = icon:getSize()
-            local ix = cell_x + math.floor((cell_w - isz.w) / 2)
+            local ix = center_x - math.floor(isz.w / 2)
             local iy = bottom_y + math.floor((bottom_h - isz.h) / 2)
             if pressed then
-                local box_x = cell_x + math.floor((cell_w - box_sz) / 2)
+                local box_x = center_x - math.floor(box_sz / 2)
                 local box_y = bottom_y + math.floor((bottom_h - box_sz) / 2)
                 paintRoundRect(bb, box_x, box_y, box_sz, box_sz, scale(8), Blitbuffer.COLOR_BLACK)
                 bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
@@ -1408,42 +1887,64 @@ function ScrubberMenu:paintTo(bb, x, y)
             end
         end
 
-        -- Celda 2: buscador de texto del libro
-        local search_x = row_x + cw1
-        self.btn_search_dimen = Geom:new{ x = search_x, y = cell_y, w = cw, h = cell_h }
-        paintCellIcon(self.icon_search, search_x, cw, self._pressed_btn == "search")
+        -- Buscador: píldora con el texto a la izquierda y la lupa a la derecha
+        local search_pressed = self._pressed_btn == "search"
+        local fg, _bg = paintPill(bb, row_x, pill_y, pill_w, pill_h, search_pressed)
+        do
+            local isz = self.icon_search and self.icon_search:getSize() or { w = 0, h = 0 }
+            local ipad = scale(14)
+            local tw_s = TextWidget:new{
+                text = _("Search"), face = Font:getFace("cfont", scaleText(11)), fgcolor = fg,
+                max_width = pill_w - ipad * 2 - isz.w - scale(8),
+            }
+            local tsz = tw_s:getSize()
+            tw_s:paintTo(bb, row_x + scale(16), pill_y + math.floor((pill_h - tsz.h) / 2))
+            tw_s:free()
+            paintIconOn(bb, self.icon_search, row_x + pill_w - ipad - isz.w,
+                pill_y + math.floor((pill_h - isz.h) / 2), search_pressed)
+        end
+        self.btn_search_dimen = Geom:new{ x = row_x, y = bottom_y, w = pill_w + math.floor(pill_gap / 2), h = bottom_h }
 
-        -- Celda 3: acciones del scrubber (centrado)
-        local actions_x = search_x + cw
-        self.btn_actions_dimen = Geom:new{ x = actions_x, y = cell_y, w = cw, h = cell_h }
-        paintCellIcon(self.icon_warehouse, actions_x, cw, false)
+        -- Acciones del scrubber
+        paintCellIcon(self.icon_warehouse, act_x + math.floor(isz_box / 2), false)
+        self.btn_actions_dimen = Geom:new{
+            x = act_x - math.floor(pill_gap / 2), y = bottom_y,
+            w = isz_box + math.floor(pill_gap / 2) + math.floor(icon_gap / 2), h = bottom_h,
+        }
 
-        -- Celda 4: ajustes (centrado); al presionar se marca con el recuadro negro
-        local set_cx = actions_x + cw
-        self.btn_wifi_dimen = Geom:new{ x = set_cx, y = cell_y, w = row_x + row_w - set_cx, h = cell_h }
-        paintCellIcon(self.icon_wifi, set_cx, cw, self._pressed_btn == "wifi")
-
-        -- Última fila: estado (wifi · hora · estudio · batería), debajo de sol / acciones / ajustes
+        -- Ajustes; al presionar se marca con el recuadro negro
+        paintCellIcon(self.icon_wifi, set_x + math.floor(isz_box / 2), self._pressed_btn == "wifi")
+        local set_zone_x = set_x - math.floor(icon_gap / 2)
+        self.btn_wifi_dimen = Geom:new{ x = set_zone_x, y = bottom_y, w = (r.x + r.w - border) - set_zone_x, h = bottom_h }
 
 
     -- ====================================================
-    -- CONTENIDO PESTAÑA 2: TIPOGRAFÍA (PULIDA)
+    -- CONTENIDO PESTAÑA 2: TIPOGRAFÍA
     -- ====================================================
     elseif self.active_tab == "typo" then
-        local row_h = scale(52)
-        local btn_w = scale(34)
-        local btn_h = scale(28)
-        local btn_r = scale(8)
+        local row_x = r.x + pad
+        local row_w = r.w - pad * 2
+        local row_h = math.floor((content_h - scale(4)) / 4)
 
-        local btn_bg_color = is_night and Blitbuffer.COLOR_DARK_GRAY or Blitbuffer.COLOR_LIGHT_GRAY
-        local btn_fg_color = Blitbuffer.COLOR_BLACK
+        -- Botón píldora con signo − o + dibujado en geometría (se invierte a negro/blanco al tocarlo)
+        local function paintStepPill(bx, by, bw, bh, is_plus, pressed)
+            local fg = paintPill(bb, bx, by, bw, bh, pressed)
+            local arm = scale(11)
+            local th = math.max(2, scale(2))
+            local cx = bx + math.floor(bw / 2)
+            local cy = by + math.floor(bh / 2)
+            bb:paintRect(cx - math.floor(arm / 2), cy - math.floor(th / 2), arm, th, fg)
+            if is_plus then
+                bb:paintRect(cx - math.floor(th / 2), cy - math.floor(arm / 2), th, arm, fg)
+            end
+        end
 
-        -- 1. FILA FUENTE: Nombre de Fuente (con su propia font) ... Chevron (Der)
+        -- 1. FILA FUENTE: Nombre de Fuente (con su propia font) + Chevron a la derecha
         local r1_y = content_top
         self.btn_font_row_dimen = Geom:new{ x = r.x + border, y = r1_y, w = inner_w, h = row_h }
 
         local chev_sz = scale(16)
-        local chev_x = r.x + r.w - pad - chev_sz
+        local chev_x = row_x + row_w - chev_sz
         local chev_y = r1_y + math.floor((row_h - chev_sz) / 2)
 
         local painted_icon = false
@@ -1458,8 +1959,7 @@ function ScrubberMenu:paintTo(bb, x, y)
         end
 
         local cur_font = self:getBookFontFace()
-        local max_font_w = math.max(scale(40), chev_x - (r.x + pad) - scale(8))
-
+        local max_font_w = math.max(scale(40), chev_x - row_x - scale(8))
         local font_face_preview = getCreFace(cur_font, scaleText(13))
 
         local tw_font = TextWidget:new{
@@ -1471,31 +1971,23 @@ function ScrubberMenu:paintTo(bb, x, y)
             truncate_with_ellipsis = true,
         }
         local ftsz = tw_font:getSize()
-        tw_font:paintTo(bb, r.x + pad, r1_y + math.floor((row_h - ftsz.h) / 2))
+        tw_font:paintTo(bb, row_x, r1_y + math.floor((row_h - ftsz.h) / 2))
         tw_font:free()
 
-        -- 2. FILA TAMAÑO DE TEXTO: [ − ]   Aa (bold)  22 pt (regular)   [ + ]
+        -- 2. FILA TAMAÑO DE TEXTO: [ − ]   Aa  22 pt   [ + ]
         local r2_y = r1_y + row_h
-        local btn2_y = r2_y + math.floor((row_h - btn_h) / 2)
-        local left_btn_x = r.x + pad
-        local right_btn_x = r.x + r.w - pad - btn_w
 
-        self.btn_size_dec_dimen = Geom:new{ x = r.x + border, y = r2_y, w = pad + btn_w + scale(6), h = row_h }
-        self.btn_size_inc_dimen = Geom:new{ x = right_btn_x - scale(6), y = r2_y, w = pad + btn_w + scale(6), h = row_h }
+        local step_w = scale(42)
+        local step_h = scale(30)
+        local step2_y = r2_y + math.floor((row_h - step_h) / 2)
+        local right_step_x = row_x + row_w - step_w
 
-        -- Botón - \u{F068} (limpio sin fondo)
-        local tw_ad = TextWidget:new{ text = "\u{F068}", face = Font:getFace("cfont", scale(13)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-        local adsz = tw_ad:getSize()
-        tw_ad:paintTo(bb, left_btn_x + math.floor((btn_w - adsz.w) / 2), r2_y + math.floor((row_h - adsz.h) / 2))
-        tw_ad:free()
+        self.btn_size_dec_dimen = Geom:new{ x = r.x + border, y = r2_y, w = pad + step_w + scale(8), h = row_h }
+        self.btn_size_inc_dimen = Geom:new{ x = right_step_x - scale(8), y = r2_y, w = pad + step_w + scale(8), h = row_h }
 
-        -- Botón + \u{F067} (limpio sin fondo)
-        local tw_au = TextWidget:new{ text = "\u{F067}", face = Font:getFace("cfont", scale(13)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-        local ausz = tw_au:getSize()
-        tw_au:paintTo(bb, right_btn_x + math.floor((btn_w - ausz.w) / 2), r2_y + math.floor((row_h - ausz.h) / 2))
-        tw_au:free()
+        paintStepPill(row_x, step2_y, step_w, step_h, false, self._pressed_btn == "size_dec")
+        paintStepPill(right_step_x, step2_y, step_w, step_h, true, self._pressed_btn == "size_inc")
 
-        -- Centro: \u{E97E} (ícono tamaño de font) + 22 pt (regular)
         local cur_sz = self:getBookFontSize()
         local tw_aa_ico = TextWidget:new{
             text = "\u{E97E}",
@@ -1520,25 +2012,16 @@ function ScrubberMenu:paintTo(bb, x, y)
         tw_aa_ico:free()
         tw_sz_val:free()
 
-        -- 3. FILA INTERLINEADO: [ − ]   \u{E977} (interlineado)  100% (regular)   [ + ]
+        -- 3. FILA INTERLINEADO: [ − ]   ≡  100%   [ + ]
         local r3_y = r2_y + row_h
 
-        self.btn_space_dec_dimen = Geom:new{ x = r.x + border, y = r3_y, w = pad + btn_w + scale(6), h = row_h }
-        self.btn_space_inc_dimen = Geom:new{ x = right_btn_x - scale(6), y = r3_y, w = pad + btn_w + scale(6), h = row_h }
+        local step3_y = r3_y + math.floor((row_h - step_h) / 2)
+        self.btn_space_dec_dimen = Geom:new{ x = r.x + border, y = r3_y, w = pad + step_w + scale(8), h = row_h }
+        self.btn_space_inc_dimen = Geom:new{ x = right_step_x - scale(8), y = r3_y, w = pad + step_w + scale(8), h = row_h }
 
-        -- Botón - \u{F068} (limpio sin fondo)
-        local tw_m2 = TextWidget:new{ text = "\u{F068}", face = Font:getFace("cfont", scale(13)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-        local m2sz = tw_m2:getSize()
-        tw_m2:paintTo(bb, left_btn_x + math.floor((btn_w - m2sz.w) / 2), r3_y + math.floor((row_h - m2sz.h) / 2))
-        tw_m2:free()
+        paintStepPill(row_x, step3_y, step_w, step_h, false, self._pressed_btn == "space_dec")
+        paintStepPill(right_step_x, step3_y, step_w, step_h, true, self._pressed_btn == "space_inc")
 
-        -- Botón + \u{F067} (limpio sin fondo)
-        local tw_p2 = TextWidget:new{ text = "\u{F067}", face = Font:getFace("cfont", scale(13)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
-        local p2sz = tw_p2:getSize()
-        tw_p2:paintTo(bb, right_btn_x + math.floor((btn_w - p2sz.w) / 2), r3_y + math.floor((row_h - p2sz.h) / 2))
-        tw_p2:free()
-
-        -- Centro: \u{E977} (ícono interlineado) + 100% (regular)
         local cur_sp = self:getBookLineSpacing()
         local tw_eq_ico = TextWidget:new{
             text = "\u{E977}",
@@ -1562,6 +2045,54 @@ function ScrubberMenu:paintTo(bb, x, y)
         tw_eq_ico:free()
         tw_sp_val:free()
 
+        -- 4. FILA INFERIOR: Píldora segmentada de ancho completo (solo SVG) + ícono de rotar a la derecha
+        local r4_y = r3_y + row_h
+
+        local opt_h = scale(34)
+        local opt_y = r4_y + math.floor((row_h - opt_h) / 2)
+        local rot_sz = scale(32)
+        local pill_gap = scale(10)
+        local rot_x = row_x + row_w - rot_sz
+        local pill_w = rot_x - pill_gap - row_x
+        local seg_w = math.floor(pill_w / 2)
+
+        local seg_icons, selected
+        if self:getDocKind() == "paging" then
+            seg_icons = { self.icon_view_page, self.icon_view_cont }
+            selected = self:isContinuousView() and 2 or 1
+        else
+            seg_icons = { self.icon_col_one, self.icon_col_two }
+            selected = self:getBookColumns()
+        end
+
+        paintSegmented(bb, row_x, opt_y, pill_w, opt_h, seg_icons, nil, selected)
+        self.btn_seg_dimens = {
+            Geom:new{ x = row_x, y = r4_y, w = seg_w, h = row_h },
+            Geom:new{ x = row_x + seg_w, y = r4_y, w = pill_w - seg_w, h = row_h },
+        }
+
+        local ic_rot = self.icon_rotate
+        if ic_rot then
+            local isz = ic_rot:getSize()
+            local ix = rot_x + math.floor((rot_sz - isz.w) / 2)
+            local iy = r4_y + math.floor((row_h - isz.h) / 2)
+            if self._pressed_btn == "rotate" then
+                local box = scale(38)
+                local bx = rot_x + math.floor((rot_sz - box) / 2)
+                paintRoundRect(bb, bx, r4_y + math.floor((row_h - box) / 2), box, box, scale(8), Blitbuffer.COLOR_BLACK)
+                paintIconOn(bb, ic_rot, ix, iy, true)
+            else
+                ic_rot:paintTo(bb, ix, iy)
+            end
+        end
+        local rot_zone_x = rot_x - math.floor(pill_gap / 2)
+        self.btn_rotate_dimen = Geom:new{
+            x = rot_zone_x,
+            y = r4_y,
+            w = (r.x + r.w - border) - rot_zone_x,
+            h = row_h,
+        }
+
     -- ====================================================
     -- SUBVISTA: LISTA PAGINADA DE FUENTES (CADA UNA EN SU PROPIA FUENTE)
     -- ====================================================
@@ -1570,7 +2101,7 @@ function ScrubberMenu:paintTo(bb, x, y)
         local cur_font = self:getBookFontFace()
 
         -- Si entran hasta 5 fuentes, mostramos 5 en 1 sola página sin barra inferior
-        local per_page = 4
+        local per_page = self.fonts_per_page or 5
         self.font_total_pages = math.max(1, math.ceil(#fonts / per_page))
         self.font_page = math.max(1, math.min(self.font_page, self.font_total_pages))
 
@@ -1687,7 +2218,7 @@ function ScrubberMenu:paintTo(bb, x, y)
         local actions = self:getQuickActions()
 
         -- Si entran hasta 5 acciones, mostramos 5 en 1 sola página sin barra inferior
-        local per_page = 4
+        local per_page = self.actions_per_page or 5
         self.actions_total_pages = math.max(1, math.ceil(#actions / per_page))
         self.actions_page = math.max(1, math.min(self.actions_page, self.actions_total_pages))
 
@@ -1788,6 +2319,21 @@ function ScrubberMenu:paintTo(bb, x, y)
             end
         end
     end
+end
+
+-- Invierte un instante la píldora de − / + sin bloquear toques rápidos consecutivos
+function ScrubberMenu:_flashStepBtn(key, btn_dimen, fn)
+    self._pressed_btn = key
+    self._flash_seq = (self._flash_seq or 0) + 1
+    local seq = self._flash_seq
+    fn()
+    local dirty_rect = btn_dimen and expandRect(btn_dimen, scale(4)) or expandRect(self.popup_rect, scale(8))
+    UIManager:setDirty(self, "ui", dirty_rect)
+    UIManager:scheduleIn(0.09, function()
+        if self._closed or self._flash_seq ~= seq then return end
+        self._pressed_btn = nil
+        UIManager:setDirty(self, "ui", dirty_rect)
+    end)
 end
 
 -- Muestra un instante la pastilla gris de la pestaña presionada y después ejecuta la acción
@@ -1908,11 +2454,8 @@ function ScrubberMenu:onTap(arg1, arg2)
             return true
         end
 
-        if self.row_light_dimen and ges.pos:intersectWith(self.row_light_dimen) then
-            self:toggleFrontlight()
-            self:refreshMenu()
-            return true
-        end
+        -- Brillo: toggle (prende / apaga recordando el nivel), − / + y salto directo sobre el slider
+        if self:_onLightTap(ges.pos) then return true end
 
     -- Acciones Pestaña 2: Tipografía
     elseif self.active_tab == "typo" then
@@ -1922,7 +2465,7 @@ function ScrubberMenu:onTap(arg1, arg2)
             local cur = self:getBookFontFace()
             for i, f in ipairs(fonts) do
                 if f == cur then
-                    self.font_page = math.ceil(i / (self.fonts_per_page or 4))
+                    self.font_page = math.ceil(i / (self.fonts_per_page or 5))
                     break
                 end
             end
@@ -1933,21 +2476,55 @@ function ScrubberMenu:onTap(arg1, arg2)
 
         -- Tamaño de fuente (− / +)
         if self.btn_size_dec_dimen and ges.pos:intersectWith(self.btn_size_dec_dimen) then
-            self:changeBookFontSize(-1)
+            self:_flashStepBtn("size_dec", self.btn_size_dec_dimen, function()
+                self:changeBookFontSize(-1)
+            end)
             return true
         end
         if self.btn_size_inc_dimen and ges.pos:intersectWith(self.btn_size_inc_dimen) then
-            self:changeBookFontSize(1)
+            self:_flashStepBtn("size_inc", self.btn_size_inc_dimen, function()
+                self:changeBookFontSize(1)
+            end)
             return true
         end
 
         -- Interlineado (− / +)
         if self.btn_space_dec_dimen and ges.pos:intersectWith(self.btn_space_dec_dimen) then
-            self:changeBookLineSpacing(-5)
+            self:_flashStepBtn("space_dec", self.btn_space_dec_dimen, function()
+                self:changeBookLineSpacing(-5)
+            end)
             return true
         end
         if self.btn_space_inc_dimen and ges.pos:intersectWith(self.btn_space_inc_dimen) then
-            self:changeBookLineSpacing(5)
+            self:_flashStepBtn("space_inc", self.btn_space_inc_dimen, function()
+                self:changeBookLineSpacing(5)
+            end)
+            return true
+        end
+
+        -- Columnas (One / Two) o modo de vista (Page / Continuous): cada mitad de la píldora es una opción
+        if self.btn_seg_dimens then
+            for i, dimen in ipairs(self.btn_seg_dimens) do
+                if ges.pos:intersectWith(dimen) then
+                    if self:getDocKind() == "paging" then
+                        self:setViewMode(i == 2)
+                    else
+                        self:setColumns(i)
+                    end
+                    return true
+                end
+            end
+        end
+
+        -- Rotar a horizontal: el ícono se marca un instante antes de actuar
+        if self.btn_rotate_dimen and ges.pos:intersectWith(self.btn_rotate_dimen) then
+            self._pressed_btn = "rotate"
+            UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+            UIManager:scheduleIn(0.06, function()
+                self._pressed_btn = nil
+                if self._closed then return end
+                self:rotateScreen()
+            end)
             return true
         end
 
@@ -2059,14 +2636,16 @@ end
 
 function ScrubberMenu:onCloseWidget()
     self._closed = true
+    if self._fl_dirty then saveLightNow() end
     local typo_changed = self._typo_changed
     self:applyPendingTypography()
 
     local to_free = {
-        self.icon_sun, self.icon_warehouse, self.icon_wifi,
+        self.icon_warehouse, self.icon_wifi,
         self.icon_chevron_right,
         self.tw_check,
-        self.icon_search
+        self.icon_search, self.icon_rotate,
+        self.icon_col_one, self.icon_col_two, self.icon_view_page, self.icon_view_cont,
     }
     for _, w in ipairs(to_free) do
         if w and w.free then pcall(function() w:free() end) end

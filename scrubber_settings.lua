@@ -969,6 +969,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 { text = _("Text size"), icon = "pencil-ruler.svg", kind = "submenu", target = "text_size", value = self:sizeLabel("page_scrubber_text_size", "medium") },
                 { text = _("Choose wallpaper"), icon = "image-plus.svg", kind = "submenu", target = "choose_wallpaper", value = self:wallpaperLabel() },
                 { text = _("Custom icons"), icon = "droplet2.svg", kind = "submenu", target = "custom_icons" },
+                { text = _("Rounded style"), icon = "view-page.svg", kind = "submenu", target = "rounded_style" },
                 { section = _("Top bar"), text = _("Book title style"), icon = "contrast.svg", kind = "submenu", target = "title_bg", value = self:titleStyleLabel() },
                 {
                     text = _("Top bar separator line"),
@@ -1369,6 +1370,28 @@ function ScrubberSettings:getPageDefinition(page_id)
         end
         return { title = filename, items = items }
 
+    elseif page_id == "rounded_style" then
+        -- Un toggle por vista con previsualizacion de paginas: encendido = esquinas redondeadas, apagado = cuadradas.
+        -- Se repinta todo para no dejar sombras ni esquinas del estilo anterior (el Simple Grid va sobre el libro).
+        local function repaint()
+            if self.scrubber_ui then UIManager:setDirty("all", "ui") end
+        end
+        -- Simple Grid: si el toggle nuevo no se tocó todavía, se muestra la elección del viejo "Square style"
+        local simple_default = not (G_reader_settings and G_reader_settings:isTrue("page_scrubber_simple_grid_square"))
+        return {
+            title = _("Rounded style"),
+            items = {
+                { text = _("Grid"), icon = "gallery-horizontal.svg", kind = "toggle",
+                  setting = "page_scrubber_rounded_grid", default = true, on_change = repaint },
+                { text = _("Simple Grid"), icon = "columns-one.svg", kind = "toggle",
+                  setting = "page_scrubber_rounded_simple", default = simple_default, on_change = repaint },
+                { text = _("Multi Grid"), icon = "layout-grid.svg", kind = "toggle",
+                  setting = "page_scrubber_rounded_multigrid", default = true, on_change = repaint },
+                { text = _("Split menu"), icon = "columns-two.svg", kind = "toggle",
+                  setting = "page_scrubber_rounded_split", default = true, on_change = repaint },
+            }
+        }
+
     elseif page_id == "title_bg" then
         local raw = self:readSetting("page_scrubber_title_bg", "none")
         local cur = "none"
@@ -1446,7 +1469,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "sel_size", "review", "advanced", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "rounded_style", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "sel_size", "review", "advanced", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _i, pid in ipairs(pages) do

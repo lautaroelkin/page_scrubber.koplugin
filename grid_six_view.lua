@@ -178,10 +178,18 @@ function GridSixView.paint(scrubber, bb)
         local rect = slots[idx]
         local slot = scrubber._grid_tiles[idx]
         
-        bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
-
         local is_origin = (slot and slot.page and tonumber(slot.page) == tonumber(scrubber._origin_page))
         local border = is_origin and S(3) or S(1)
+
+        -- Rounded style (Multi Grid): redondeado por defecto. Con tile se evita el relleno blanco de la
+        -- celda (la miniatura lo cubre) para que las esquinas de afuera conserven el fondo/wallpaper.
+        local rad = scrubber:_pageRadius("multi", S(total > 6 and 7 or 9))
+        local has_tile = (slot and slot.page and slot.tile_bb) and true or false
+        local snap = nil
+        if rad <= 0 or not has_tile then
+            if slot and slot.page then snap = scrubber:_beginPageFrame(bb, rect.x, rect.y, rect.w, rect.h, rad) end
+            bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
+        end
 
         if slot and slot.page then
             if slot.tile_bb then
@@ -207,6 +215,10 @@ function GridSixView.paint(scrubber, bb)
                 local ox = rect.x + math.floor((rect.w - bw) / 2)
                 local oy = rect.y + math.floor((rect.h - bh) / 2)
 
+                if rad > 0 then
+                    local pbx, pby, pbw, pbh = getPageBox(rect, slot)
+                    snap = scrubber:_beginPageFrame(bb, pbx, pby, pbw, pbh, rad)
+                end
                 bb:blitFrom(render_bb, ox, oy, 0, 0, bw, bh)
 
                 -- Marcador y solapa blanca para tapar la orejita nativa
@@ -248,7 +260,9 @@ function GridSixView.paint(scrubber, bb)
             -- Contorno exacto en los bordes de la página real (sigue a la miniatura, no a la celda)
             local box_x, box_y, box_w, box_h = getPageBox(rect, slot)
             if slot.tile_bb or not is_fixed then
-                bb:paintBorder(box_x, box_y, box_w, box_h, border, Blitbuffer.COLOR_BLACK, 0)
+                scrubber:_endPageFrame(bb, box_x, box_y, box_w, box_h, rad, border, snap)
+            elseif snap then
+                scrubber:_restoreCorners(bb, snap)
             end
 
             -- Pastilla con número de página (SIEMPRE VISIBLE: cargada, cargando o con error)
