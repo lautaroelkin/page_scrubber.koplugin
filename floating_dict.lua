@@ -17,6 +17,7 @@ local VerticalSpan = require("ui/widget/verticalspan")
 local Event = require("ui/event")
 local UIManager = require("ui/uimanager")
 local ImageWidget = require("ui/widget/imagewidget")
+local logger = require("logger")
 
 local Screen = Device.screen
 local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
@@ -3323,11 +3324,13 @@ function FloatingDict:patchSystem()
             local results = args[2]
             local boxes = args[3]
             
-            if not plugin:isEnabled() or plugin.opening_original_popup or type(results) ~= "table" or not results[1] then
+            if not plugin:isEnabled() or plugin.opening_original_popup or plugin._popup_disabled_session
+                    or type(results) ~= "table" or not results[1] then
                 return plugin.original_showDict(dict_self, ...)
             end
-            
-            pcall(function()
+
+            local popup_shown = false
+            local ok_popup, err_popup = pcall(function()
                 if dict_self.dismissLookupInfo then pcall(function() dict_self:dismissLookupInfo() end) end
                 
                 local is_landscape = Screen:getWidth() > Screen:getHeight()
@@ -3356,8 +3359,21 @@ function FloatingDict:patchSystem()
                     highlight_obj = highlight, plugin = plugin, current_result_idx = 1
                 })
                 UIManager:show(popup)
+                popup_shown = true
             end)
-            return true
+            if ok_popup and popup_shown then
+                plugin._popup_failures = 0
+                return true
+            end
+
+            -- Si el popup flotante no se pudo armar o mostrar (fuente, memoria, otro plugin, etc.), antes el error se
+            -- descartaba y no aparecía ningún popup: la búsqueda quedaba "colgada" con la palabra resaltada. Ahora se
+            -- avisa en el log y se muestra el popup nativo de KOReader; tras 3 fallos seguidos se deja de intentar
+            -- con el flotante durante esta sesión.
+            logger.warn("PageScrubber: fallo el popup flotante del diccionario, se usa el nativo:", err_popup)
+            plugin._popup_failures = (plugin._popup_failures or 0) + 1
+            if plugin._popup_failures >= 3 then plugin._popup_disabled_session = true end
+            return plugin.original_showDict(dict_self, ...)
         end
         dictionary._ps_fdict_patched = true
     end

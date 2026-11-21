@@ -1705,20 +1705,35 @@ function ScrubberSettings:reopenEntireScrubber()
     UIManager:close(self)
     if not scrubber then return end
 
-    local view_mode = scrubber.view_mode or scrubber.initial_view_mode or "grid"
-    local tab = scrubber.current_tab or scrubber.initial_tab or "bookmarks"
-    local page = scrubber.current_page or (ui and ui.view and ui.view.state and ui.view.state.page) or 1
-    local doc = scrubber.document or (ui and ui.document)
+    -- Solo el scrubber principal sabe reabrirse con su estado; otras ventanas (p. ej. el índice) toman el ajuste
+    -- la próxima vez que se abran.
+    if not scrubber._is_page_scrubber_ui then return end
 
-    pcall(function()
-        if scrubber.onClose then scrubber:onClose() end
-    end)
-    pcall(function()
-        UIManager:close(scrubber)
-    end)
+    -- Estado real del scrubber (los campos son _view_mode / _cur_page; antes se leían nombres que no existen
+    -- y la vista reabierta perdía el modo y la página).
+    local view_mode = scrubber._view_mode or scrubber.initial_view_mode or "grid"
+    local tab = scrubber._active_tab or scrubber.initial_tab or "bookmarks"
+    local page = scrubber._cur_page or scrubber.initial_page
+        or (ui and ui.view and ui.view.state and ui.view.state.page) or 1
+    local doc = scrubber.document or (ui and ui.document)
+    local origin = scrubber._origin_page
+    local base_mode = scrubber._base_grid_mode
+
+    -- Se cierra la instancia vieja de golpe y sin saltar de página (mismo criterio que PageScrubber._closeOthers).
+    -- Antes se llamaba a onClose(), que deja tareas diferidas (salto de página + refresco completo) corriendo
+    -- justo mientras se arma el scrubber nuevo.
+    scrubber._closing = true
+    scrubber._pending_goto = nil
+    pcall(function() UIManager:close(scrubber) end)
+
+    local ScrubberState = require("scrubber_state")
+    ScrubberState.beginLaunch()
 
     UIManager:nextTick(function()
-        if ui and (doc or ui.document) then
+        ScrubberState.endLaunch()
+        if not (ui and (doc or ui.document)) then return end
+        if ScrubberState.openInstance() then return end
+        local ok, err = pcall(function()
             local ScrubberUI = require("scrubber_ui")
             local scale_val = 1.0
             if G_reader_settings then
@@ -1730,12 +1745,19 @@ function ScrubberSettings:reopenEntireScrubber()
                 initial_view_mode = view_mode,
                 initial_tab       = tab,
                 initial_page      = page,
+                initial_origin    = origin,
+                base_mode         = base_mode,
                 transparent_bg    = (view_mode == "grid_simple"),
                 ui_scale          = scale_val,
             })
-            if Device:isKindle() then
-                UIManager:setDirty(nil, "full")
-            end
+        end)
+        if not ok then
+            require("logger").warn("PageScrubber: no se pudo reabrir el scrubber tras cambiar el ajuste:", err)
+            UIManager:setDirty(nil, "full")
+            return
+        end
+        if Device:isKindle() then
+            UIManager:setDirty(nil, "full")
         end
     end)
 end
