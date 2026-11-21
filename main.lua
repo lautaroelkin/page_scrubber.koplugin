@@ -85,8 +85,47 @@ local function registerInMenuOrder()
     end
 end
 
+-- "Swipe up to": al deslizar hacia arriba desde el borde de abajo, KOReader abre su menú de tipografía
+-- (ReaderConfig:onSwipeShowConfigMenu). Si el usuario eligió una vista del scrubber en
+-- Settings > Reading Pop-Ups > Swipe up to, se abre esa en su lugar. Con "Off" (por defecto) no cambia nada.
+local SWIPE_UP_EVENTS = {
+    grid          = "PageScrubberGrid",
+    grid_simple   = "PageScrubberSimpleGrid",
+    toc           = "PageScrubberToc",
+    toc_expanded  = "PageScrubberTocExpanded",
+    grid_six      = "PageScrubberMultiGrid",
+    quick_menu    = "PageScrubberQuickMenu",
+}
+
+local swipe_up_patched = false
+
+local function patchSwipeUp()
+    if swipe_up_patched then return end
+    local ok, ReaderConfig = pcall(require, "apps/reader/modules/readerconfig")
+    if not (ok and type(ReaderConfig) == "table") then return end
+    local orig = ReaderConfig.onSwipeShowConfigMenu
+    if type(orig) ~= "function" then return end
+    swipe_up_patched = true
+
+    ReaderConfig.onSwipeShowConfigMenu = function(self_rc, ges, ...)
+        if ges and ges.direction == "north" and G_reader_settings then
+            local choice = G_reader_settings:readSetting("page_scrubber_swipe_up")
+            local event = choice and SWIPE_UP_EVENTS[choice]
+            local ui = self_rc.ui
+            if event and ui and ui.document and not ScrubberState.rotating then
+                local Event = require("ui/event")
+                ui:handleEvent(Event:new(event))
+                ui:handleEvent(Event:new("HandledAsSwipe"))
+                return true
+            end
+        end
+        return orig(self_rc, ges, ...)
+    end
+end
+
 function PageScrubberPlugin:init()
     registerInMenuOrder()
+    patchSwipeUp()
     Dispatcher:registerAction("page_scrubber_grid_action", { category = "none", event = "PageScrubberGrid", title = _("Page Scrubber: Grid"), reader = true })
     Dispatcher:registerAction("page_scrubber_simple_grid_action", { category = "none", event = "PageScrubberSimpleGrid", title = _("Page Scrubber: Simple Grid"), reader = true })
     Dispatcher:registerAction("page_scrubber_multi_grid_action", { category = "none", event = "PageScrubberMultiGrid", title = _("Page Scrubber: Multi-Grid"), reader = true })
@@ -115,13 +154,24 @@ function ReaderUI:onPageScrubberLaunch(mode, tab, page)
     -- Rotando la pantalla: no se abre nada con las medidas de la orientación anterior
     if ScrubberState.rotating then return true end
 
+    -- Un solo scrubber a la vez. Si el hilo principal está ocupado (por ejemplo al abrir un libro) el gesto se repite y
+    -- los eventos llegan juntos: sin esta guarda se apilaban varios scrubbers y el de abajo devolvía el libro a la
+    -- página de origen.
+    if ScrubberState.isBusy() then
+        ScrubberState.log("lanzamiento ignorado: ya hay un scrubber abierto o en camino")
+        return true
+    end
+    ScrubberState.beginLaunch()
+
     local target_mode = mode or "grid"
     local target_tab = tab or "bookmarks"
     local is_transparent = (target_mode == "grid_simple")
 
     UIManager:nextTick(function()
+        ScrubberState.endLaunch()
         if not ui or not ui.document then return end
         if ScrubberState.rotating then return end
+        if ScrubberState.openInstance() then return end
         local ScrubberUI = require("scrubber_ui")
         UIManager:show(ScrubberUI:new{
             ui                = ui,
@@ -220,8 +270,16 @@ function ReaderUI:onPageScrubberStudy()
         return true
     end
 
+    if ScrubberState.isBusy() then
+        ScrubberState.log("lanzamiento (study) ignorado: ya hay un scrubber abierto o en camino")
+        return true
+    end
+    ScrubberState.beginLaunch()
+
     UIManager:nextTick(function()
+        ScrubberState.endLaunch()
         if not ui or not ui.document then return end
+        if ScrubberState.openInstance() then return end
         local ScrubberUI = require("scrubber_ui")
         UIManager:show(ScrubberUI:new{
             ui                  = ui,

@@ -78,6 +78,107 @@ local ok_icon_mgr, IconManager = pcall(require, "icon_manager")   -- reemplazos 
 if not ok_icon_mgr then IconManager = nil end
 local Screen            = Device.screen
 
+-- Tonos pastel (lightness 0.86, igual que en KiKome annotations.lua) para el fondo de los SVG en el split menu
+local HL_COLOR_HEX = {
+    red = "#FF3300", orange = "#FF8800", yellow = "#FFFF33", green = "#00AA66",
+    olive = "#88FF77", cyan = "#00FFEE", blue = "#0066FF", purple = "#EE00FF",
+    gray = "#808080",
+}
+
+local function rgbToHls(r, g, b)
+    local maxc, minc = math.max(r, g, b), math.min(r, g, b)
+    local l = (minc + maxc) / 2
+    if maxc == minc then return 0, l, 0 end
+    local d = maxc - minc
+    local sat = l <= 0.5 and d / (maxc + minc) or d / (2 - maxc - minc)
+    local rc, gc, bc = (maxc - r) / d, (maxc - g) / d, (maxc - b) / d
+    local h
+    if r == maxc then h = bc - gc
+    elseif g == maxc then h = 2 + rc - bc
+    else h = 4 + gc - rc end
+    return (h / 6) % 1, l, sat
+end
+
+local function hueValue(m1, m2, hue)
+    hue = hue % 1
+    if hue < 1 / 6 then return m1 + (m2 - m1) * hue * 6 end
+    if hue < 0.5 then return m2 end
+    if hue < 2 / 3 then return m1 + (m2 - m1) * (2 / 3 - hue) * 6 end
+    return m1
+end
+
+local function hlsToRgb(h, l, sat)
+    if sat == 0 then return l, l, l end
+    local m2 = l <= 0.5 and l * (1 + sat) or l + sat - l * sat
+    local m1 = 2 * l - m2
+    return hueValue(m1, m2, h + 1 / 3), hueValue(m1, m2, h), hueValue(m1, m2, h - 1 / 3)
+end
+
+local hl_base_cache = {}
+local hl_pale_cache = {}
+
+local function resolveHighlightColor(name)
+    name = name or "yellow"
+    if hl_base_cache[name] then return hl_base_cache[name] end
+    local c
+    local code = Blitbuffer.HIGHLIGHT_COLORS and Blitbuffer.HIGHLIGHT_COLORS[name]
+    if not code and HL_COLOR_HEX[name] then code = HL_COLOR_HEX[name] end
+    if code and Blitbuffer.colorFromString then
+        local ok, col = pcall(Blitbuffer.colorFromString, code)
+        if ok and col then c = col end
+    end
+    if not c or name == "gray" then
+        if Blitbuffer.gray then
+            local ok, col = pcall(Blitbuffer.gray, 0.2)
+            if ok and col then c = col end
+        end
+    end
+    c = c or Blitbuffer.COLOR_GRAY
+    hl_base_cache[name] = c
+    return c
+end
+
+local function paleHighlightColor(name)
+    name = name or "yellow"
+    local night = (Screen and Screen.night_mode) and true or false
+    local key = name .. (night and "|n" or "")
+    if hl_pale_cache[key] then return hl_pale_cache[key] end
+    local base = resolveHighlightColor(name)
+    local out
+    local ok = pcall(function()
+        local c = base:getColorRGB32()
+        local h, _l, sat = rgbToHls(c.r / 255, c.g / 255, c.b / 255)
+        if sat > 0.05 then sat = math.min(0.75, math.max(0.45, sat)) else sat = 0 end
+        if night then h = (h + 0.5) % 1 end
+        local r, g, b = hlsToRgb(h, 0.86, sat)
+        local function byte(v) return math.max(0, math.min(255, math.floor(v * 255 + 0.5))) end
+        out = Blitbuffer.ColorRGB32(byte(r), byte(g), byte(b), 0xFF)
+    end)
+    out = (ok and out) or base
+    hl_pale_cache[key] = out
+    return out
+end
+
+local function paintPaleColorRect(bb, x, y, w, h, color)
+    if w <= 0 or h <= 0 then return end
+    if bb.blendRectRGB32 then bb:blendRectRGB32(x, y, w, h, color)
+    elseif bb.paintRectRGB32 then bb:paintRectRGB32(x, y, w, h, color)
+    else bb:paintRect(x, y, w, h, color) end
+end
+
+local function paintPaleColorPill(bb, x, y, w, h, r, color)
+    r = math.min(r, math.floor(h / 2), math.floor(w / 2))
+    for j = 0, h - 1 do
+        local d = math.min(j, h - 1 - j)
+        local inset = 0
+        if d < r then
+            local dy = r - d - 0.5
+            inset = r - math.floor(math.sqrt(math.max(0, r * r - dy * dy)) + 0.5)
+        end
+        paintPaleColorRect(bb, x + inset, y + j, w - 2 * inset, 1, color)
+    end
+end
+
 local function flatten_keys(...)
     local keys = {}
     for i = 1, select("#", ...) do
@@ -358,8 +459,29 @@ end
 local PageScrubber = InputContainer:extend{ name = "page_scrubber", transparent = true }
 
 function PageScrubber:init()
+    local t_init = PageScrubber.perfStart()
+    PageScrubber._stopJumpWatch()   -- un scrubber nuevo cancela cualquier vigilancia de un salto anterior
+    -- Android: miniaturas dibujadas en el proceso principal en vez de con fork (ver scrubber_thumbs.lua).
+    pcall(function()
+        local Thumbs = require("scrubber_thumbs")
+        Thumbs.log = PageScrubber.dbg
+        Thumbs.debug = PageScrubber._DEBUG_JUMP
+        local state = Thumbs.install()
+        if not PageScrubber._thumbs_state_logged then
+            PageScrubber._thumbs_state_logged = true
+            PageScrubber.dbg("thumbs en proceso: " .. tostring(state))
+        end
+    end)
+    -- Una sola instancia visible a la vez (ver scrubber_state.lua).
+    do
+        local ScrubberState = require("scrubber_state")
+        ScrubberState.log = PageScrubber.dbg
+        self._is_page_scrubber_ui = true
+        PageScrubber._closeOthers(self)
+        ScrubberState.active = self
+    end
     self._anti_ghost_ready = false
-    require("ui/uimanager"):scheduleIn(0.4, function() 
+    require("ui/uimanager"):scheduleIn(0.18, function() 
         self._anti_ghost_ready = true 
     end)
     
@@ -407,14 +529,17 @@ function PageScrubber:init()
     end
     local S = self.S
 
-    self._old_can_do = Device.canDoSwipeAnimation
-    Device.canDoSwipeAnimation = function() return false end
-    self._saved_swipe_animations = Screen.swipe_animations
-    Screen.swipe_animations = false
+    require("scrubber_state").pushNoSwipe(Device, Screen)
+    self._swipe_pushed = true
 
     pcall(Breadcrumbs.hook, ui)
-    self._origin_page = self.initial_origin or (ui.view and ui.view.state and ui.view.state.page) or 1
+    local reader_cur_page = (ui.rolling and ui.rolling.current_page)
+        or (ui.view and ui.view.state and ui.view.state.page)
+        or (doc and doc.getCurrentPage and doc:getCurrentPage())
+        or 1
+    self._origin_page = self.initial_origin or reader_cur_page
     self._cur_page    = self.initial_page or self._origin_page
+    PageScrubber.jumpLog(ui, "open", { target = self._cur_page, origin = self._origin_page })
     self._total_pages = (doc and doc.getPageCount and doc:getPageCount()) or 1
 
     -- Si cambio el layout (screen DPI / nro de paginas / tamano de pantalla), las miniaturas
@@ -426,8 +551,15 @@ function PageScrubber:init()
         -- desde su xpointer (ReaderAnnotation:updatePageNumbers). Sin esto, tras un cambio de
         -- orientacion/DPI/fuente KOReader las deja desactualizadas hasta que se abre ese listado.
         if ui and ui.annotation and type(ui.annotation.updatePageNumbers) == "function" then
-            local changed = (ui._page_scrubber_layout_sig ~= sig)
+            -- Forzar el recálculo de TODAS las anotaciones solo cuando el layout cambió respecto de uno ya conocido.
+            -- En la primera apertura de cada libro no hace falta: KOReader marca needs_update por sí mismo
+            -- (onDocumentRerendered) y updatePageNumbers() sin forzar ya lo aplica; forzarlo era un costo fijo
+            -- en la apertura (una llamada a crengine por anotación).
+            local prev_sig = ui._page_scrubber_layout_sig
+            local changed = (prev_sig ~= nil and prev_sig ~= sig)
+            local t_ann = PageScrubber.perfStart()
             pcall(function() ui.annotation:updatePageNumbers(changed) end)
+            PageScrubber.perf("annotations-update(force=" .. tostring(changed) .. ")", t_ann)
         end
         if ui and ui._page_scrubber_layout_sig ~= sig then
             if ui._page_scrubber_layout_sig ~= nil and ui.thumbnail then
@@ -447,6 +579,7 @@ function PageScrubber:init()
     
     self._view_mode = self.initial_view_mode or "grid" 
     self._base_grid_mode = self.base_mode or ((self.initial_view_mode == "grid_simple") and "grid_simple" or "grid")
+    self._force_full_view_dirty = true
     self._active_tab = self.initial_tab or "bookmarks"
     if self._active_tab == "images" and not self._imgTabEnabled then self._active_tab = "bookmarks" end 
     self._sort_order = self.initial_sort_order or "desc" 
@@ -587,6 +720,7 @@ function PageScrubber:init()
         return TextWidget:new{ text = icon_char, face = Font:getFace("cfont", sz), fgcolor = fg }
     end
 
+    local t_icons = PageScrubber.perfStart()
     local top_icon_sz = S(28)
 
     self.tw_lib       = createSafeIcon("\u{E344}", "arrow-left.svg", top_icon_sz)
@@ -875,18 +1009,28 @@ function PageScrubber:init()
         }
     end
 
+    PageScrubber.perf("icons+layout", t_icons)
     if not self._grid_disabled then
-        if self._is_comic then
-            UIManager:scheduleIn(0.35, function()
-                if not self._closing then self:_updateGridPages() end
-            end)
-        else
-            UIManager:nextTick(function()
-                if not self._closing then self:_updateGridPages() end
-            end)
+        -- Pre-poblar placeholders para que el primer frame no dibuje el área vacía
+        if self._view_mode == "grid" then
+            for idx = 1, (self._grid_cols * self._grid_rows) do
+                local off = idx - 2
+                if self.is_rtl then off = -off end
+                local p = self._cur_page + off
+                local valid = p >= 1 and p <= self._total_pages
+                self._grid_tiles[idx] = { page = valid and p or nil, loading = valid, mode = "grid" }
+            end
         end
+
+        -- ReaderThumbnail guarda sus tiles en tile_cache (se crea recién con la primera miniatura pedida)
+        local cold_book = not (ui.thumbnail and (ui.thumbnail.tile_cache or ui.thumbnail.cache))
+        local start_delay = self._is_comic and 0.35 or (cold_book and 0.22 or 0.05)
+        UIManager:scheduleIn(start_delay, function()
+            if not self._closing then self:_updateGridPages() end
+        end)
     end
 
+    PageScrubber.perf("init-total", t_init)
     -- Acción de Dispatcher "Study": abre el Review Card apenas el scrubber terminó de construirse
     if self.initial_open_review then
         UIManager:scheduleIn(0.35, function()
@@ -944,15 +1088,16 @@ function PageScrubber:_cacheTile(page, bb, is_scaled, w, h)
 
 end
 
--- Precarga inmediata de las paginas vecinas (asi el siguiente tap ya la encuentra en cache).
--- Lo que evita el tildado es que cada navegacion nueva cancela las precargas viejas
--- (ver _updateGridPages), no demorar la precarga.
+-- Precarga de las paginas vecinas con un breve debounce ligado a _preload_token
+-- para no saturar crengine mientras el usuario recorre varias paginas seguidas.
 function PageScrubber:_preloadNeighborPages()
     if self._closing or self._grid_disabled then return end
-    -- Panel de bookmark abierto: las paginas fisicas vecinas no sirven y harian esperar (en cola) a las
-    -- de los bookmarks vecinos, que son las que se van a pedir al pasar
     if self:_preloadDetailsNeighborPages() then return end
-    self:_doPreloadNeighborPages()
+    local token = self._preload_token or 0
+    UIManager:scheduleIn(0.18, function()
+        if self._closing or (self._preload_token or 0) ~= token then return end
+        self:_doPreloadNeighborPages()
+    end)
 end
 
 -- Panel de detalles de un BOOKMARK: muestra la pagina entera, y al pasar al siguiente / anterior bookmark esa
@@ -1422,12 +1567,9 @@ function PageScrubber:_paintRowVisualHint(bb, x, row_y, row_h, item_obj, is_r_se
         local isz = style_icon:getSize()
         local iy = row_y + math.floor((row_h - isz.h) / 2)
         if chip_key then
-            -- Color de fondo detrás del SVG (el SVG queda negro encima, legible incluso con amarillos)
-            local okc, CFM = pcall(require, "color_filter_menu")
-            if okc and CFM and CFM.paintChip then
-                local pad = S(3)
-                CFM.paintChip(bb, x - pad, iy - pad, isz.w + pad * 2, isz.h + pad * 2, S(5), chip_key)
-            end
+            -- Color pastel de fondo detrás del SVG (lightness 0.86 para que el SVG negro no se pierda)
+            local pad = S(3)
+            paintPaleColorPill(bb, x - pad, iy - pad, isz.w + pad * 2, isz.h + pad * 2, S(5), paleHighlightColor(chip_key))
             -- SVG más grueso: se pinta tres veces con 1px de diferencia
             style_icon:paintTo(bb, x, iy)
             style_icon:paintTo(bb, x + 1, iy)
@@ -2296,6 +2438,10 @@ function PageScrubber:_updateGridPages()
     local sw, sh = Screen:getWidth(), Screen:getHeight()
 
     local is_landscape = sw > sh
+    if is_landscape and self._view_mode ~= "split" then
+        local lnd_bar_h = S(6) * 2 + S(38) * 2 + S(4)
+        self._bar_dimen = Geom:new{ x = 0, y = sh - lnd_bar_h, w = sw, h = lnd_bar_h }
+    end
     if is_landscape and (self._view_mode == "grid" or self._view_mode == "grid_six") then
         self._grid_dimen.y = self._top_bar_dimen.y + self._top_bar_dimen.h + S(8)
         self._grid_dimen.h = self._bar_dimen.y - self._grid_dimen.y - S(8)
@@ -2421,6 +2567,9 @@ function PageScrubber:_updateGridPages()
         local valid = page and page >= 1 and page <= self._total_pages
         local slot = { page = valid and page or nil, loading = valid, is_scaled = false, mode = mode }
         if valid then
+            if self._failed_pages then
+                self._failed_pages[page] = nil
+            end
             local cached = self._tile_cache[page]
             if cached and cached.bb and cached.w == expected_req_w and cached.h == expected_req_h then
                 slot.tile_bb = cached.bb
@@ -2492,8 +2641,14 @@ function PageScrubber:_updateGridPages()
 
     local total_missing = (center_missing and 1 or 0) + #side_missing
 
+    -- Al entrar o cambiar de vista (grid/split <-> grid_simple), refrescamos toda la pantalla
+    -- para que nunca quede sin dibujar la barra inferior o la barra superior.
+    local view_changed = self._force_full_view_dirty or (self._last_view_mode ~= self._view_mode)
+    self._force_full_view_dirty = false
+    self._last_view_mode = self._view_mode
+
     -- En cualquier caso, plasmamos el estado actual (nueva selección de lista y página cargada/cargando)
-    if self._view_mode == "split" then
+    if view_changed or self._view_mode == "split" then
         UIManager:setDirty(self, "ui", self.dimen)
     elseif self._view_mode == "grid_simple" then
         local r = self._gs_panel_dimen or self._grid_dimen
@@ -2644,7 +2799,7 @@ function PageScrubber:_updateGridPages()
                 end)
         end
 
-        UIManager:scheduleIn(6.9, function()
+        UIManager:scheduleIn(10.0, function()
             if self._closing or settled or slot.tile_bb then return end
             if self._grid_batch_seq ~= current_seq then settled = true; return end
             markFailed()
@@ -2718,6 +2873,8 @@ function PageScrubber:_invalidateGridTilesForPage(page)
 end
 
 function PageScrubber:_clearGridTiles(force_all)
+    self._gs_panel_dimen = nil
+    self._force_full_view_dirty = true
     for idx, slot in pairs(self._grid_tiles) do
         -- Solo conservamos si no es forzado y si la miniatura ya pertenecía a esta misma vista
         if force_all or slot.page ~= self._cur_page or slot.mode ~= self._view_mode then
@@ -5594,19 +5751,27 @@ end
 
 function PageScrubber:_gotoPage(page)
     if self._closing then return end
-    self._cur_page = math.max(1, math.min(self._total_pages, page))
-    self._slider.value = self._cur_page
+    local target_page = math.max(1, math.min(self._total_pages, page))
+    local origin_page = self._origin_page
+    self._cur_page = target_page
+    self._slider.value = target_page
     self:_updateTexts()
 
+    self._drag_token = (self._drag_token or 0) + 1
+    self._preload_token = (self._preload_token or 0) + 1
     self._grid_batch_seq = (self._grid_batch_seq or 0) + 1
     self._grid_batch_id = "page_scrubber_cancelled_" .. tostring(self._grid_instance_id) .. "_" .. tostring(self._grid_batch_seq)
     self._is_busy = false
     self._tasks_in_flight = 0
 
-    self._nav_token = (self._nav_token or 0) + 1
-    local my_token = self._nav_token
-    local target_page = self._cur_page
-    local origin_page = self._origin_page
+    local thumbnail = self.ui and self.ui.thumbnail
+    if thumbnail and thumbnail.cancelPageThumbnailRequests and type(thumbnail.thumbnails_requests) == "table" then
+        for b_id in pairs(thumbnail.thumbnails_requests) do
+            if type(b_id) == "string" and b_id:find("^page_scrubber_") then
+                thumbnail:cancelPageThumbnailRequests(b_id)
+            end
+        end
+    end
 
     -- Breadcrumb inmediato: el pin queda guardado ya mismo, asi el scrubber que se reabre
     -- enseguida lo encuentra (no depende de que termine _waitForIdle).
@@ -5614,34 +5779,278 @@ function PageScrubber:_gotoPage(page)
         pcall(Breadcrumbs.push, self.ui, origin_page, self._total_pages)
     end
 
-    self:_waitForIdle(function()
-        if self._nav_token == my_token then
-            -- Guardamos la ubicación en el historial de KOReader antes de hacer el salto
-            if target_page ~= origin_page then
-                Breadcrumbs.suppress = true
-                pcall(function()
-                    if self.ui.link and self.ui.link.addCurrentLocationToStack then
-                        self.ui.link:addCurrentLocationToStack()
-                    end
-                end)
-                Breadcrumbs.suppress = false
+    self._pending_goto = { target = target_page, origin = origin_page }
+
+    -- Respaldo por si _gotoPage se invoca sin llamar inmediatamente a _closeStay()
+    local ui = self.ui
+    UIManager:nextTick(function()
+        if self._closing or not self._pending_goto then return end
+        local pending = self._pending_goto
+        self._pending_goto = nil
+        self:_commitGoto(ui, pending)
+    end)
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Diagnóstico y blindaje del salto
+-- PageScrubber._DEBUG_JUMP: interruptor ÚNICO de depuración. En false (valor de producción) no se escribe ningún log
+-- (ni archivo ni crash.log), no corren las sondas de tiempo ni las muestras posteriores al salto, y no se instala la
+-- vigilancia del salto. Ponerlo en true solo para diagnosticar.
+-- Los logs van a logcat/crash.log y también a <carpeta de datos de KOReader>/page_scrubber_debug.log
+-- (en Android: /storage/emulated/0/koreader/page_scrubber_debug.log; se rota a .old a los 256 KB).
+-- ---------------------------------------------------------------------------------------------
+PageScrubber._DEBUG_JUMP = false
+PageScrubber._WATCH_SECS = 8          -- ventana en la que se vigila que nada devuelva el libro al origen
+PageScrubber._WATCH_MAX_REASSERT = 3  -- máximo de re-fijados por salto
+
+function PageScrubber.dbg(line)
+    if not PageScrubber._DEBUG_JUMP then return end
+    logger.info("PageScrubber " .. line)
+    pcall(function()
+        local DataStorage = require("datastorage")
+        local path = DataStorage:getDataDir() .. "/page_scrubber_debug.log"
+        local f = io.open(path, "a")
+        if not f then return end
+        local size = f:seek("end")
+        if size and size > 262144 then
+            f:close()
+            os.rename(path, path .. ".old")
+            f = io.open(path, "w")
+            if not f then return end
+        end
+        f:write(os.date("%m-%d %H:%M:%S"), " ", line, "\n")
+        f:close()
+    end)
+end
+
+function PageScrubber.perfStart()
+    if not PageScrubber._DEBUG_JUMP then return nil end
+    local ok, t = pcall(function() return require("ui/time").now() end)
+    return ok and t or nil
+end
+
+function PageScrubber.perf(label, t0)
+    if not t0 then return end
+    pcall(function()
+        local T = require("ui/time")
+        PageScrubber.dbg(string.format("perf %s: %.1f ms", label, T.to_ms(T.since(t0))))
+    end)
+end
+
+function PageScrubber.jumpLog(ui, tag, pending)
+    if not PageScrubber._DEBUG_JUMP then return end
+    pcall(function()
+        local doc = ui and ui.document
+        if not doc then return end
+        local rolling = ui.rolling
+        local xp_page
+        if rolling and rolling.xpointer and doc.getPageFromXPointer then
+            xp_page = doc:getPageFromXPointer(rolling.xpointer)
+        end
+        local thumb = ui.thumbnail
+        local nreq = 0
+        if thumb and type(thumb.thumbnails_requests) == "table" then
+            for _ in pairs(thumb.thumbnails_requests) do nreq = nreq + 1 end
+        end
+        PageScrubber.dbg(string.format(
+            "jump [%s] target=%s origin=%s | rolling.current_page=%s view.state.page=%s doc.page=%s xpointer_page=%s total=%s rendering_state=%s | thumb.in_progress=%s queued_batches=%d",
+            tostring(tag), tostring(pending and pending.target), tostring(pending and pending.origin),
+            tostring(rolling and rolling.current_page),
+            tostring(ui.view and ui.view.state and ui.view.state.page),
+            tostring(doc.getCurrentPage and doc:getCurrentPage()),
+            tostring(xp_page),
+            tostring(doc.getPageCount and doc:getPageCount()),
+            tostring(rolling and rolling.rendering_state),
+            tostring(thumb and thumb.req_in_progress ~= nil), nreq))
+    end)
+end
+
+-- Corta la vigilancia del salto (si la hay) y devuelve los métodos del documento a como estaban.
+function PageScrubber._stopJumpWatch()
+    local w = PageScrubber._watch
+    PageScrubber._watch = nil
+    if w then
+        w.active = false
+        if w.restore then pcall(w.restore) end
+    end
+end
+
+-- Vigila ~8 s después de un salto: si algo (otro plugin, KOReader) devuelve el libro exactamente a la
+-- página de origen, vuelve a fijar la página elegida; y deja en el log quién llamó a gotoPage/gotoXPointer.
+-- Si el usuario navega por su cuenta (gesto) o el libro queda en otra página, deja de vigilar.
+function PageScrubber._startJumpWatch(ui, pending, applyGoto)
+    PageScrubber._stopJumpWatch()
+    if not (ui and ui.rolling and ui.document) then return end
+    if tonumber(pending.target) == tonumber(pending.origin) then return end
+
+    local doc = ui.document
+    local w = { active = true, reasserts = 0, traces = 0, self_call = false, pending_check = false }
+    PageScrubber._watch = w
+
+    local function check(src)
+        w.pending_check = false
+        if not w.active or PageScrubber._watch ~= w then return end
+        if ui.document ~= doc or not doc.getCurrentPage then
+            PageScrubber._stopJumpWatch()
+            return
+        end
+        local actual = tonumber(doc:getCurrentPage())
+        local target, origin = tonumber(pending.target), tonumber(pending.origin)
+        if not actual or actual == target then return end
+        if actual == origin then
+            if w.reasserts < PageScrubber._WATCH_MAX_REASSERT then
+                w.reasserts = w.reasserts + 1
+                PageScrubber.dbg(string.format(
+                    "watch[%s]: el libro volvió al origen (%s) tras saltar a %s; re-fijando %d/%d",
+                    tostring(src), tostring(origin), tostring(target), w.reasserts, PageScrubber._WATCH_MAX_REASSERT))
+                w.self_call = true
+                pcall(applyGoto)
+                w.self_call = false
+            else
+                PageScrubber.dbg("watch: se alcanzó el máximo de re-fijados; se deja de vigilar")
+                PageScrubber._stopJumpWatch()
             end
-            self.ui:handleEvent(Event:new("GotoPage", target_page))
+        else
+            PageScrubber.dbg(string.format("watch[%s]: el libro está en otra página (%s, target %s); se deja de vigilar",
+                tostring(src), tostring(actual), tostring(target)))
+            PageScrubber._stopJumpWatch()
+        end
+    end
+
+    -- Envuelve (solo durante la ventana) los métodos de bajo nivel que mueven el libro.
+    local saved = {}
+    for _, name in ipairs({ "gotoPage", "gotoXPointer", "gotoPos" }) do
+        local f = doc[name]
+        if type(f) == "function" then
+            saved[#saved + 1] = { name = name, raw = rawget(doc, name) }
+            doc[name] = function(...)
+                if w.active and not w.self_call then
+                    local tb = debug.traceback("", 2)
+                    -- el subproceso de miniaturas también pasa por acá (fork): no interesa
+                    if not (tb:find("readerthumbnail", 1, true) or tb:find("scrubber_thumbs", 1, true)
+                            or tb:find("page_browser", 1, true)) then
+                        if tb:find("inputcontainer", 1, true) or tb:find("onGotoViewRel", 1, true) then
+                            PageScrubber.dbg("watch: el usuario navegó (gesto); se deja de vigilar")
+                            PageScrubber._stopJumpWatch()
+                        else
+                            if w.traces < 12 then
+                                w.traces = w.traces + 1
+                                local lines, n = {}, 0
+                                for line in tb:gmatch("[^\n]+") do
+                                    n = n + 1
+                                    if n > 1 and n <= 9 then lines[#lines + 1] = (line:gsub("^%s+", "")) end
+                                end
+                                PageScrubber.dbg(string.format("watch: document:%s(%s) llamado desde: %s",
+                                    name, tostring((select(2, ...))), table.concat(lines, " <- ")))
+                            end
+                            if not w.pending_check then
+                                w.pending_check = true
+                                UIManager:nextTick(function() check("hook") end)
+                            end
+                        end
+                    end
+                end
+                return f(...)
+            end
+        end
+    end
+    w.restore = function()
+        for _, e in ipairs(saved) do doc[e.name] = e.raw end
+    end
+
+    for _, t in ipairs({ 0.3, 0.6, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.5 }) do
+        UIManager:scheduleIn(t, function() check("t+" .. tostring(t)) end)
+    end
+    UIManager:scheduleIn(PageScrubber._WATCH_SECS, function()
+        if PageScrubber._watch == w then PageScrubber._stopJumpWatch() end
+    end)
+end
+
+-- Una sola instancia visible a la vez: cierra en silencio (sin saltar) cualquier otro scrubber que siga en pantalla.
+-- Las instancias duplicadas (gestos repetidos mientras el hilo principal estaba ocupado) quedaban apiladas debajo de la
+-- visible, cada una con su propia página de origen: al cerrarse la de arriba aparecía otra idéntica y tocar su centro
+-- devolvía el libro a esa página de origen.
+function PageScrubber._closeOthers(me)
+    local ok, stack = pcall(function() return UIManager._window_stack end)
+    if not ok or type(stack) ~= "table" then return end
+    local victims = {}
+    for _, entry in ipairs(stack) do
+        local w = entry and entry.widget
+        if w and w ~= me and w._is_page_scrubber_ui and not w._closing then
+            victims[#victims + 1] = w
+        end
+    end
+    for _, w in ipairs(victims) do
+        w._closing = true
+        w._pending_goto = nil
+        PageScrubber.dbg(string.format("instancia duplicada cerrada sin saltar (origin=%s cur=%s)",
+            tostring(w._origin_page), tostring(w._cur_page)))
+        pcall(function() UIManager:close(w) end)
+    end
+end
+
+function PageScrubber:_commitGoto(ui, pending)
+    if not (ui and pending) then return end
+    local t_commit = PageScrubber.perfStart()
+
+    local function applyGoto()
+        if ui.view and ui.view.state then
+            ui.view.state.page = -1
+        end
+        if ui.rolling then
+            ui.rolling.current_page = nil
+        end
+        if ui.paging then
+            ui.paging.current_page = nil
+        end
+        ui:handleEvent(Event:new("GotoPage", pending.target))
+        UIManager:setDirty(nil, "full")
+    end
+
+    -- Salto directo, igual que el page browser nativo de KOReader. ReaderThumbnail genera las miniaturas en un
+    -- subproceso (fork) que no puede mover la posición del libro, así que no hay nada que esperar antes de saltar
+    -- (la espera anterior consultaba campos que ReaderThumbnail no tiene y podía demorar el salto hasta ~1 s).
+    if pending.target ~= pending.origin then
+        Breadcrumbs.suppress = true
+        pcall(function()
+            if ui.link and ui.link.addCurrentLocationToStack then
+                ui.link:addCurrentLocationToStack()
+            end
+        end)
+        Breadcrumbs.suppress = false
+    end
+    PageScrubber.jumpLog(ui, "before", pending)
+    applyGoto()
+    PageScrubber.jumpLog(ui, "after", pending)
+    PageScrubber.perf("commit-goto", t_commit)
+
+    -- Red de seguridad inmediata: si algo movió el libro justo después del salto, se vuelve a fijar la página elegida.
+    UIManager:scheduleIn(0.16, function()
+        if not (ui and ui.document) then return end
+        local actual = (ui.rolling and ui.rolling.current_page)
+            or (ui.view and ui.view.state and ui.view.state.page)
+            or (ui.document.getCurrentPage and ui.document:getCurrentPage())
+        if actual and tonumber(actual) ~= tonumber(pending.target) then
+            PageScrubber.jumpLog(ui, "guard-reapply (actual=" .. tostring(actual) .. ")", pending)
+            applyGoto()
+        else
+            PageScrubber.jumpLog(ui, "guard-ok", pending)
         end
     end)
 
-    if not self._grid_disabled then self:_updateGridPages() end
-    UIManager:setDirty(self, "ui", self.dimen)
+    -- Solo depuración: vigilancia de ~8 s que re-fija si algo devuelve el libro al origen y registra quién lo hizo.
+    if PageScrubber._DEBUG_JUMP then
+        PageScrubber._startJumpWatch(ui, pending, applyGoto)
+    end
+
+    -- Muestras de diagnóstico (solo lectura) para ver si el libro se mueve más tarde.
+    if PageScrubber._DEBUG_JUMP then
+        for _, t in ipairs({ 0.6, 1.5, 3.0 }) do
+            UIManager:scheduleIn(t, function() PageScrubber.jumpLog(ui, "t+" .. tostring(t), pending) end)
+        end
+    end
 end
 
--- ============================================================================
--- SEMAFORO DE NAVEGACION
--- En grid y simple grid, un paso de pagina (flechas, saltos, tap en miniatura) solo se acepta si
--- la pagina destino ya esta cargada: si esta en blanco en el costado, no se entra a ella (no queda
--- una pagina en blanco en el centro). Solo se mira el destino, no el resto de la ventana.
--- No aplica en split ni en grid six. Valvulas de seguridad: paginas que fallaron/expiraron
--- cuentan como listas, y a los 4 s se deja pasar igual.
--- ============================================================================
 function PageScrubber:_expectedTileDims()
     if self._view_mode == "grid" then return self._grid_item_w, self._grid_item_h end
     return self._thumb_req_split_w, self._thumb_req_split_h
@@ -5664,55 +6073,17 @@ function PageScrubber:_isTileReady(p)
     local w, h = self:_expectedTileDims()
     if not w or not h then return true end
     local c = self._tile_cache and self._tile_cache[p]
-    if c and c.bb and c.w == w and c.h == h then return true end
-    return (self._failed_pages and self._failed_pages[p]) and true or false
-end
-
-function PageScrubber:_requestTileFor(page)
-    local thumbnail = self.ui and self.ui.thumbnail
-    local w, h = self:_expectedTileDims()
-    if not (thumbnail and thumbnail.getPageThumbnail and w and h) then return end
-    self._gate_pending = self._gate_pending or {}
-    local now = os.time()
-    if self._gate_pending[page] and now - self._gate_pending[page] < 2 then return end
-    self._gate_pending[page] = now
-    thumbnail:getPageThumbnail(page, w, h, "page_scrubber_preload_" .. tostring(self._grid_instance_id),
-        function(tile)
-            if self._gate_pending then self._gate_pending[page] = nil end
-            if self._closing then return end
-            if not tile or not tile.bb then
-                self._failed_pages = self._failed_pages or {}
-                self._failed_pages[page] = true
-                return
-            end
-            local processed = processTile(tile, w, h)
-            if processed and processed.bb then
-                self:_cacheTile(page, processed.bb, processed.is_scaled, w, h)
-            end
-        end)
+    return (c and c.bb and c.w == w and c.h == h) and true or false
 end
 
 function PageScrubber:_canStepTo(target)
-    -- Sin semaforo en split ni en grid six (multi grid).
-    if self._grid_disabled or self._closing or self._view_mode == "split" or self._view_mode == "grid_six" then
-        return true
+    if self._grid_disabled or self._closing then
+        return false
     end
-    if target < 1 or target > self._total_pages or target == self._cur_page then return true end
-    -- Solo se avanza a una pagina que YA esta cargada: si la vecina (costado) sigue en blanco,
-    -- el paso se ignora, asi nunca queda una pagina en blanco en el centro al pasar rapido.
-    if self:_isTileReady(target) then
-        self._gate_since = nil
-        return true
+    if target < 1 or target > self._total_pages then
+        return false
     end
-    local now = os.time()
-    self._gate_since = self._gate_since or {}
-    self._gate_since[target] = self._gate_since[target] or now
-    if now - self._gate_since[target] >= 4 then  -- valvula de seguridad
-        self._gate_since[target] = nil
-        return true
-    end
-    self:_requestTileFor(target)
-    return false
+    return true
 end
 
 -- Paso de pagina protegido por el semaforo. Devuelve true si se hizo el paso.
@@ -6213,9 +6584,41 @@ function PageScrubber:paintTo(bb, x, y)
     -- Durante el pintado, los helpers "puros" pueden memorizar su resultado dentro del mismo frame
     self._paint_seq = (self._paint_seq or 0) + 1
     self._in_paint = true
-    local ok, err = pcall(function() self:_paintToImpl(bb, x, y) end)
+    local ok, err = pcall(function()
+        if self._typo_peek then
+            self:_paintPeek(bb, x, y)
+        else
+            self:_paintToImpl(bb, x, y)
+        end
+    end)
     self._in_paint = false
     if not ok then logger.warn("page-scrubber paintTo error:", err) end
+end
+
+-- Modo "peek" (el quick menu está en la pestaña Aa): se pinta todo el scrubber en un buffer de trabajo y a la
+-- pantalla solo se copian la barra de arriba y la de abajo. El medio queda sin tocar, así se ve la página real
+-- del libro (que el lector repintó debajo). Al salir de Aa, el menú apaga el flag y el scrubber vuelve entero.
+function PageScrubber:_paintPeek(bb, x, y)
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    local scratch = self._peek_bb
+    if scratch and (scratch:getWidth() ~= sw or scratch:getHeight() ~= sh) then
+        pcall(function() scratch:free() end)
+        scratch = nil
+        self._peek_bb = nil
+    end
+    if not scratch then
+        scratch = Blitbuffer.new(sw, sh, bb:getType())
+        self._peek_bb = scratch
+    end
+
+    self:_paintToImpl(scratch, 0, 0)
+
+    -- Solo barra de arriba (desde el borde superior hasta el final de la barra); la de abajo queda oculta
+    local td = self._top_bar_dimen
+    if td then
+        local top_h = math.max(0, math.min(sh, td.y + td.h))
+        if top_h > 0 then bb:blitFrom(scratch, 0, 0, 0, 0, sw, top_h) end
+    end
 end
 
 function PageScrubber:_paintToImpl(bb, x, y)
@@ -6759,6 +7162,7 @@ end
 function PageScrubber:_closeReturn()
     if self._closing then return end
     self._closing = true
+    PageScrubber._closeOthers(self)
     self:_cancelHold()
     
     self._slider._dragging = false
@@ -6788,6 +7192,7 @@ end
 function PageScrubber:_closeStay(on_closed_callback, immediate)
     if self._closing then return end
     self._closing = true
+    PageScrubber._closeOthers(self)
     self:_cancelHold()
     
     self._slider._dragging = false
@@ -6805,13 +7210,19 @@ function PageScrubber:_closeStay(on_closed_callback, immediate)
         end
     end
 
+    local ui = self.ui
+    local pending = self._pending_goto
+    self._pending_goto = nil
+
     if on_closed_callback and immediate then
         -- Salida instantánea (KiKome): sin refresco completo del libro ni espera,
         -- porque la pantalla de KiKome se sube enseguida y repinta todo una sola vez.
         UIManager:close(self)
+        if pending then self:_commitGoto(ui, pending) end
         pcall(on_closed_callback)
     elseif on_closed_callback then
         UIManager:close(self)
+        if pending then self:_commitGoto(ui, pending) end
         UIManager:setDirty(nil, "full")
         UIManager:scheduleIn(0.18, function()
             pcall(on_closed_callback)
@@ -6819,7 +7230,11 @@ function PageScrubber:_closeStay(on_closed_callback, immediate)
     else
         UIManager:nextTick(function()
             UIManager:close(self)
-            UIManager:setDirty(nil, "full")
+            if pending then
+                self:_commitGoto(ui, pending)
+            else
+                UIManager:setDirty(nil, "full")
+            end
         end)
     end
 end
@@ -7879,6 +8294,8 @@ function PageScrubber:onTap(_, ges)
         end
     end
 
+    if self._closing then return true end
+
     -- Evaluación prioritaria de las tarjetas de la grilla antes de descartar por barra inferior
     if self._view_mode == "grid" and not self._grid_disabled and self._grid_dimen and ges.pos:intersectWith(self._grid_dimen) then
         local nb_items = self._grid_cols * self._grid_rows
@@ -7886,13 +8303,23 @@ function PageScrubber:onTap(_, ges)
             local rect = self:_gridSlotDimen(idx)
             if ges.pos:intersectWith(rect) then
                 local slot = self._grid_tiles[idx]
-                if slot and slot.page then
-                    if idx == 2 then
-                        self:_gotoPage(slot.page)
-                        self:_closeStay()
-                    elseif slot.error then
+                if idx == 2 then
+                    -- La tarjeta central es siempre la página actual del scrubber. Antes se leía slot.page, que
+                    -- puede quedar desfasado si el grid todavía no se reconstruyó tras mover páginas.
+                    if PageScrubber._DEBUG_JUMP and slot and slot.page and slot.page ~= self._cur_page then
+                        logger.info("PageScrubber tap-center: slot.page=" .. tostring(slot.page)
+                            .. " distinto de _cur_page=" .. tostring(self._cur_page))
+                    end
+                    local target_p = self._cur_page
+                    self:_gotoPage(target_p)
+                    self:_closeStay()
+                elseif slot and slot.page then
+                    if slot.error then
                         slot.error = false
                         slot.loading = true
+                        if self._failed_pages then
+                            self._failed_pages[slot.page] = nil
+                        end
                         UIManager:setDirty(self, "ui", rect)
                         self._thumb_req_w = (self._thumb_req_w == self._grid_item_w) and (self._grid_item_w + 1) or self._grid_item_w
                         self:_updateGridPages()
@@ -7965,7 +8392,10 @@ function PageScrubber:onPanRelease(_, ges)
     local was_dragging = self._slider and self._slider._dragging
     if self._slider and was_dragging then
         self._slider:handlePanRelease(ges)
-        if not self._grid_disabled then self:_updateGridPages() end
+        local center_slot = self._grid_tiles and self._grid_tiles[2]
+        if not self._grid_disabled and (not center_slot or not center_slot.tile_bb) then
+            self:_updateGridPages()
+        end
         UIManager:setDirty(self, "partial")
         return true
     end
@@ -7981,7 +8411,10 @@ function PageScrubber:onRelease(_, ges)
     if self._slider and was_dragging then
         self._last_drag_time = os.clock()
         self._slider:handlePanRelease(ges)
-        if not self._grid_disabled then self:_updateGridPages() end
+        local center_slot = self._grid_tiles and self._grid_tiles[2]
+        if not self._grid_disabled and (not center_slot or not center_slot.tile_bb) then
+            self:_updateGridPages()
+        end
         UIManager:setDirty(self, "partial")
     end
     return true
@@ -8039,7 +8472,10 @@ function PageScrubber:onSwipe(_, ges)
     if on_bar and self._slider and self._slider:handleSwipe(ges) then
         self._scrubbing_blank = false
         self._force_menu_sync = true
-        if not self._grid_disabled then self:_updateGridPages() end
+        local center_slot = self._grid_tiles and self._grid_tiles[2]
+        if not self._grid_disabled and (not center_slot or not center_slot.tile_bb) then
+            self:_updateGridPages()
+        end
         UIManager:setDirty(self, "partial")
         return true
     end
@@ -8341,6 +8777,11 @@ end
 
 function PageScrubber:onCloseWidget()
     self._closing = true
+    self._typo_peek = false
+    if self._peek_bb then
+        pcall(function() self._peek_bb:free() end)
+        self._peek_bb = nil
+    end
     if self._imgFree then self:_imgFree() end
     self:_freeDetailsWidgets()
     self:_cancelHold()
@@ -8383,8 +8824,14 @@ function PageScrubber:onCloseWidget()
         ScrubberWallpaper.free()
     end
 
-    if self._old_can_do then Device.canDoSwipeAnimation = self._old_can_do end
-    if self._saved_swipe_animations ~= nil then Screen.swipe_animations = self._saved_swipe_animations end
+    if self._swipe_pushed then
+        self._swipe_pushed = false
+        require("scrubber_state").popNoSwipe(Device, Screen)
+    end
+    do
+        local ScrubberState = require("scrubber_state")
+        if ScrubberState.active == self then ScrubberState.active = nil end
+    end
 
     local widgets_to_free = {
         self._tw_row_normal, self._tw_row_bold,

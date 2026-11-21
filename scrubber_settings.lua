@@ -652,6 +652,26 @@ function ScrubberSettings:sizeLabel(key, default)
     return map[self:readSetting(key, default)] or ""
 end
 
+-- Opciones de "Swipe up to": qué se abre al deslizar hacia arriba desde el borde de abajo del lector
+-- (en vez del menú de tipografía de KOReader). El evento de cada una lo despacha main.lua.
+local SWIPE_UP_CHOICES = {
+    { val = "off",           text = function() return _("Off") end },
+    { val = "grid",          text = function() return _("Grid") end },
+    { val = "grid_simple",   text = function() return _("Simple Grid") end },
+    { val = "toc",           text = function() return _("Index") end },
+    { val = "toc_expanded",  text = function() return _("Index (Table of Content)") end },
+    { val = "grid_six",      text = function() return _("Multi-Grid") end },
+    { val = "quick_menu",    text = function() return _("Quick Menu") end },
+}
+
+function ScrubberSettings:swipeUpLabel()
+    local cur = self:readSetting("page_scrubber_swipe_up", "off")
+    for _i, c in ipairs(SWIPE_UP_CHOICES) do
+        if c.val == cur then return c.text() end
+    end
+    return _("Off")
+end
+
 -- Estilo actual del título del libro (mismos alias que normaliza la página "title_bg")
 function ScrubberSettings:titleStyleLabel()
     local raw = self:readSetting("page_scrubber_title_bg", "none")
@@ -1123,8 +1143,27 @@ function ScrubberSettings:getPageDefinition(page_id)
                     target = "sel_buttons",
                     disabled = not sel_enabled,
                 },
+                {
+                    section = _("Swipe up"),
+                    text = _("Swipe up to"),
+                    value = self:swipeUpLabel(),
+                    icon = "chevron-up.svg",
+                    kind = "submenu",
+                    target = "swipe_up",
+                },
             }
         }
+
+    elseif page_id == "swipe_up" then
+        local cur = self:readSetting("page_scrubber_swipe_up", "off")
+        local items = {}
+        for _i, c in ipairs(SWIPE_UP_CHOICES) do
+            items[#items + 1] = {
+                text = c.text(), icon = nil, kind = "radio",
+                setting = "page_scrubber_swipe_up", val = c.val, checked = (cur == c.val),
+            }
+        end
+        return { title = _("Swipe up to"), items = items }
 
     elseif page_id == "dict_buttons" then
         local has_xray = false
@@ -1469,7 +1508,7 @@ end
 
 function ScrubberSettings:calculateGlobalCardWidth()
     local sw = Screen:getWidth()
-    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "rounded_style", "popups", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "sel_size", "review", "advanced", "text_size", "scrubber_actions", "actions_launcher" }
+    local pages = { "main", "layout", "appearance", "quick_menu", "quick_menu_start_tab", "favorite_fonts", "choose_wallpaper", "title_bg", "rounded_style", "popups", "swipe_up", "dict_buttons", "dict_text_size", "sel_buttons", "sel_pos", "sel_size", "review", "advanced", "text_size", "scrubber_actions", "actions_launcher" }
     local max_item_w = 0
 
     for _i, pid in ipairs(pages) do
@@ -2077,7 +2116,7 @@ function ActionSelectDialog:nextPage()
 end
 
 -- Color de las lineas divisorias entre filas (la linea debajo del titulo con la flecha "‹" sigue negra)
-local ROW_DIVIDER_COLOR = Blitbuffer.COLOR_LIGHT_GRAY
+local ROW_DIVIDER_COLOR = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_LIGHT_GRAY
 
 function ActionSelectDialog:paintTo(bb, x, y)
     local r = self.card_rect
@@ -3891,7 +3930,7 @@ function ScrubberSettings:paintTo(bb, x, y)
 
             -- Divisor sutil entre flechas y checkbox
             local div_x = r.x + r.w - pad - check_w - scale(4)
-            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), Blitbuffer.COLOR_LIGHT_GRAY)
+            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), ROW_DIVIDER_COLOR)
 
             local icon_sz = scale(16)
 
@@ -3967,7 +4006,7 @@ function ScrubberSettings:paintTo(bb, x, y)
 
             -- Divisor sutil entre flechas y papelera
             local div_x = trash_slot_x - scale(4)
-            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), Blitbuffer.COLOR_LIGHT_GRAY)
+            bb:paintRect(div_x, ry + scale(5), 1, rh - scale(10), ROW_DIVIDER_COLOR)
 
             -- 2. Flecha ABAJO [ ↓ ]
             if item.can_down then

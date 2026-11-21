@@ -242,10 +242,8 @@ function ScrubberToc:init()
     end
     local S = self.S
 
-    self._old_can_do = Device.canDoSwipeAnimation
-    Device.canDoSwipeAnimation = function() return false end
-    self._saved_swipe_animations = Screen.swipe_animations
-    Screen.swipe_animations = false
+    require("scrubber_state").pushNoSwipe(Device, Screen)   -- contador compartido con scrubber_ui
+    self._swipe_pushed = true
 
     self._origin_page = self.initial_origin or (ui.view and ui.view.state and ui.view.state.page) or 1
     self._cur_page    = self.initial_page or self._origin_page
@@ -2363,8 +2361,10 @@ function ScrubberToc:onCloseWidget()
     end
     self._preview_tile = nil
 
-    if self._old_can_do then Device.canDoSwipeAnimation = self._old_can_do end
-    if self._saved_swipe_animations ~= nil then Screen.swipe_animations = self._saved_swipe_animations end
+    if self._swipe_pushed then
+        self._swipe_pushed = false
+        require("scrubber_state").popNoSwipe(Device, Screen)
+    end
 
     local widgets_to_free = { 
         self._tw_toc_empty, self._tw_pnum_normal, self._tw_pnum_bold,

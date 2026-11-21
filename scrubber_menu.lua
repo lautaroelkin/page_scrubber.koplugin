@@ -16,6 +16,9 @@ local logger          = require("logger")
 local ScrubberState   = require("scrubber_state")
 local Notification    = require("ui/widget/notification")
 local _               = require("gettext")
+local util            = require("util")
+local ok_tbw, TextBoxWidget = pcall(require, "ui/widget/textboxwidget")
+local ok_iw, IconWidget     = pcall(require, "ui/widget/iconwidget")
 
 local Screen = Device.screen
 local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
@@ -344,7 +347,7 @@ local LAMP_Y_NUDGE = 0
 local PRESSED_TAB_BG = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
 
 -- Líneas finas del menú rápido (pie de estado y divisor de la luz) y fondo de un ítem del pie mientras se lo presiona
-local STATUS_DIVIDER    = Blitbuffer.COLOR_LIGHT_GRAY
+local STATUS_DIVIDER    = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_LIGHT_GRAY
 local STATUS_PRESSED_BG = Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY
 
 -- Switch del frontlight (más chico que el de KiKome, que es 52 x 28)
@@ -358,8 +361,9 @@ local ScrubberMenu = InputContainer:extend({
     ui = nil,
     scrubber_ui = nil,
     alpha = 0.25,
-    active_tab = "quick", -- "quick" | "typo" | "font_list" | "actions_list"
+    active_tab = "quick", -- "quick" | "typo" | "font_list" | "more_list" | "actions_list"
     font_page = 1,
+    more_page = 1,
     actions_page = 1,
 })
 
@@ -384,6 +388,7 @@ function ScrubberMenu:init()
     self.active_tab = start_tab
 
     self.font_page = 1
+    self.more_page = 1
     self.actions_page = 1
     self._typo_changed = false
     self._fl_on = self:readInitialFrontlightState()
@@ -399,6 +404,20 @@ function ScrubberMenu:init()
     self.icon_view_page = loadSvg("view-page.svg", scale(20), scale(20))
     self.icon_view_cont = loadSvg("view-continuous.svg", scale(20), scale(20))
     self.icon_chevron_right = loadSvg("chevron-right.svg", scale(16), scale(16))
+    -- Íconos al inicio de las entradas de submenú de la pestaña Aa (View / Style options, Page / Reflow / Visual)
+    self.icon_expand = loadSvg("expand.svg", scale(20), scale(20))
+    self.icon_underline = loadSvg("underline.svg", scale(20), scale(20))
+    self.icon_droplet2 = loadSvg("droplet2.svg", scale(20), scale(20))
+    -- Botón "More" (⋮) de la pestaña Aa y estrella de "valor por defecto" (Aa y More)
+    self.icon_more = loadSvg("more.svg", icon_sz, icon_sz)
+    self.icon_pin = loadSvg("img-folder-fav-filled.svg", scale(12), scale(12))
+    -- Selector propio de opciones: chevrón izquierdo y estrella vacía / rellena (predeterminado)
+    self.icon_chev_left = loadSvg("chevron-left.svg", scale(16), scale(16))
+    -- Flecha de "volver" (reemplaza al texto Aa de la pestaña dentro de los submenús) y ⋮ chico del selector
+    self.icon_back = loadSvg("undo.svg", scale(20), scale(20))
+    self.icon_more_sm = loadSvg("more.svg", scale(22), scale(22))
+    self.icon_star = loadSvg("img-folder-fav.svg", scale(18), scale(18))
+    self.icon_star_on = loadSvg("img-folder-fav-filled.svg", scale(18), scale(18))
     self.tw_check = TextWidget:new{
         text = "✓",
         face = Font:getFace("cfont", scale(18)),
@@ -421,6 +440,7 @@ function ScrubberMenu:init()
             Hold        = { GestureRange:new{ ges = "hold",         range = self.dimen } },
             HoldPan     = { GestureRange:new{ ges = "hold_pan",     range = self.dimen } },
             HoldRelease = { GestureRange:new{ ges = "hold_release", range = self.dimen } },
+            Release     = { GestureRange:new{ ges = "release",      range = self.dimen } },
             DoubleTap   = { GestureRange:new{ ges = "double_tap",   range = self.dimen } },
         }
     end
@@ -620,18 +640,18 @@ local function paintSwitch(bb, x, y, w, h, on)
     paintRoundRect(bb, kx, y + border + gap, k, k, math.floor(k / 2), on and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK)
 end
 
--- Píldora de contorno negro (el buscador del menú rápido y las opciones de la pestaña Aa): el contorno tiene el
--- mismo grosor que el de los swatches; al presionarla se invierte (fondo negro, contenido blanco).
+-- Píldora de superficie sutil (buscador del menú rápido, botones −/+, chips y botones del selector):
+-- relleno gris muy suave sin borde; al presionarla o estar seleccionada usa negro sólido con texto blanco.
 -- Devuelve el color del contenido y el del fondo para dibujar adentro.
 local function paintPill(bb, x, y, w, h, pressed)
-    local bw = math.max(2, scale(2))
     local r = math.floor(h / 2)
-    paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
-    if not pressed then
-        paintRoundRect(bb, x + bw, y + bw, w - bw * 2, h - bw * 2, math.max(1, r - bw), Blitbuffer.COLOR_WHITE)
-        return Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE
+    if pressed then
+        paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
+        return Blitbuffer.COLOR_WHITE, Blitbuffer.COLOR_BLACK
     end
-    return Blitbuffer.COLOR_WHITE, Blitbuffer.COLOR_BLACK
+    local bg = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_LIGHT_GRAY
+    paintRoundRect(bb, x, y, w, h, r, bg)
+    return Blitbuffer.COLOR_BLACK, bg
 end
 
 -- Ícono SVG (negro sobre transparente) dentro de una píldora; si está invertida se ve blanco sobre negro
@@ -647,32 +667,46 @@ local function paintIconOn(bb, icon, x, y, inverted)
     end
 end
 
+-- Botón − / + chiquito (filas de la vista "More"): píldora con el signo dibujado en geometría
+local function paintMiniStep(bb, bx, by, bw, bh, is_plus, pressed)
+    local fg = paintPill(bb, bx, by, bw, bh, pressed)
+    local arm = scale(9)
+    local th = math.max(2, scale(2))
+    local cx = bx + math.floor(bw / 2)
+    local cy = by + math.floor(bh / 2)
+    bb:paintRect(cx - math.floor(arm / 2), cy - math.floor(th / 2), arm, th, fg)
+    if is_plus then
+        bb:paintRect(cx - math.floor(th / 2), cy - math.floor(arm / 2), th, arm, fg)
+    end
+end
+
 -- Control segmentado: píldora de contorno negro con dos opciones (ícono + etiqueta opcional).
 -- La elegida va en una cápsula negra con contenido blanco; la otra, negro sobre blanco.
-local function paintSegmented(bb, x, y, w, h, icons, labels, selected)
+local function paintSegmented(bb, x, y, w, h, icons, labels, selected, count)
     if type(labels) == "number" then
         selected = labels
         labels = nil
     end
+    local n = count or 2   -- cantidad de segmentos (2 por defecto; 3 en EPUB: 1 col / 2 col / continuo)
     local bw = math.max(2, scale(2))
     local r = math.floor(h / 2)
     paintRoundRect(bb, x, y, w, h, r, Blitbuffer.COLOR_BLACK)
     paintRoundRect(bb, x + bw, y + bw, w - bw * 2, h - bw * 2, math.max(1, r - bw), Blitbuffer.COLOR_WHITE)
 
-    local seg_w = math.floor(w / 2)
+    local seg_w = math.floor(w / n)
     local inset = bw + scale(2)
     local sx = x + (selected - 1) * seg_w
-    local sw = (selected == 2) and (x + w - sx) or seg_w
+    local sw = (selected == n) and (x + w - sx) or seg_w
     local ch = h - inset * 2
     paintRoundRect(bb, sx + inset, y + inset, sw - inset * 2, ch, math.floor(ch / 2), Blitbuffer.COLOR_BLACK)
 
     local lbl_face = Font:getFace("cfont", scaleText(11))
     local gap = scale(5)
 
-    for i = 1, 2 do
+    for i = 1, n do
         local is_sel = (i == selected)
         local slot_x = x + (i - 1) * seg_w
-        local slot_w = (i == 2) and (w - seg_w) or seg_w
+        local slot_w = (i == n) and (w - (n - 1) * seg_w) or seg_w
         local icon = icons and icons[i]
         local isz = icon and icon:getSize() or { w = 0, h = 0 }
 
@@ -851,10 +885,16 @@ end
 -- Fuera del slider no se hace nada (el evento sigue su camino, como antes).
 function ScrubberMenu:onHold(arg1, arg2)
     local ges = arg2 or arg1
+    if ges and ges.pos and self.active_tab == "opt_picker" then
+        return self:_pickerHold(ges.pos)
+    end
+    -- Pestaña Aa / vista More: mantener apretada una opción -> poner / sacar su valor por defecto
+    if ges and ges.pos and (self.active_tab == "typo" or self.active_tab == "more_list") then
+        return self:_onTypoHold(ges.pos)
+    end
     if not (ges and ges.pos) or self.active_tab ~= "quick" or not self._light_hit then return false end
     if self:_lightGrab(ges.pos) then
-        self._light_drag = true
-        self:_lightDragTo(ges.pos.x)
+        self:_beginLightDrag(ges.pos.x)
         return true
     end
     local h = self._light_hit
@@ -867,12 +907,14 @@ end
 function ScrubberMenu:onPan(arg1, arg2)
     local ges = arg2 or arg1
     if not (ges and ges.pos) then return false end
+    if self.active_tab == "opt_picker" then return self:_pickerPan(ges) end
     if not self._light_drag then
         if self.active_tab ~= "quick" or not self._light_hit then return false end
         -- Los desplazamientos verticales no son para un slider horizontal
         if ges.direction == "north" or ges.direction == "south" then return false end
         if not self:_lightGrab(ges.pos) then return false end
-        self._light_drag = true
+        self:_beginLightDrag(ges.pos.x)
+        return true
     end
     self:_lightDragTo(ges.pos.x)
     return true
@@ -880,6 +922,10 @@ end
 
 function ScrubberMenu:onHoldPan(arg1, arg2)
     local ges = arg2 or arg1
+    if self._pick_drag and ges and ges.pos then
+        self:_pickerDragTo(ges.pos.x)
+        return true
+    end
     if not (self._light_drag and ges and ges.pos) then return false end
     self:_lightDragTo(ges.pos.x)
     return true
@@ -889,16 +935,29 @@ function ScrubberMenu:_endLightDrag()
     if not self._light_drag then return false end
     self._light_drag = false
     saveLightNow()
+    -- Al soltar: repintado "partial" del bloque (vuelve la perilla y se limpia el ghosting del "fast")
+    local function repaint()
+        UIManager:setDirty(self, "partial", self._light_block_dimen or expandRect(self.popup_rect, scale(8)))
+    end
+    repaint()
+    -- Red de seguridad: un segundo repintado apenas después, por si el primero se mezcló con el "fast"
+    -- pendiente; así la perilla siempre vuelve a aparecer.
+    UIManager:scheduleIn(0.12, function()
+        if self._closed or self._light_drag then return end
+        repaint()
+    end)
     return true
 end
-function ScrubberMenu:onPanRelease() return self:_endLightDrag() end
-function ScrubberMenu:onHoldRelease() return self:_endLightDrag() end
+function ScrubberMenu:onPanRelease() return self:_endPickDrag() or self:_endLightDrag() end
+function ScrubberMenu:onHoldRelease() return self:_endPickDrag() or self:_endLightDrag() end
+-- Levantar el dedo sin que llegue pan_release / hold_release (p. ej. termina como swipe o suelta sin mover)
+function ScrubberMenu:onRelease() return self:_endPickDrag() or self:_endLightDrag() end
 
 -- Toques rápidos en − / + o sobre el slider pueden llegar como doble toque: cuentan igual que un toque
 function ScrubberMenu:onDoubleTap(arg1, arg2)
     local ges = arg2 or arg1
     if not (ges and ges.pos) then return false end
-    if self.active_tab == "typo" then
+    if self.active_tab == "typo" or self.active_tab == "more_list" or self.active_tab == "opt_picker" then
         return self:onTap(arg1, arg2)
     end
     if self.active_tab ~= "quick" or not self._light_hit then return false end
@@ -912,6 +971,9 @@ end
 function ScrubberMenu:onSwipe(arg1, arg2)
     local ges = arg2 or arg1
     if not ges then return true end
+    -- Si el arrastre del brillo terminó como swipe, se cierra y la perilla vuelve
+    if self._light_drag then self:_endLightDrag(); return true end
+    if self._pick_drag then self:_endPickDrag(); return true end
 
     -- Swipe horizontal sobre la fila de fuente para cambiar entre fuentes
     if self.active_tab == "typo" and self.btn_font_row_dimen then
@@ -939,6 +1001,19 @@ function ScrubberMenu:onSwipe(arg1, arg2)
         elseif dir == "right" or dir == "east" or dir == "down" or dir == "south" then
             if self.font_page > 1 then
                 self.font_page = self.font_page - 1
+                self:refreshMenu()
+            end
+        end
+    elseif self.active_tab == "more_list" then
+        local dir = ges.direction
+        if dir == "left" or dir == "west" or dir == "up" or dir == "north" then
+            if self.more_page < (self.more_total_pages or 1) then
+                self.more_page = self.more_page + 1
+                self:refreshMenu()
+            end
+        elseif dir == "right" or dir == "east" or dir == "down" or dir == "south" then
+            if self.more_page > 1 then
+                self.more_page = self.more_page - 1
                 self:refreshMenu()
             end
         end
@@ -996,6 +1071,8 @@ function ScrubberMenu:updateLayout()
 end
 
 function ScrubberMenu:refreshMenu()
+    -- Pestaña Aa abierta -> el scrubber se esconde (solo barras); fuera de Aa -> vuelve
+    self:_syncPeek()
     local prev_rect = self.popup_rect
     self:updateLayout()
 
@@ -1226,6 +1303,807 @@ function ScrubberMenu:setViewMode(continuous)
     self:refreshMenu()
 end
 
+-- ==========================================
+-- MÁS OPCIONES DE LA PESTAÑA Aa (botón ⋮ "More")
+-- Usa las opciones nativas de KOReader (ui.config.options): cada una trae su evento y sus valores,
+-- igual que hace ZenOS, así que no depende de cómo se llame cada evento en cada versión.
+-- ==========================================
+local function valuesEqual(a, b)
+    if type(a) == "table" and type(b) == "table" then
+        return util.tableEquals(a, b)
+    end
+    if type(a) == "number" and type(b) == "number" then
+        return math.abs(a - b) < 0.000001
+    end
+    return a == b
+end
+
+local function deepCopy(v)
+    if type(v) == "table" then return util.tableDeepCopy(v) end
+    return v
+end
+
+-- Valor escalar de una opción (los pares, como {100, 90}, se promedian)
+local function scalarOf(v)
+    if type(v) == "table" then
+        local a = tonumber(v[1]) or 0
+        local b = tonumber(v[2]) or a
+        return (a + b) / 2
+    end
+    return tonumber(v)
+end
+
+-- Tabla nombre -> opción nativa de KOReader del documento abierto
+function ScrubberMenu:_cfgOptions()
+    if self._cfg_opts then return self._cfg_opts end
+    local map = {}
+    local ui = self.ui
+    local panels = ui and ui.config and ui.config.options
+    if type(panels) == "table" then
+        for _i, panel in ipairs(panels) do
+            for _j, opt in ipairs(panel.options or {}) do
+                if opt.name then map[opt.name] = opt end
+            end
+        end
+    end
+    self._cfg_opts = map
+    return map
+end
+
+function ScrubberMenu:_conf()
+    local ui = self.ui
+    return ui and ui.document and ui.document.configurable
+end
+
+local function fmtCleanNum(n)
+    if type(n) ~= "number" then return tostring(n) end
+    local r = math.floor(n * 100 + 0.5) / 100
+    if math.abs(r - math.floor(r + 0.5)) < 0.005 then
+        return tostring(math.floor(r + 0.5))
+    end
+    return tostring(r)
+end
+
+-- ¿La opción existe y se puede mostrar para este documento?
+function ScrubberMenu:_optAvailable(name)
+    local opt = self:_cfgOptions()[name]
+    local conf = self:_conf()
+    if not opt or opt.show == false or not conf then return false end
+    if conf[name] == nil and not opt.current_func then return false end
+    if opt.show_func then
+        local ok, res = pcall(opt.show_func, conf, self.ui.document)
+        if ok and not res then return false end
+    end
+    return true
+end
+
+-- Texto del valor de una opción (ej. margen "36", contraste "1.05", espaciado "Medium")
+function ScrubberMenu:_optValueText(name, value)
+    local opt = self:_cfgOptions()[name]
+    -- PDF / CBZ: el margen va de 0 a 1.5 (no son píxeles) y la dirección de zoom se muestra abreviada
+    if name == "page_margin" and self:getDocKind() == "paging" and type(value) == "number" then
+        return string.format("%.2f", value)
+    end
+    if name == "rotation_mode" and type(value) == "number" then
+        local names = { [0] = _("0°"), [1] = _("90° CW"), [2] = _("180°"), [3] = _("90° CCW") }
+        if names[value] then return names[value] end
+    end
+    if name == "zoom_direction" and type(value) == "number" then
+        local codes = { "LRTB", "TBLR", "LRBT", "BTLR", "BTRL", "RLBT", "TBRL", "RLTB" }
+        local c = codes[7 - value + 1]
+        if c then return c end
+    end
+    if name == "h_page_margins" and type(value) == "table" then
+        local a = math.floor((tonumber(value[1]) or 0) + 0.5)
+        local b = math.floor((tonumber(value[2]) or 0) + 0.5)
+        if a == b then return tostring(a) end
+        return tostring(a) .. "/" .. tostring(b)
+    end
+    if (name == "t_page_margin" or name == "b_page_margin" or name == "page_margin") and type(value) == "number" then
+        return tostring(math.floor(value + 0.5))
+    end
+    if opt and (name == "word_spacing" or name == "word_expansion") then
+        local labels = opt.toggle or opt.labels or opt.item_text
+            or (name == "word_spacing" and { _("Small"), _("Medium"), _("Large") }
+                or { _("None"), _("Some"), _("More") })
+        for i, cand in ipairs(opt.values or {}) do
+            if valuesEqual(cand, value) and labels[i] ~= nil then
+                return tostring(labels[i])
+            end
+        end
+    end
+    if opt then
+        if opt.show_true_value_func then
+            local ok, txt = pcall(opt.show_true_value_func, value)
+            if ok and txt ~= nil then return tostring(txt) end
+        end
+        local params = opt.more_options_param or {}
+        if params.value_table and type(value) == "number" then
+            local t = params.value_table[value + (params.value_table_shift or 0)]
+            if t ~= nil then return tostring(t) end
+        end
+        for i, cand in ipairs(opt.values or {}) do
+            if valuesEqual(cand, value) then
+                local label = (opt.labels or opt.toggle or opt.item_text or {})[i]
+                if label ~= nil then return tostring(label) end
+                break
+            end
+        end
+    end
+    if type(value) == "table" then
+        local parts = {}
+        for _i, part in ipairs(value) do parts[#parts + 1] = fmtCleanNum(part) end
+        return table.concat(parts, "/")
+    end
+    if type(value) == "number" then
+        return fmtCleanNum(value)
+    end
+    return tostring(value)
+end
+
+-- Aplica una opción nativa: primero ConfigChange (guarda el valor en el libro) y después su evento
+function ScrubberMenu:_applyConfigOption(name, value)
+    local ui = self.ui
+    local opt = self:_cfgOptions()[name]
+    if not (ui and opt) then return false end
+    local ok = pcall(function()
+        local params = opt.more_options_param
+        if params and params.names and type(value) == "table" then
+            for i, key in ipairs(params.names) do
+                ui:handleEvent(Event:new("ConfigChange", key, value[i]))
+            end
+            ui:handleEvent(Event:new(params.event or opt.event, value))
+            return
+        end
+        local arg = value
+        for i, cand in ipairs(opt.values or {}) do
+            if valuesEqual(cand, value) then
+                if opt.args then arg = opt.args[i] end
+                break
+            end
+        end
+        ui:handleEvent(Event:new("ConfigChange", name, deepCopy(value)))
+        if opt.event then ui:handleEvent(Event:new(opt.event, arg)) end
+    end)
+    if not ok then logger.warn("PageScrubber: no se pudo aplicar la opción " .. tostring(name)) end
+    self._typo_changed = true
+    return ok
+end
+
+-- Un paso de una opción numérica (dir = +1 sube el valor mostrado, -1 lo baja)
+function ScrubberMenu:_stepOption(name, dir)
+    local opt = self:_cfgOptions()[name]
+    local conf = self:_conf()
+    if not (opt and conf and conf[name] ~= nil) then return end
+    local value = conf[name]
+    local params = opt.more_options_param or {}
+    local values = opt.values or {}
+    local new
+    -- En PDF / CBZ se avanza por los valores predefinidos de KOReader (el valor exacto se pone con el menú nativo al mantener apretado)
+    local paging = self:getDocKind() == "paging"
+    local continuous = (#values < 2) or (not paging and opt.more_options and (type(value) ~= "table" or name == "h_page_margins"))
+    if continuous then
+        local lo = params.value_min or params.left_min or scalarOf(values[1])
+        local hi = params.value_max or params.left_max or scalarOf(values[#values])
+        local step = params.value_step or params.left_step or 1
+        if params.value_table then
+            -- El valor guardado es un índice de la tabla (p. ej. contraste): el rango es el de la tabla entera
+            local shift = params.value_table_shift or 0
+            lo, hi, step = 1 - shift, #params.value_table - shift, 1
+        end
+        if name == "h_page_margins" or name == "t_page_margin" or name == "b_page_margin" or name == "page_margin" then
+            step = math.max(step, 5)   -- los márgenes se afinan de a 5 (si no, hay que tocar demasiado)
+            if type(lo) ~= "number" then lo = 0 end
+            if type(hi) ~= "number" then hi = 200 end
+        end
+        if type(lo) ~= "number" or type(hi) ~= "number" then return end
+        if hi < lo then lo, hi = hi, lo end
+        local n = math.max(lo, math.min(hi, (scalarOf(value) or lo) + dir * step))
+        n = tonumber(string.format("%.6f", n))
+        if name == "h_page_margins" then new = { n, n } else new = n end
+    else
+        -- Valores predefinidos: el más cercano en la dirección pedida
+        local cur = scalarOf(value) or 0
+        local best, best_d
+        for _i, v in ipairs(values) do
+            local s = scalarOf(v)
+            if s and (s - cur) * dir > 0.000001 then
+                local d = math.abs(s - cur)
+                if not best_d or d < best_d then best, best_d = v, d end
+            end
+        end
+        if best ~= nil then new = deepCopy(best) end
+    end
+    if new == nil or valuesEqual(new, value) then return end
+    self:_applyConfigOption(name, new)
+end
+
+function ScrubberMenu:_marginsSynced()
+    local ui = self.ui
+    local conf = self:_conf()
+    if ui and ui.typeset and ui.typeset.sync_t_b_page_margins ~= nil then
+        return ui.typeset.sync_t_b_page_margins == true
+    end
+    return conf and conf.sync_t_b_page_margins == 1
+end
+
+-- Margen superior e inferior van juntos (una sola fila "T/B")
+function ScrubberMenu:_stepMarginTB(dir)
+    self:_stepOption("t_page_margin", dir)
+    local conf = self:_conf()
+    if conf and conf.b_page_margin ~= nil and conf.t_page_margin ~= nil
+            and conf.b_page_margin ~= conf.t_page_margin and not self:_marginsSynced() then
+        self:_applyConfigOption("b_page_margin", conf.t_page_margin)
+    end
+end
+
+-- Modo continuo (scroll) de un libro reflowable (EPUB y similares)
+function ScrubberMenu:isRollingScroll()
+    local conf = self:_conf()
+    if conf and conf.view_mode ~= nil then return conf.view_mode == 1 end
+    local ok, mode = pcall(function() return self.ui.view.view_mode end)
+    return ok and mode == "scroll"
+end
+
+-- Píldora de 3 segmentos de un EPUB: 1 = una columna, 2 = dos columnas, 3 = continuo
+function ScrubberMenu:setRollingLayout(i)
+    if not (self.ui and self.ui.rolling) then return end
+    if i == 3 then
+        if not self:isRollingScroll() then self:_applyConfigOption("view_mode", 1) end
+    else
+        if self:isRollingScroll() then self:_applyConfigOption("view_mode", 0) end
+        if i ~= self:getBookColumns() then
+            -- setColumns ya marca el cambio y repinta
+            self:setColumns(i)
+            return
+        end
+    end
+    self._typo_changed = true
+    self:refreshMenu()
+end
+
+-- ¿La opción está habilitada ahora? (p. ej. el zoom se apaga cuando el reflow está activo)
+function ScrubberMenu:_optEnabled(name)
+    local opt = self:_cfgOptions()[name]
+    local conf = self:_conf()
+    if not opt then return false end
+    if opt.enabled_func then
+        local ok, res = pcall(opt.enabled_func, conf, self.ui and self.ui.document)
+        if ok and res == false then return false end
+    end
+    return true
+end
+
+-- Filas de cada grupo de la pestaña Aa en PDF / CBZ: "reflow", "page" y "visual"
+-- (solo las opciones que este documento tiene y que están habilitadas)
+function ScrubberMenu:_groupRows(group)
+    local rows = {}
+    local function add(label, kind, name)
+        if not (self:_optAvailable(name) and self:_optEnabled(name)) then return end
+        local text = label
+        local opt = self:_cfgOptions()[name]
+        if name == "zoom_range_number" and opt and opt.name_text_func then
+            local ok, t = pcall(opt.name_text_func, self:_conf())
+            if ok and t then text = t end
+        end
+        rows[#rows + 1] = { id = name, label = text, kind = kind, name = name, names = { name } }
+    end
+    if group == "reflow" then
+        add(_("Reflow"), "switch", "text_wrap")
+        add(_("Font size"), "pick", "font_size")
+        add(_("Word gap"), "pick", "word_spacing")
+        add(_("Line spacing"), "pick", "line_spacing")
+        add(_("Alignment"), "pick", "justification")
+    elseif group == "page" then
+        add(_("Rotation"), "pick", "rotation_mode")
+        add(_("Page crop"), "pick", "trim_page")
+        add(_("Margin"), "pick", "page_margin")
+        add(_("Auto straighten"), "pick", "auto_straighten")
+        add(_("Fit zoom to"), "pick", "zoom_mode_genus")
+        add(_("Fit"), "pick", "zoom_mode_type")
+        add(_("Rows"), "pick", "zoom_range_number")
+        add(_("Zoom factor"), "pick", "zoom_factor")
+        add(_("Direction"), "pick", "zoom_direction")
+    elseif group == "visual" then
+        add(_("Contrast"), "pick", "contrast")
+        add(_("Saturation"), "pick", "saturation")
+        add(_("White threshold"), "pick", "white_threshold")
+        add(_("Dewatermark"), "switch", "page_opt")
+        add(_("Background cleanup"), "switch", "background_cleanup")
+        add(_("Dithering"), "switch", "hw_dithering")
+        add(_("Dithering"), "switch", "sw_dithering")
+        add(_("Render quality"), "pick", "quality")
+    end
+    return rows
+end
+
+-- Texto corto a la derecha de cada grupo en la pestaña Aa (PDF / CBZ)
+function ScrubberMenu:_groupSummary(group)
+    local conf = self:_conf()
+    if not conf then return "" end
+    local ok, txt = pcall(function()
+        if group == "reflow" and self:_optAvailable("text_wrap") then
+            return (conf.text_wrap == 1) and _("On") or _("Off")
+        elseif group == "page" and self:_optAvailable("zoom_mode_genus") and self:_optEnabled("zoom_mode_genus") then
+            return self:_optValueText("zoom_mode_genus", conf.zoom_mode_genus)
+        end
+    end)
+    if ok and type(txt) == "string" then return txt end
+    return ""
+end
+
+-- Filas de la vista More (solo las opciones que este documento tiene)
+function ScrubberMenu:_moreRows()
+    if self:getDocKind() == "paging" then
+        return self:_groupRows(self.more_group or "page")
+    end
+    -- EPUB: dentro de View options / Style options se ven sus opciones
+    local g = self.more_group
+    if g == "view" or g == "style" then
+        return self:_rollingGroupRows(g)
+    end
+    -- Lista principal de un EPUB (orden de KOReader): Rotation primero, márgenes y los dos submenús
+    local rows = {}
+    local function add(id, label, kind, name, names)
+        if self:_optAvailable(name) then
+            rows[#rows + 1] = { id = id, label = label, kind = kind, name = name, names = names or { name } }
+        end
+    end
+    add("rotation", _("Rotation"), "pick", "rotation_mode")
+    add("margin_lr", _("Margin L/R"), "step", "h_page_margins")
+    add("margin_tb", _("Margin T/B"), "step", "t_page_margin", { "t_page_margin", "b_page_margin" })
+    if #self:_rollingGroupRows("view") > 0 then
+        rows[#rows + 1] = { id = "view_options", label = _("View options"), kind = "group", group = "view" }
+    end
+    if #self:_rollingGroupRows("style") > 0 then
+        rows[#rows + 1] = { id = "style_options", label = _("Style options"), kind = "group", group = "style" }
+    end
+    return rows
+end
+
+-- Páginas de la vista More: hasta 6 filas entran juntas; si hay más, se pagina de a 5 con los puntitos abajo
+function ScrubberMenu:_morePages()
+    local pages = {}
+    local all = self:_moreRows()
+    if #all <= 6 then
+        pages[1] = { entries = all, plain = true }
+        return pages, false
+    end
+    local per = self.fonts_per_page or 5
+    for i = 1, #all, per do
+        local ents = {}
+        for j = i, math.min(#all, i + per - 1) do ents[#ents + 1] = all[j] end
+        pages[#pages + 1] = { entries = ents, plain = true }
+    end
+    return pages, #pages > 1
+end
+
+-- Submenús de un EPUB: "View options" y "Style options"
+function ScrubberMenu:_rollingGroupRows(group)
+    local rows = {}
+    local function add(id, label, kind, name)
+        if self:_optAvailable(name) and self:_optEnabled(name) then
+            rows[#rows + 1] = { id = id, label = label, kind = kind, name = name, names = { name } }
+        end
+    end
+    if group == "view" then
+        add("render_mode", _("Render mode"), "pick", "block_rendering_mode")
+        add("render_dpi", _("Zoom (dpi)"), "pick", "render_dpi")
+        add("word_spacing", _("Word spacing"), "pick", "word_spacing")
+        add("word_expansion", _("Word expansion"), "pick", "word_expansion")
+    elseif group == "style" then
+        add("contrast", _("Contrast"), "pick", "font_gamma")
+        add("font_weight", _("Font weight"), "pick", "font_base_weight")
+        add("font_hinting", _("Font hinting"), "pick", "font_hinting")
+        add("font_kerning", _("Font kerning"), "pick", "font_kerning")
+        add("embedded_css", _("Embedded style"), "switch", "embedded_css")
+        add("embedded_fonts", _("Embedded fonts"), "switch", "embedded_fonts")
+        add("image_scaling", _("Image scaling"), "switch", "smooth_scaling")
+    end
+    return rows
+end
+
+function ScrubberMenu:_moreStep(row, dir)
+    if row.id == "margin_tb" then
+        self:_stepMarginTB(dir)
+    else
+        self:_stepOption(row.name, dir)
+    end
+    self:refreshMenu()
+end
+
+function ScrubberMenu:_moreCycle(row)
+    local opt = self:_cfgOptions()[row.name]
+    local conf = self:_conf()
+    if not (opt and conf) then return end
+    local values = opt.values
+    if not (values and #values > 0) then
+        if row.name == "word_spacing" then
+            values = { { 75, 50 }, { 100, 90 }, { 125, 115 } }
+        elseif row.name == "word_expansion" then
+            values = { 0, 15, 30 }
+        else
+            return
+        end
+    end
+    local cur = conf[row.name]
+    local idx = 0
+    for i, v in ipairs(values) do
+        if valuesEqual(v, cur) then idx = i; break end
+    end
+    if idx == 0 and cur ~= nil then
+        local cur_s = scalarOf(cur)
+        if cur_s then
+            local best_d
+            for i, v in ipairs(values) do
+                local vs = scalarOf(v)
+                if vs then
+                    local d = math.abs(vs - cur_s)
+                    if not best_d or d < best_d then best_d = d; idx = i end
+                end
+            end
+        end
+    end
+    self:_applyConfigOption(row.name, values[(idx % #values) + 1])
+    self:refreshMenu()
+end
+
+function ScrubberMenu:_moreToggle(row)
+    local opt = self:_cfgOptions()[row.name]
+    local conf = self:_conf()
+    if not (opt and conf) then return end
+    local on = conf[row.name] ~= nil and conf[row.name] ~= 0 and conf[row.name] ~= false
+    local vals = opt.values or {}
+    local new
+    if #vals >= 2 then new = on and vals[1] or vals[2] else new = on and 0 or 1 end
+    self:_applyConfigOption(row.name, new)
+    self:refreshMenu()
+end
+
+-- ==========================================
+-- VALORES POR DEFECTO (mantener apretada una opción)
+-- Misma convención que KOReader / ZenOS: "copt_<opción>" (reflowable) o "kopt_<opción>" (PDF, CBZ…) en los
+-- ajustes globales; los libros nuevos arrancan con eso, y los ya abiertos conservan lo suyo.
+-- ==========================================
+function ScrubberMenu:_defaultKey(name)
+    if name == "font_face" then return "cre_font" end
+    local ui = self.ui
+    local prefix = ui and ui.config and ui.config.options and ui.config.options.prefix
+    if not prefix then prefix = (ui and ui.rolling) and "copt" or "kopt" end
+    return prefix .. "_" .. name
+end
+
+-- Valor actual de una opción para guardarlo como default
+function ScrubberMenu:_currentFor(name)
+    if name == "font_face" then return self:getBookFontFace() end
+    if name == "rotation_mode" then
+        local ok, mode = pcall(function() return Screen:getRotationMode() end)
+        if ok and mode ~= nil then return mode end
+    end
+    if name == "font_size" and self:getDocKind() ~= "paging" then return self:getBookFontSize() end
+    if name == "line_spacing" then
+        local conf = self:_conf()
+        if conf and conf.line_spacing ~= nil then return conf.line_spacing end
+        return self:getBookLineSpacing()
+    end
+    local conf = self:_conf()
+    if name == "visible_pages" then
+        if conf and conf.visible_pages ~= nil then return conf.visible_pages end
+        return self:getBookColumns()
+    end
+    if name == "view_mode" then
+        if conf and conf.view_mode ~= nil then return conf.view_mode end
+        return self:isRollingScroll() and 1 or 0
+    end
+    if name == "page_scroll" then
+        if conf and conf.page_scroll ~= nil then return conf.page_scroll end
+        return self:isContinuousView() and 1 or 0
+    end
+    return conf and conf[name]
+end
+
+function ScrubberMenu:_isDefaultSet(names)
+    if not G_reader_settings or not names then return false end
+    for _i, name in ipairs(names) do
+        local d = G_reader_settings:readSetting(self:_defaultKey(name))
+        local cur = self:_currentFor(name)
+        if d == nil or cur == nil or not valuesEqual(d, cur) then return false end
+    end
+    return #names > 0
+end
+
+function ScrubberMenu:_showDefaultDialog(label, names)
+    if not G_reader_settings then return end
+    local list = {}
+    for _i, name in ipairs(names) do
+        local v = self:_currentFor(name)
+        if v ~= nil then list[#list + 1] = { name = name, value = deepCopy(v) } end
+    end
+    if #list == 0 then return end
+    local has_default = false
+    for _i, it in ipairs(list) do
+        if G_reader_settings:readSetting(self:_defaultKey(it.name)) ~= nil then has_default = true end
+    end
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    local buttons = {
+        {{
+            text = _("Set as default"),
+            callback = function()
+                UIManager:close(dialog)
+                for _j, it in ipairs(list) do
+                    G_reader_settings:saveSetting(self:_defaultKey(it.name), deepCopy(it.value))
+                end
+                if G_reader_settings.flush then G_reader_settings:flush() end
+                if not self._closed then self:refreshMenu() end
+            end,
+        }},
+    }
+    if has_default then
+        buttons[#buttons + 1] = {{
+            text = _("Remove default"),
+            callback = function()
+                UIManager:close(dialog)
+                for _j, it in ipairs(list) do
+                    G_reader_settings:delSetting(self:_defaultKey(it.name))
+                end
+                if G_reader_settings.flush then G_reader_settings:flush() end
+                if not self._closed then self:refreshMenu() end
+            end,
+        }}
+    end
+    dialog = ButtonDialog:new{ title = label, buttons = buttons }
+    UIManager:show(dialog)
+end
+
+-- Controlador que le presta a la ventana de KOReader sus métodos nativos de ConfigDialog (el mismo truco que usa
+-- ZenOS): así el menú de los tres puntitos (flechitas, valor exacto, "Set as default") es EXACTAMENTE el de KOReader.
+function ScrubberMenu:_nativeController()
+    local ui = self.ui
+    if not (ui and ui.config and ui.config.options and ui.document) then return nil end
+    if self._native_ctl and self._native_ctl.ui == ui then return self._native_ctl end
+    local ok, ConfigDialog = pcall(require, "ui/widget/configdialog")
+    if not ok or not ConfigDialog then return nil end
+    local menu = self
+    local ctl = setmetatable({
+        ui = ui,
+        document = ui.document,
+        configurable = ui.config.configurable or ui.document.configurable,
+        config_options = ui.config.options,
+        dialog_frame = { dimen = self.dimen },
+    }, { __index = ConfigDialog })
+    ctl.config = ctl
+    ctl.update = function()
+        if not menu._closed then menu:refreshMenu() end
+    end
+    ctl.updateConfigPanel = ctl.update
+    ctl.onConfigChoice = function(c, name, value)
+        menu._typo_changed = true
+        local r = ConfigDialog.onConfigChoice(c, name, value)
+        -- Margen T/B: la fila las maneja juntas, así que el valor del margen superior se copia al inferior
+        local m = menu._native_mirror
+        if m and name == m.from and not menu:_marginsSynced() then
+            menu:_applyConfigOption(m.to, value)
+        end
+        return r
+    end
+    self._native_ctl = ctl
+    return ctl
+end
+
+-- Abre el menú nativo de KOReader de una opción (si tiene uno). Devuelve true si lo abrió.
+function ScrubberMenu:_showNativeMore(name, label, mirror_to)
+    local map = self:_cfgOptions()
+    local key = name
+    -- Tamaño de fuente de un libro reflowable: el menú nativo cuelga de "font_fine_tune"
+    if name == "font_size" and map.font_fine_tune and map.font_fine_tune.more_options then
+        key = "font_fine_tune"
+    end
+    local opt = map[key]
+    if not (opt and opt.more_options) then return false end
+    local ctl = self:_nativeController()
+    if not ctl then return false end
+
+    local params = {}
+    for k, v in pairs(opt.more_options_param or {}) do params[k] = v end
+    params.show_true_value_func = params.show_true_value_func or opt.show_true_value_func
+    -- No se esconde ninguna ventana de fondo mientras está abierto el menú
+    params.hide_on_picker_show = false
+
+    local default = opt.default_value
+    if params.names then
+        default = {}
+        for i, n in ipairs(params.names) do
+            local o = map[n]
+            default[i] = o and o.default_value
+        end
+    elseif default == nil and name == "font_size" and map.font_size then
+        default = map.font_size.default_value
+    end
+
+    self._native_mirror = mirror_to and { from = name, to = mirror_to } or nil
+    local ok = pcall(function()
+        ctl:onConfigMoreChoose(opt.values, default, opt.name, opt.event, nil,
+            label or params.name_text or opt.name_text, params)
+    end)
+    return ok
+end
+
+function ScrubberMenu:_onTypoHold(pos)
+    if not pos:intersectWith(self.popup_rect) then return false end
+    if self.active_tab == "typo" then
+        for _i, h in ipairs(self._typo_hold or {}) do
+            if pos:intersectWith(h.dimen) then
+                self:_showDefaultDialog(h.label, h.names)
+                return true
+            end
+        end
+    elseif self.active_tab == "more_list" then
+        for _i, hit in ipairs(self.more_hits or {}) do
+            if pos:intersectWith(hit.dimen) then
+                if hit.row.names then self:_showDefaultDialog(hit.row.label, hit.row.names) end
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- ==========================================
+-- PEEK: con la pestaña Aa abierta el scrubber se esconde y solo quedan las barras de arriba y abajo,
+-- así se ve la página real del libro mientras se ajusta la tipografía. Al salir de Aa vuelve el scrubber.
+-- ==========================================
+-- ¿Estamos dentro de un submenú de Aa? (catálogo de fuentes, More / sus grupos, selector de una opción)
+function ScrubberMenu:_isTypoSubview()
+    local t = self.active_tab
+    return t == "font_list" or t == "more_list" or t == "opt_picker"
+end
+
+-- Flecha de volver: sube un nivel. Selector de opción -> la lista de donde vino (sin aplicar nada, igual que
+-- Cancel); grupo de More de un EPUB (View / Style options) -> More; el resto -> la pestaña Aa.
+function ScrubberMenu:_typoBack()
+    local t = self.active_tab
+    if t == "opt_picker" then
+        self:_pickerClose()
+        return
+    end
+    if t == "more_list" and self:getDocKind() == "rolling" and self.more_group then
+        self.more_group = nil
+        self.more_page = 1
+    else
+        self.active_tab = "typo"
+    end
+    self:refreshMenu()
+end
+
+function ScrubberMenu:_isAaTab()
+    local t = self.active_tab
+    return t == "typo" or t == "font_list" or t == "more_list" or t == "opt_picker"
+end
+
+-- Sincroniza el lector de fondo con la página actual del scrubber al entrar en Aa
+function ScrubberMenu:_syncReaderToScrubberPage()
+    local s = self.scrubber_ui
+    local ui = self.ui or (s and s.ui)
+    if not (s and ui) then return end
+    local target = tonumber(s._cur_page)
+    if not target or target < 1 then return end
+    local reader_page
+    pcall(function()
+        reader_page = (ui.rolling and ui.rolling.current_page)
+            or (ui.paging and ui.paging.current_page)
+            or (ui.getCurrentPage and ui:getCurrentPage())
+    end)
+    if reader_page ~= target then
+        pcall(function()
+            ui:handleEvent(Event:new("GotoPage", target))
+        end)
+    end
+end
+
+-- Suelta el modo peek del scrubber (libera el buffer de trabajo) y lo repinta completo
+function ScrubberMenu:_releasePeek()
+    local s = self.scrubber_ui
+    if not (s and s._typo_peek) then return end
+    s._typo_peek = false
+    if s._peek_bb then
+        pcall(function() s._peek_bb:free() end)
+        s._peek_bb = nil
+    end
+    if not s._closing then
+        UIManager:setDirty(s, "ui", s.dimen)
+    end
+end
+
+-- Regenera miniaturas y datos del scrubber tras cambiar la tipografía (cantidad de páginas, capítulos…)
+function ScrubberMenu:_regenScrubber()
+    local s = self.scrubber_ui
+    local ui = self.ui
+    if not s or s._closing then return end
+
+    local function applyRefresh()
+        pcall(function()
+            if s._closing then return end
+            local total = (ui and ui.document and ui.document.getPageCount and ui.document:getPageCount())
+                or s._total_pages or s.total_pages or 1
+            s._total_pages = total
+            s.total_pages = total
+
+            local reader_page = (ui and ui.rolling and ui.rolling.current_page)
+                or (ui and ui.paging and ui.paging.current_page)
+                or (ui and ui.getCurrentPage and ui:getCurrentPage())
+            if type(reader_page) == "number" and reader_page >= 1 then
+                local clamped = math.max(1, math.min(total, reader_page))
+                s._cur_page = clamped
+                if s.cur_page ~= nil then s.cur_page = clamped end
+            end
+
+            if s._slider then
+                s._slider.value_max = total
+                if s._cur_page then s._slider.value = s._cur_page end
+            end
+
+            -- 1. Vaciar caché de miniaturas y vistas split
+            s._tile_cache = {}
+            if s._split_cache then s._split_cache = {} end
+            s._split_preview_page = nil
+            if s._clearGridTiles then s:_clearGridTiles(true) end
+
+            -- 2. Alternar 1px la dimensión solicitada para que ReaderThumbnail regenere con la nueva fuente
+            if s._grid_item_w then
+                s._thumb_req_w = (s._thumb_req_w == s._grid_item_w) and (s._grid_item_w + 1) or s._grid_item_w
+            end
+            if s._thumb_req_split_w then
+                s._thumb_req_split_w = s._thumb_req_split_w + 1
+            end
+
+            -- 3. Recargar slots inmediatamente para evitar que queden en blanco (slot.loading = true)
+            if s._updateChapterMarks then s:_updateChapterMarks() end
+            if s._updateTexts then s:_updateTexts() end
+            if s._updateGridPages then
+                s:_updateGridPages()
+            elseif s._previewPage then
+                s:_previewPage(s._cur_page or 1, false)
+            end
+
+            UIManager:setDirty(s, "ui", s.dimen)
+        end)
+    end
+
+    applyRefresh()
+    UIManager:nextTick(function()
+        if s._closing then return end
+        local new_total = ui and ui.document and ui.document.getPageCount and ui.document:getPageCount()
+        if new_total and new_total ~= s._total_pages then
+            applyRefresh()
+        else
+            pcall(function()
+                if s._updateGridPages then s:_updateGridPages() end
+                UIManager:setDirty(s, "ui", s.dimen)
+            end)
+        end
+    end)
+end
+
+function ScrubberMenu:_syncPeek()
+    local s = self.scrubber_ui
+    if not s or s._closing or self._closed then return end
+    if self:_isAaTab() then
+        if not s._typo_peek then
+            s._typo_peek = true
+            self:_syncReaderToScrubberPage()
+            -- Se repinta desde el lector (la página) hacia arriba: scrubber (solo barras) y este menú
+            UIManager:setDirty(self.ui or "all", "partial")
+        end
+    elseif s._typo_peek then
+        self:_releasePeek()
+        if self._typo_changed then
+            self._typo_changed = false
+            self:_regenScrubber()
+        end
+    end
+end
+
 -- ¿La instancia pertenece a la clase (o a una subclase)?
 local function isOfClass(widget, cls)
     local mt = getmetatable(widget)
@@ -1269,12 +2147,18 @@ end
 --   3. se rota con el libro ya repintado;
 --   4. después de rotar se vuelve a barrer la pila por si quedó o apareció algo, y se repinta todo.
 function ScrubberMenu:rotateScreen()
-    local ui = self.ui
-    if not (Screen and ui) then return end
-    if ScrubberState.rotating then return end
+    if not Screen then return end
     local landscape = false
     pcall(function() landscape = (Screen:getScreenMode() == "landscape") end)
     local target = landscape and Screen.DEVICE_ROTATED_UPRIGHT or Screen.DEVICE_ROTATED_COUNTER_CLOCKWISE
+    self:rotateScreenTo(target)
+end
+
+-- Rota la pantalla a una de las 4 orientaciones de KOReader (0, 90 horario, 180, 90 antihorario)
+function ScrubberMenu:rotateScreenTo(target)
+    local ui = self.ui
+    if not (Screen and ui) then return end
+    if ScrubberState.rotating then return end
     if target == nil then return end
 
     ScrubberState.rotating = true
@@ -1488,7 +2372,18 @@ function ScrubberMenu:_setLightLevel(value)
         end
     end)
     self._fl_dirty = true
-    UIManager:setDirty(self, "ui", self._light_block_dimen or expandRect(self.popup_rect, scale(8)))
+    -- Igual que la barra de progreso del scrubber: mientras se arrastra, refresco "fast" (rápido, sin
+    -- parpadeo); al soltar, _endLightDrag hace un repintado completo del bloque para limpiar el ghosting.
+    UIManager:setDirty(self, self._light_drag and "fast" or "ui",
+        self._light_block_dimen or expandRect(self.popup_rect, scale(8)))
+end
+
+-- Empieza el arrastre: la perilla desaparece (queda solo el relleno, como en la barra del scrubber)
+function ScrubberMenu:_beginLightDrag(x)
+    self._light_drag = true
+    -- Fuerza el repintado aunque el nivel no cambie en este primer toque, para que la perilla se oculte ya
+    UIManager:setDirty(self, "fast", self._light_block_dimen or expandRect(self.popup_rect, scale(8)))
+    self:_lightDragTo(x)
 end
 
 -- Zona donde se agarra la perilla: el riel entero y medio botón de margen a cada lado
@@ -1583,8 +2478,8 @@ function ScrubberMenu:_paintLightBlock(bb, x, w, y, head_h, head_gap, slider_h, 
     local ty0 = cy - math.floor(touch_h / 2)
     local label_w = scale(22)
     local gap = scale(6)
-    local knob = scale(20)
-    local track_h = scale(4)
+    local knob = scale(18)
+    local track_h = scale(3)
     local track_x = x + label_w + gap
     local track_w = w - 2 * (label_w + gap)
 
@@ -1597,17 +2492,23 @@ function ScrubberMenu:_paintLightBlock(bb, x, w, y, head_h, head_gap, slider_h, 
     bb:paintRect(x + w - arm, cy - math.floor(th / 2), arm, th, BLACK)
     bb:paintRect(x + w - math.floor((arm + th) / 2), cy - math.floor(arm / 2), th, arm, BLACK)
 
-    -- Riel gris, relleno negro hasta la perilla y perilla de aro
+    -- Riel gris, relleno negro hasta la perilla y perilla blanca con contorno fino
     local kx = math.max(0, math.min(track_w - knob, math.floor(frac * track_w) - math.floor(knob / 2)))
-    local fill_w = math.max(track_h, kx + math.floor(knob / 2))
+    local dragging = self._light_drag == true
+    -- Arrastrando no hay perilla: el relleno llega exacto hasta el dedo (como la barra del scrubber)
+    local fill_w = dragging and math.max(track_h, math.floor(frac * track_w + 0.5))
+        or math.max(track_h, kx + math.floor(knob / 2))
     local tr = math.floor(track_h / 2)
     local ty = cy - tr
     paintRoundRect(bb, track_x, ty, track_w, track_h, tr, Blitbuffer.COLOR_LIGHT_GRAY)
     paintRoundRect(bb, track_x, ty, fill_w, track_h, tr, BLACK)
-    local ring = math.max(2, scale(2))
-    local ky = cy - math.floor(knob / 2)
-    paintRoundRect(bb, track_x + kx, ky, knob, knob, math.floor(knob / 2), BLACK)
-    paintRoundRect(bb, track_x + kx + ring, ky + ring, knob - 2 * ring, knob - 2 * ring, math.floor((knob - 2 * ring) / 2), Blitbuffer.COLOR_WHITE)
+    if not dragging then
+        local ring = 1
+        local ky = cy - math.floor(knob / 2)
+        local kr = math.floor(knob / 2)
+        paintRoundRect(bb, track_x + kx, ky, knob, knob, kr, Blitbuffer.COLOR_DARK_GRAY)
+        paintRoundRect(bb, track_x + kx + ring, ky + ring, knob - 2 * ring, knob - 2 * ring, math.max(1, kr - ring), Blitbuffer.COLOR_WHITE)
+    end
 
     local half_gap = math.floor(gap / 2)
     self._light_hit.minus = Geom:new{ x = x, y = ty0, w = label_w + half_gap, h = touch_h }
@@ -1625,7 +2526,10 @@ function ScrubberMenu:isNightMode()
     return false
 end
 
-function ScrubberMenu:closeEntireWidget()
+function ScrubberMenu:closeEntireWidget(suppress_dirty)
+    if suppress_dirty then
+        self._suppress_close_dirty = true
+    end
     local scrubber = self.scrubber_ui
     UIManager:close(self)
     if scrubber then
@@ -1634,7 +2538,7 @@ function ScrubberMenu:closeEntireWidget()
         else
             pcall(function() UIManager:close(scrubber) end)
         end
-    else
+    elseif not suppress_dirty then
         UIManager:setDirty(nil, "full")
     end
 end
@@ -1668,18 +2572,17 @@ end
 -- (el mismo de Menú > Búsqueda > "Book text search"), para encontrar una palabra o nombre puntual.
 function ScrubberMenu:openBookSearch()
     local ui = self.ui or (self.scrubber_ui and self.scrubber_ui.ui)
-    self:closeEntireWidget()
-    UIManager:nextTick(function()
-        if not ui then return end
-        local opened = false
-        local search = ui.search
-        if search and type(search.onShowFulltextSearchInput) == "function" then
-            opened = pcall(function() search:onShowFulltextSearchInput() end)
-        end
-        if not opened then
-            pcall(function() ui:handleEvent(Event:new("ShowFulltextSearchInput")) end)
-        end
-    end)
+    self:closeEntireWidget(true)
+    if not ui then return end
+    local opened = false
+    local search = ui.search
+    if search and type(search.onShowFulltextSearchInput) == "function" then
+        opened = pcall(function() search:onShowFulltextSearchInput() end)
+    end
+    if not opened then
+        pcall(function() ui:handleEvent(Event:new("ShowFulltextSearchInput")) end)
+    end
+    UIManager:setDirty("all", "full")
 end
 
 function ScrubberMenu:executeQuickAction(action_id)
@@ -1701,10 +2604,1373 @@ function ScrubberMenu:executeQuickAction(action_id)
     end)
 end
 
+-- ==========================================
+-- SELECTOR PROPIO DE UNA OPCIÓN (pestaña Aa)
+-- Tocar una opción abre este selector dentro de la misma tarjeta: se elige el valor (lista, grilla con íconos,
+-- número con slider / flechas / valores típicos, o dos números a la vez) y NADA se aplica hasta tocar "Apply".
+-- Así un PDF pesado se vuelve a dibujar una sola vez, en vez de una por cada toque.
+-- ==========================================
+
+-- Ancho de un texto en un tamaño dado
+local function pickTextWidth(text, pt, bold)
+    local tw = TextWidget:new{ text = text, face = Font:getFace("cfont", scaleText(pt)), bold = bold }
+    local w = tw:getSize().w
+    tw:free()
+    return w
+end
+
+-- Texto que se achica hasta entrar en max_w (sin bajar de min_pt). Devuelve el widget y si entró entero.
+local function fitTextWidget(text, start_pt, min_pt, max_w, bold, fgcolor)
+    for pt = start_pt, min_pt, -1 do
+        local tw = TextWidget:new{ text = text, face = Font:getFace("cfont", scaleText(pt)), bold = bold, fgcolor = fgcolor }
+        if tw:getSize().w <= max_w then return tw, true end
+        tw:free()
+    end
+    local tw = TextWidget:new{
+        text = text, face = Font:getFace("cfont", scaleText(min_pt)), bold = bold, fgcolor = fgcolor,
+        max_width = max_w, truncate_with_ellipsis = true,
+    }
+    return tw, false
+end
+
+-- Parte un texto en hasta max_lines renglones del ancho dado (con "…" si no entra todo)
+local function wrapLines(text, pt, max_w, max_lines)
+    local function width(str) return pickTextWidth(str, pt, false) end
+    local words = {}
+    for wd in tostring(text):gmatch("%S+") do words[#words + 1] = wd end
+    local lines, cur, i = {}, "", 1
+    while i <= #words do
+        local try = (cur == "") and words[i] or (cur .. " " .. words[i])
+        if cur == "" or width(try) <= max_w then
+            cur = try
+            i = i + 1
+        else
+            lines[#lines + 1] = cur
+            cur = ""
+            if #lines == max_lines then break end
+        end
+    end
+    local leftover = i <= #words
+    if cur ~= "" and #lines < max_lines then lines[#lines + 1] = cur end
+    if leftover and #lines > 0 then
+        local last = lines[#lines]
+        while last ~= "" and width(last .. "…") > max_w do
+            local trimmed = last:gsub("%s*%S+$", "")
+            if trimmed == last then break end
+            last = trimmed
+        end
+        lines[#lines] = last .. "…"
+    end
+    return lines
+end
+
+function ScrubberMenu:_pickerGeneralHelp(spec)
+    local H = {
+        page_margin = _("Space around the page after crop and zoom."),
+        auto_straighten = _("Straightens tilted scans, up to this angle."),
+        contrast = _("Darker text and a cleaner background."),
+        font_gamma = _("Darker text and a cleaner background."),
+        saturation = _("Lower fades the colors, higher intensifies them."),
+        white_threshold = _("Lighter pixels become white. Lower = whiter page."),
+        zoom_factor = _("Fixed zoom used when Fit zoom to is manual."),
+        zoom_range_number = _("Columns or rows the page is split into."),
+        zoom_direction = _("Order in which the view moves across the page."),
+        trim_page = _("Cuts the blank margins of the page."),
+        zoom_mode_genus = _("How the page is fitted to the screen."),
+        zoom_mode_type = _("Which side of the page is fitted."),
+        font_size = _("Size of the book text."),
+        line_spacing = _("Space between the lines of text."),
+        h_page_margins = _("Space at the left and right of the page."),
+        t_page_margin = _("Space above and below the text."),
+        word_spacing = _("Width of the spaces between words."),
+        word_expansion = _("How much words may stretch to fill a line."),
+        render_dpi = _("Scales CSS units and images. 96 = 1:1."),
+        block_rendering_mode = _("How the book layout is rendered."),
+        font_base_weight = _("Makes the text lighter or bolder."),
+        font_hinting = _("Sharper or smoother font outlines."),
+        font_kerning = _("Adjusts the space between letter pairs."),
+        embedded_css = _("Uses the publisher's own styles included in the book."),
+        embedded_fonts = _("Uses the fonts included in the book instead of yours."),
+        smooth_scaling = _("How images are scaled: fast or best quality."),
+        text_wrap = _("Reflows the page text to fit the screen, like an ebook."),
+        background_cleanup = _("Black and white only: better contrast and faster. Good for scanned PDFs."),
+        page_opt = _("Tries to remove watermarks and stains from the page."),
+        hw_dithering = _("Dithering smooths grays and gradients on e-ink."),
+        sw_dithering = _("Dithering smooths grays and gradients on e-ink."),
+        quality = _("Quality of the text and images when reflowing. Higher is sharper but slower."),
+        rotation_mode = _("Screen orientation."),
+    }
+    local txt = H[spec.name]
+    if txt then return txt end
+    if spec.opt and type(spec.opt.help_text) == "string" then return spec.opt.help_text end
+    return ""
+end
+
+-- Explicación del valor que está elegido en este momento (si la opción lo tiene)
+function ScrubberMenu:_pickerValueHelp(spec, value)
+    local n = spec.name
+    local t
+    if n == "trim_page" then
+        t = {
+            [3] = _("Keeps the original margins."),
+            [1] = _("Finds the content and trims the blank margins."),
+            [2] = _("Auto-detects inside an area you mark once."),
+            [0] = _("You mark the area."),
+        }
+    elseif n == "zoom_mode_genus" then
+        t = {
+            [4] = _("Fits the whole page."),
+            [3] = _("Fits the content, ignoring blank margins."),
+            [2] = _("Shows one column at a time."),
+            [1] = _("Shows one row at a time."),
+            [0] = _("Uses the fixed zoom factor."),
+        }
+    elseif n == "block_rendering_mode" then
+        t = {
+            [0] = _("Original CR3 block rendering."),
+            [1] = _("Flat layout with accurate page breaks."),
+            [2] = _("Adds floats, avoids overflows."),
+            [3] = _("Like a web browser; may overflow."),
+        }
+    elseif n == "font_hinting" then
+        t = {
+            [0] = _("No hinting."),
+            [1] = _("Uses the hinting of the font."),
+            [2] = _("Automatic hinting."),
+        }
+    elseif n == "font_kerning" then
+        t = {
+            [0] = _("No kerning."),
+            [1] = _("Fast kerning."),
+            [2] = _("Good quality kerning."),
+            [3] = _("Best quality kerning."),
+        }
+    elseif n == "text_wrap" then
+        t = {
+            [0] = _("The page keeps its original layout."),
+            [1] = _("The text is reflowed to fit the screen."),
+        }
+    elseif n == "background_cleanup" then
+        t = {
+            [0] = _("Keeps the original colors and grays."),
+            [1] = _("Black and white only. Faster, more contrast."),
+        }
+    elseif n == "embedded_css" then
+        t = {
+            [0] = _("Ignores the book's styles; yours are used."),
+            [1] = _("Keeps the look the publisher designed."),
+        }
+    elseif n == "embedded_fonts" then
+        t = {
+            [0] = _("Uses your font for all the text."),
+            [1] = _("Uses the fonts the book brings."),
+        }
+    elseif n == "smooth_scaling" then
+        t = {
+            [0] = _("Fast: quick, but images look rougher."),
+            [1] = _("Best: slower, smoother and more accurate."),
+        }
+    elseif n == "quality" then
+        t = {
+            [0.5] = _("Faster, but less sharp."),
+            [1.0] = _("Balanced."),
+            [1.5] = _("Sharpest, but the slowest."),
+        }
+    elseif n == "page_opt" then
+        t = {
+            [0] = _("Keeps the original page without removing watermarks."),
+            [1] = _("Removes faint watermarks and background marks from the page."),
+        }
+    elseif n == "hw_dithering" or n == "sw_dithering" then
+        t = {
+            [0] = _("Off."),
+            [1] = _("On."),
+        }
+    elseif n == "zoom_mode_type" then
+        t = {
+            [2] = _("Whole page visible."),
+            [1] = _("Fits the width; scroll vertically."),
+            [0] = _("Fits the height; scroll horizontally."),
+        }
+    end
+    return t and t[value] or nil
+end
+
+-- Opciones con valores "con nombre" (Small / Medium / Large, None / Some / More...) que además tienen barra(s):
+-- esos botones se ofrecen PRIMERO (lo más simple) y el ⋮ del encabezado los cambia por la(s) barra(s).
+-- Si la opción no tiene nombres (o son números sueltos), el selector queda como antes.
+function ScrubberMenu:_pickerPresets(spec, name, opt, values)
+    if not opt or name == "font_size" then return end
+    if spec.kind ~= "numeric" and spec.kind ~= "dual" then return end
+    local labels = (type(opt.toggle) == "table" and opt.toggle)
+        or (type(opt.labels) == "table" and opt.labels)
+        or (type(opt.item_text) == "table" and opt.item_text)
+    if #values == 0 then
+        if name == "word_spacing" then
+            values = { { 75, 50 }, { 100, 90 }, { 125, 115 } }
+        elseif name == "word_expansion" then
+            values = { 0, 15, 30 }
+        end
+    end
+    if not labels then
+        if name == "word_spacing" then
+            labels = { _("Small"), _("Medium"), _("Large") }
+        elseif name == "word_expansion" then
+            labels = { _("None"), _("Some"), _("More") }
+        end
+    end
+    if not labels or #values < 2 or #values > 5 then return end
+    local presets, wordy = {}, 0
+    for i, v in ipairs(values) do
+        local l = labels[i]
+        if l == nil then return end
+        if spec.kind == "numeric" and type(v) ~= "number" then return end
+        if spec.kind == "dual" and not (type(v) == "table" and tonumber(v[1]) and tonumber(v[2])) then return end
+        l = tostring(l)
+        if tonumber(l) == nil then wordy = wordy + 1 end
+        presets[#presets + 1] = { value = deepCopy(v), label = l }
+    end
+    -- Solo cuentan los nombres de verdad (no una fila de números como "48 · 96 · 167")
+    if wordy * 2 <= #presets then return end
+    spec.presets = presets
+    spec.mode = "presets"
+    spec.chips = {}   -- los valores típicos ya son los botones: no se repiten debajo de la barra
+end
+
+local SWITCH_OPTS = {
+    text_wrap = true, embedded_css = true, embedded_fonts = true, smooth_scaling = true,
+    background_cleanup = true, page_opt = true, hw_dithering = true, sw_dithering = true,
+}
+
+-- Arma la definición del selector de una opción. Devuelve nil si no se puede (sin valores...)
+function ScrubberMenu:_pickerSpec(name, label, names, mirror)
+    local map = self:_cfgOptions()
+    local opt = map[name]
+    local conf = self:_conf()
+    local rolling = self:getDocKind() == "rolling"
+    local params = (opt and opt.more_options_param) or {}
+    local values = (opt and opt.values) or {}
+    local spec = { name = name, label = label, names = names or { name }, mirror = mirror, opt = opt }
+
+    -- ---------- Dos valores a la vez (márgenes izquierdo / derecho, superior / inferior, espacio entre palabras) ----------
+    if opt and opt.more_options and params.left_min and conf then
+        local cur
+        if params.names then
+            cur = { conf[params.names[1]], conf[params.names[2]] }
+        else
+            cur = conf[name]
+        end
+        if type(cur) ~= "table" or not (tonumber(cur[1]) and tonumber(cur[2])) then return nil end
+        spec.kind = "dual"
+        spec.dual_names = params.names
+        spec.unit = params.unit and tostring(params.unit) or ""
+        spec.fmt = fmtCleanNum
+        spec.fields = {
+            { label = params.left_text or _("Left"), lo = params.left_min, hi = params.left_max,
+              step = params.left_step or 1, hold = params.left_hold_step or 5 },
+            { label = params.right_text or _("Right"), lo = params.right_min or params.left_min,
+              hi = params.right_max or params.left_max,
+              step = params.right_step or 1, hold = params.right_hold_step or 5 },
+        }
+        spec.original = { cur[1], cur[2] }
+        spec.pending = {
+            math.max(spec.fields[1].lo, math.min(spec.fields[1].hi, cur[1])),
+            math.max(spec.fields[2].lo, math.min(spec.fields[2].hi, cur[2])),
+        }
+        if params.names then
+            spec.default_orig = { (map[params.names[1]] or {}).default_value, (map[params.names[2]] or {}).default_value }
+        else
+            spec.default_orig = opt.default_value
+        end
+        self:_pickerPresets(spec, name, opt, values)
+        spec.help = self:_pickerGeneralHelp(spec)
+        return spec
+    end
+
+    -- ---------- Un solo valor ----------
+    local cur
+    if rolling and name == "font_size" then
+        cur = self:getBookFontSize()
+    elseif rolling and name == "line_spacing" then
+        cur = self:_currentFor("line_spacing")
+    elseif opt and opt.current_func then
+        local okc, cv = pcall(opt.current_func)
+        cur = okc and cv or nil
+    else
+        cur = conf and conf[name]
+    end
+    if cur == nil or type(cur) == "table" then return nil end
+    spec.original = deepCopy(cur)
+    spec.pending = deepCopy(cur)
+    spec.default_orig = opt and opt.default_value
+
+    local special = rolling and (name == "font_size" or name == "line_spacing")
+    local numeric = type(cur) == "number" and (special or (opt and opt.more_options
+        and (params.value_min or params.value_table or #values >= 2)))
+    if numeric then
+        spec.kind = "numeric"
+        if rolling and name == "font_size" then
+            spec.lo, spec.hi, spec.step, spec.hold_step, spec.unit = 12, 100, 1, 4, " pt"
+            spec.chips = { 12, 14, 16, 18, 20, 24, 28, 32 }
+            spec.fmt = function(v) return string.format("%d", math.floor(v + 0.5)) end
+        elseif rolling and name == "line_spacing" then
+            spec.lo = params.value_min or 50
+            spec.hi = params.value_max or 200
+            spec.step, spec.hold_step, spec.unit = 1, params.value_hold_step or 5, "%"
+            spec.chips = { 80, 90, 100, 110, 120, 140, 160, 200 }
+            spec.fmt = function(v) return string.format("%d", math.floor(v + 0.5)) end
+        elseif params.value_table then
+            -- El valor guardado es un ÍNDICE de la tabla (p. ej. el contraste de un EPUB); se muestra lo que dice la tabla
+            local vt = params.value_table
+            local shift = params.value_table_shift or 0
+            spec.lo, spec.hi = 1 - shift, #vt - shift
+            spec.step = 1
+            spec.hold_step = params.value_hold_step or 5
+            spec.unit = ""
+            spec.fmt = function(v)
+                local t = vt[math.floor(v + 0.5) + shift]
+                if t ~= nil then return tostring(t) end
+                return fmtCleanNum(v)
+            end
+            spec.chip_fmt = spec.fmt
+            local chips = {}
+            for _i, v in ipairs(values) do
+                if type(v) == "number" then chips[#chips + 1] = v end
+            end
+            spec.chips = chips
+        else
+            local lo, hi
+            for _i, v in ipairs(values) do
+                local sv = scalarOf(v)
+                if sv then
+                    lo = (lo == nil or sv < lo) and sv or lo
+                    hi = (hi == nil or sv > hi) and sv or hi
+                end
+            end
+            spec.lo = params.value_min or lo or 0
+            spec.hi = params.value_max or hi or 100
+            if spec.hi < spec.lo then spec.lo, spec.hi = spec.hi, spec.lo end
+            spec.step = params.value_step or 1
+            spec.hold_step = params.value_hold_step or (spec.step * 5)
+            spec.unit = params.unit and tostring(params.unit) or ""
+            local chips = {}
+            for _i, v in ipairs(values) do
+                if type(v) == "number" then chips[#chips + 1] = v end
+            end
+            spec.chips = chips
+            if opt and opt.show_true_value_func then
+                local f = opt.show_true_value_func
+                local prec = params.precision
+                spec.unit = ""   -- esa función ya agrega la unidad
+                spec.fmt = function(v)
+                    local ok, t = pcall(f, v)
+                    if ok and t ~= nil then return tostring(t) end
+                    if prec then return string.format(prec, v) end
+                    return fmtCleanNum(v)
+                end
+            elseif params.precision then
+                local prec = params.precision
+                spec.fmt = function(v) return string.format(prec, v) end
+            else
+                spec.fmt = fmtCleanNum
+            end
+            -- Los valores típicos usan los nombres cortos de KOReader (off, 48, 96¹’¹, 167...) si los tiene
+            if opt and type(opt.toggle) == "table" and #opt.toggle == #values then
+                local labels = {}
+                for i, v in ipairs(values) do labels[tostring(v)] = opt.toggle[i] end
+                spec.chip_fmt = function(v)
+                    local l = labels[tostring(v)]
+                    if l ~= nil then return tostring(l) end
+                    return fmtCleanNum(v)
+                end
+            end
+        end
+        -- Hasta 8 valores típicos (6 en contrast y saturation para evitar botones apretados)
+        local max_chips = (name == "contrast" or name == "saturation" or name == "font_gamma") and 6 or 8
+        if spec.chips and #spec.chips > max_chips then
+            local sampled = {}
+            for i = 1, max_chips do
+                sampled[i] = spec.chips[math.floor((i - 1) * (#spec.chips - 1) / (max_chips - 1) + 1.5)]
+            end
+            spec.chips = sampled
+        end
+        if spec.hi <= spec.lo then return nil end
+        spec.pending = math.max(spec.lo, math.min(spec.hi, spec.pending))
+        self:_pickerPresets(spec, name, opt, values)
+        spec.help = self:_pickerGeneralHelp(spec)
+        return spec
+    end
+
+    -- ---------- Elegir una entre varias ----------
+    if #values == 0 then
+        if name == "word_expansion" then
+            values = { 0, 15, 30 }
+        else
+            return nil
+        end
+    end
+    spec.items = {}
+    local has_icons = false
+    local icon_list = opt and opt.item_icons
+    if opt and opt.item_icons_func then
+        local okf, res = pcall(opt.item_icons_func)
+        if okf and type(res) == "table" then icon_list = res end
+    end
+    for i, v in ipairs(values) do
+        local icon = icon_list and icon_list[i]
+        if icon then has_icons = true end
+        local long = opt and opt.labels and opt.labels[i]
+        local short = self:_optValueText(name, v)
+        if SWITCH_OPTS[name] and type(short) == "string" then
+            short = short:gsub("^%l", string.upper)
+        end
+        spec.items[#spec.items + 1] = {
+            value = deepCopy(v), label = short, icon = icon,
+            long = (type(long) == "string" and long ~= short) and long or nil,
+        }
+    end
+    spec.kind = (has_icons or #spec.items > 5) and "grid" or "list"
+    spec.help = self:_pickerGeneralHelp(spec)
+    return spec
+end
+
+function ScrubberMenu:_openPicker(name, label, back_tab, names, mirror)
+    local spec = self:_pickerSpec(name, label, names, mirror)
+    if not spec then
+        -- Sin selector propio: se usa el menú nativo de KOReader
+        return self:_showNativeMore(name, label, mirror)
+    end
+    spec.back = back_tab or self.active_tab
+    self.picker = spec
+    self._pick_drag = false
+    self.active_tab = "opt_picker"
+    self:refreshMenu()
+    return true
+end
+
+function ScrubberMenu:_pickerText(spec, v)
+    if spec.kind == "numeric" then
+        return spec.fmt(v) .. (spec.unit or "")
+    elseif spec.kind == "dual" then
+        local u = spec.unit or ""
+        return spec.fmt(v[1]) .. u .. " / " .. spec.fmt(v[2]) .. u
+    end
+    for _i, it in ipairs(spec.items or {}) do
+        if valuesEqual(it.value, v) then return it.label end
+    end
+    return tostring(v)
+end
+
+-- f: cualquier tabla con lo / hi / step (el selector numérico o uno de los dos campos del doble)
+function ScrubberMenu:_pickerQuant(f, v)
+    local step = f.step or 1
+    local n = math.floor((v - f.lo) / step + 0.5)
+    local q = math.max(f.lo, math.min(f.hi, f.lo + n * step))
+    return tonumber(string.format("%.6f", q))
+end
+
+-- Cambia el valor elegido (todavía no se aplica al libro) y repinta solo la tarjeta
+function ScrubberMenu:_pickerSetPending(v, fast)
+    local spec = self.picker
+    if not spec then return end
+    if valuesEqual(spec.pending, v) then return end
+    spec.pending = deepCopy(v)
+    local region = self._pick and self._pick.region or expandRect(self.popup_rect, scale(8))
+    UIManager:setDirty(self, fast and "fast" or "ui", region)
+end
+
+-- Cambia uno de los dos valores del selector doble
+function ScrubberMenu:_pickerSetField(k, v, fast)
+    local spec = self.picker
+    if not (spec and spec.kind == "dual") then return end
+    local np = { spec.pending[1], spec.pending[2] }
+    np[k] = v
+    self:_pickerSetPending(np, fast)
+end
+
+-- ¿Sobre qué riel está el dedo? (true en el numérico, 1 / 2 en el doble)
+function ScrubberMenu:_pickerTrackAt(pos)
+    local spec, h = self.picker, self._pick
+    if not (spec and h) then return nil end
+    if spec.kind == "numeric" then
+        if h.track and pos:intersectWith(h.track) then return true end
+    elseif spec.kind == "dual" then
+        for k, fh in ipairs(h.fields or {}) do
+            if pos:intersectWith(fh.track) then return k end
+        end
+    end
+    return nil
+end
+
+function ScrubberMenu:_pickerDragTo(x)
+    local spec, h = self.picker, self._pick
+    if not (spec and h) then return end
+    if spec.kind == "numeric" and h.track_w then
+        local frac = math.max(0, math.min(1, (x - h.track_x) / h.track_w))
+        self:_pickerSetPending(self:_pickerQuant(spec, spec.lo + frac * (spec.hi - spec.lo)), true)
+    elseif spec.kind == "dual" and type(self._pick_drag) == "number" then
+        local k = self._pick_drag
+        local fh, f = h.fields[k], spec.fields[k]
+        if not (fh and f) then return end
+        local frac = math.max(0, math.min(1, (x - fh.track_x) / fh.track_w))
+        self:_pickerSetField(k, self:_pickerQuant(f, f.lo + frac * (f.hi - f.lo)), true)
+    end
+end
+
+function ScrubberMenu:_pickerPan(ges)
+    if not self._pick_drag then
+        if ges.direction == "north" or ges.direction == "south" then return false end
+        local t = self:_pickerTrackAt(ges.pos)
+        if not t then return false end
+        self._pick_drag = t
+    end
+    self:_pickerDragTo(ges.pos.x)
+    return true
+end
+
+function ScrubberMenu:_endPickDrag()
+    if not self._pick_drag then return false end
+    self._pick_drag = false
+    local region = self._pick and self._pick.region or expandRect(self.popup_rect, scale(8))
+    UIManager:setDirty(self, "ui", region)
+    return true
+end
+
+-- ¿El valor elegido es el que está guardado como predeterminado?
+function ScrubberMenu:_pickerDefaultIsSet(spec)
+    if not G_reader_settings then return false end
+    if spec.kind == "dual" and spec.dual_names then
+        for i, n in ipairs(spec.dual_names) do
+            local d = G_reader_settings:readSetting(self:_defaultKey(n))
+            if d == nil or not valuesEqual(d, spec.pending[i]) then return false end
+        end
+        return true
+    end
+    local d = G_reader_settings:readSetting(self:_defaultKey(spec.name))
+    return d ~= nil and valuesEqual(d, spec.pending)
+end
+
+-- Estrella: guarda (o saca) el valor elegido como predeterminado para los libros nuevos
+function ScrubberMenu:_pickerToggleDefault()
+    local spec = self.picker
+    if not (spec and G_reader_settings) then return end
+    local was_set = self:_pickerDefaultIsSet(spec)
+    if spec.kind == "dual" and spec.dual_names then
+        for i, n in ipairs(spec.dual_names) do
+            if was_set then
+                G_reader_settings:delSetting(self:_defaultKey(n))
+            else
+                G_reader_settings:saveSetting(self:_defaultKey(n), spec.pending[i])
+            end
+        end
+    else
+        for _i, n in ipairs({ spec.name }) do
+            if was_set then
+                G_reader_settings:delSetting(self:_defaultKey(n))
+            else
+                G_reader_settings:saveSetting(self:_defaultKey(n), deepCopy(spec.pending))
+            end
+        end
+    end
+    if G_reader_settings.flush then G_reader_settings:flush() end
+    UIManager:setDirty(self, "ui", self._pick and self._pick.region or expandRect(self.popup_rect, scale(8)))
+end
+
+-- Valor predeterminado de la opción (el guardado, o el de fábrica de KOReader)
+function ScrubberMenu:_pickerDefaultValue(spec)
+    if spec.kind == "dual" and spec.dual_names then
+        local out = {}
+        for i, n in ipairs(spec.dual_names) do
+            local v = G_reader_settings and G_reader_settings:readSetting(self:_defaultKey(n))
+            if v == nil and type(spec.default_orig) == "table" then v = spec.default_orig[i] end
+            if v == nil then return nil end
+            out[i] = v
+        end
+        return out
+    end
+    local v = G_reader_settings and G_reader_settings:readSetting(self:_defaultKey(spec.name))
+    if v == nil then v = spec.default_orig end
+    return deepCopy(v)
+end
+
+-- Botón del medio: lleva el valor elegido al predeterminado (todavía sin aplicar)
+function ScrubberMenu:_pickerUseDefault()
+    local spec = self.picker
+    if not spec then return end
+    local d = self:_pickerDefaultValue(spec)
+    if d == nil then return end
+    if spec.kind == "numeric" then
+        if type(d) ~= "number" then return end
+        d = math.max(spec.lo, math.min(spec.hi, d))
+    elseif spec.kind == "dual" then
+        if type(d) ~= "table" or not (tonumber(d[1]) and tonumber(d[2])) then return end
+        d = {
+            math.max(spec.fields[1].lo, math.min(spec.fields[1].hi, d[1])),
+            math.max(spec.fields[2].lo, math.min(spec.fields[2].hi, d[2])),
+        }
+    end
+    self:_pickerSetPending(d)
+end
+
+-- Vuelve a la vista anterior sin aplicar nada
+function ScrubberMenu:_pickerClose()
+    local spec = self.picker
+    self.picker = nil
+    self._pick = nil
+    self._pick_drag = false
+    self.active_tab = (spec and spec.back) or "typo"
+    self:refreshMenu()
+end
+
+-- Esconde el menú mientras KOReader muestra su pantalla de recorte manual y lo devuelve al confirmar o cancelar
+function ScrubberMenu:_hideForCrop()
+    local ui = self.ui
+    local cropping = ui and ui.cropping
+    if not cropping or self._crop_hidden then return end
+    local menu = self
+    self._crop_hidden = true
+    local own_c = rawget(cropping, "onConfirmPageCrop")
+    local own_x = rawget(cropping, "onCancelPageCrop")
+    local class_c = cropping.onConfirmPageCrop
+    local class_x = cropping.onCancelPageCrop
+    local finished = false
+    local function done()
+        if finished then return end
+        finished = true
+        cropping.onConfirmPageCrop = own_c
+        cropping.onCancelPageCrop = own_x
+        menu:_restoreAfterCrop()
+    end
+    cropping.onConfirmPageCrop = function(c, ...)
+        local res = class_c(c, ...)
+        done()
+        return res
+    end
+    cropping.onCancelPageCrop = function(c, ...)
+        local res = class_x(c, ...)
+        done()
+        return res
+    end
+    -- Red de seguridad: si KOReader no llegó a mostrar la pantalla de recorte, el menú vuelve solo
+    UIManager:scheduleIn(1.2, function()
+        if finished or menu._closed or not menu._crop_hidden then return end
+        local dlg = cropping.crop_dialog
+        local shown = false
+        if dlg then
+            local ok, res = pcall(function() return UIManager:isWidgetShown(dlg) end)
+            shown = ok and res or false
+        end
+        if not shown then done() end
+    end)
+end
+
+function ScrubberMenu:_restoreAfterCrop()
+    self._crop_hidden = false
+    self._typo_changed = true
+    if self._closed then return end
+    self:refreshMenu()
+end
+
+-- Aplica el valor elegido al libro (una sola vez)
+function ScrubberMenu:_applyPickerValue(spec, v)
+    local ui = self.ui
+    local name = spec.name
+    local rolling = self:getDocKind() == "rolling"
+    if name == "rotation_mode" then
+        -- Rotar cambia el tamaño de pantalla: se cierra el menú y se rota como hace el botón de rotar
+        local same = false
+        pcall(function() same = (Screen:getRotationMode() == v) end)
+        if not same then self:rotateScreenTo(v) end
+        return
+    end
+    if rolling and name == "font_size" then
+        pcall(function() ui:handleEvent(Event:new("SetFontSize", v)) end)
+        self._typo_changed = true
+    elseif rolling and name == "line_spacing" then
+        pcall(function() ui:handleEvent(Event:new("SetLineSpace", v)) end)
+        self._typo_changed = true
+    else
+        -- Recorte manual / semi-automático: KOReader abre su pantalla para marcar el área
+        if name == "trim_page" and (v == 0 or v == 2) then self:_hideForCrop() end
+        self:_applyConfigOption(name, v)
+        if spec.mirror and not self:_marginsSynced() then
+            self:_applyConfigOption(spec.mirror, v)
+        end
+    end
+end
+
+function ScrubberMenu:_pickerCommit()
+    local spec = self.picker
+    if not spec then return end
+    local back = spec.back or "typo"
+    self.picker = nil
+    self._pick = nil
+    self._pick_drag = false
+    if not valuesEqual(spec.pending, spec.original) then
+        self:_applyPickerValue(spec, spec.pending)
+    end
+    self.active_tab = back
+    if not self._closed then self:refreshMenu() end
+end
+
+-- Mantener apretadas las flechas mueve de a bastante; sobre un riel empieza el arrastre
+function ScrubberMenu:_pickerHold(pos)
+    local spec, h = self.picker, self._pick
+    if not (spec and h) then return false end
+    local t = self:_pickerTrackAt(pos)
+    if t then
+        self._pick_drag = t
+        self:_pickerDragTo(pos.x)
+        return true
+    end
+    if spec.kind == "numeric" then
+        local hs = spec.hold_step or spec.step
+        if h.minus and pos:intersectWith(h.minus) then
+            self:_pickerSetPending(self:_pickerQuant(spec, spec.pending - hs))
+            return true
+        elseif h.plus and pos:intersectWith(h.plus) then
+            self:_pickerSetPending(self:_pickerQuant(spec, spec.pending + hs))
+            return true
+        end
+    elseif spec.kind == "dual" then
+        for k, fh in ipairs(h.fields or {}) do
+            local f = spec.fields[k]
+            if pos:intersectWith(fh.minus) then
+                self:_pickerSetField(k, self:_pickerQuant(f, spec.pending[k] - f.hold))
+                return true
+            elseif pos:intersectWith(fh.plus) then
+                self:_pickerSetField(k, self:_pickerQuant(f, spec.pending[k] + f.hold))
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function ScrubberMenu:_pickerTap(pos)
+    local spec, h = self.picker, self._pick
+    if not (spec and h) then return end
+
+    -- Estrella: guardar / sacar como predeterminado
+    if h.star and pos:intersectWith(h.star) then
+        self:_pickerToggleDefault()
+        return
+    end
+
+    -- ⋮: cambia entre los botones con nombre y la(s) barra(s)
+    if h.mode_btn and pos:intersectWith(h.mode_btn) then
+        self:_flashStepBtn("pick_mode", h.mode_btn, function()
+            spec.mode = (spec.mode == "bars") and "presets" or "bars"
+            UIManager:setDirty(self, "ui", h.region)
+        end)
+        return
+    end
+
+    -- Botones inferiores (Cancelar / Default / Aplicar)
+    if h.btn_cancel and pos:intersectWith(h.btn_cancel) then
+        self:_flashStepBtn("pick_cancel", h.btn_cancel, function() end)
+        UIManager:scheduleIn(0.05, function()
+            if self._closed or self.active_tab ~= "opt_picker" then return end
+            self:_pickerClose()
+        end)
+        return
+    end
+    if h.btn_def and pos:intersectWith(h.btn_def) then
+        self:_flashStepBtn("pick_def", h.btn_def, function() self:_pickerUseDefault() end)
+        return
+    end
+    if h.btn_apply and pos:intersectWith(h.btn_apply) then
+        -- Se ve el botón presionado un instante y recién después se aplica (en un PDF pesado puede tardar)
+        self._pressed_btn = "pick_apply"
+        self._flash_busy = true
+        UIManager:setDirty(self, "ui", expandRect(h.btn_apply, scale(4)))
+        UIManager:scheduleIn(0.06, function()
+            self._pressed_btn = nil
+            self._flash_busy = false
+            if self._closed then return end
+            self:_pickerCommit()
+        end)
+        return
+    end
+
+    if spec.presets and spec.mode ~= "bars" then
+        for _i, p in ipairs(h.presets) do
+            if pos:intersectWith(p.dimen) then
+                self:_pickerSetPending(p.value)
+                return
+            end
+        end
+        return
+    end
+
+    if spec.kind == "numeric" then
+        if h.minus and pos:intersectWith(h.minus) then
+            self:_flashStepBtn("pick_minus", h.minus, function()
+                self:_pickerSetPending(self:_pickerQuant(spec, spec.pending - spec.step))
+            end)
+        elseif h.plus and pos:intersectWith(h.plus) then
+            self:_flashStepBtn("pick_plus", h.plus, function()
+                self:_pickerSetPending(self:_pickerQuant(spec, spec.pending + spec.step))
+            end)
+        elseif h.track and pos:intersectWith(h.track) then
+            local frac = math.max(0, math.min(1, (pos.x - h.track_x) / h.track_w))
+            self:_pickerSetPending(self:_pickerQuant(spec, spec.lo + frac * (spec.hi - spec.lo)))
+        else
+            for _i, c in ipairs(h.chips) do
+                if pos:intersectWith(c.dimen) then
+                    self:_pickerSetPending(c.value)
+                    return
+                end
+            end
+        end
+    elseif spec.kind == "dual" then
+        for k, fh in ipairs(h.fields or {}) do
+            local f = spec.fields[k]
+            if pos:intersectWith(fh.minus) then
+                self:_flashStepBtn("pick_minus" .. k, fh.minus, function()
+                    self:_pickerSetField(k, self:_pickerQuant(f, spec.pending[k] - f.step))
+                end)
+                return
+            elseif pos:intersectWith(fh.plus) then
+                self:_flashStepBtn("pick_plus" .. k, fh.plus, function()
+                    self:_pickerSetField(k, self:_pickerQuant(f, spec.pending[k] + f.step))
+                end)
+                return
+            elseif pos:intersectWith(fh.track) then
+                local frac = math.max(0, math.min(1, (pos.x - fh.track_x) / fh.track_w))
+                self:_pickerSetField(k, self:_pickerQuant(f, f.lo + frac * (f.hi - f.lo)))
+                return
+            end
+        end
+    else
+        for _i, t in ipairs(h.tiles) do
+            if pos:intersectWith(t.dimen) then
+                if spec.kind == "list" and t.index then
+                    self:_flashStepBtn("pick_tile_" .. t.index, t.dimen, function()
+                        self:_pickerSetPending(t.value)
+                    end)
+                else
+                    self:_pickerSetPending(t.value)
+                end
+                return
+            end
+        end
+    end
+end
+
+function ScrubberMenu:_paintPicker(bb, r, border, inner_w, content_top, content_h)
+    local spec = self.picker
+    self._pick = nil
+    if not spec then return end
+    local BLACK, GRAY, WHITE = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_DARK_GRAY, Blitbuffer.COLOR_WHITE
+    local pad = scale(12)
+    local x0 = r.x + border + pad
+    local w = inner_w - pad * 2
+    local hit = { tiles = {}, chips = {}, fields = {}, presets = {} }
+    self._pick = hit
+    hit.region = Geom:new{ x = r.x + border, y = content_top, w = inner_w, h = content_h }
+
+    -- Explicación: la del valor elegido si la hay; si no, la general de la opción (máx. 2 renglones chicos)
+    local help = spec.help or ""
+    local selected_item
+    if spec.items then
+        for _i, it in ipairs(spec.items) do
+            if valuesEqual(it.value, spec.pending) then
+                selected_item = it
+                local vh = self:_pickerValueHelp(spec, it.value)
+                if vh then help = vh end
+                break
+            end
+        end
+    end
+    local has_changes = not valuesEqual(spec.pending, spec.original)
+
+    -- Íconos a la derecha del encabezado del contenido: ⋮ (modo) y estrella (predeterminado)
+    local help_top = content_top + scale(6)
+    local star_icon = self:_pickerDefaultIsSet(spec) and self.icon_star_on or self.icon_star
+    local mode_icon = spec.presets and self.icon_more_sm or nil
+    local right_x = x0 + w
+    local right_icons_w = 0
+    local min_icon_h = 0
+
+    if mode_icon then
+        local misz = mode_icon:getSize()
+        min_icon_h = math.max(min_icon_h, misz.h)
+        local mx = right_x - misz.w
+        local my = help_top
+        local mpressed = (self._pressed_btn == "pick_mode")
+        if mpressed then
+            local box = misz.h + scale(6)
+            paintRoundRect(bb, mx + math.floor((misz.w - box) / 2), my + math.floor((misz.h - box) / 2), box, box, scale(6), BLACK)
+        end
+        paintIconOn(bb, mode_icon, mx, my, mpressed)
+        hit.mode_btn = Geom:new{
+            x = mx - scale(8),
+            y = help_top - scale(2),
+            w = misz.w + scale(16),
+            h = misz.h + scale(8),
+        }
+        right_x = mx - scale(6)
+        right_icons_w = right_icons_w + misz.w + scale(6)
+    end
+
+    if star_icon then
+        local ssz = star_icon:getSize()
+        min_icon_h = math.max(min_icon_h, ssz.h)
+        local sx = right_x - ssz.w
+        local sy = help_top + (mode_icon and math.floor((mode_icon:getSize().h - ssz.h) / 2) or 0)
+        star_icon:paintTo(bb, sx, sy)
+        hit.star = Geom:new{
+            x = sx - scale(8),
+            y = help_top - scale(2),
+            w = ssz.w + scale(14),
+            h = ssz.h + scale(8),
+        }
+        right_icons_w = right_icons_w + ssz.w + scale(6)
+    end
+
+    -- Título del submenú en línea antes de la explicación ("Título: explicación")
+    local help_w = math.max(scale(60), w - right_icons_w)
+    local help_pt = 9
+    local prefix_str = (help ~= "") and (spec.label .. ": ") or spec.label
+    local tw_pref = fitTextWidget(prefix_str, help_pt, 7, help_w, true, BLACK)
+    local pref_sz = tw_pref:getSize()
+    local line1_rem_w = math.max(0, help_w - pref_sz.w)
+
+    local probe = TextWidget:new{ text = "Ag", face = Font:getFace("cfont", scaleText(help_pt)) }
+    local help_lh = math.max(probe:getSize().h, pref_sz.h)
+    probe:free()
+    local help_step = math.floor(help_lh * 0.85)
+
+    local line_widths = { line1_rem_w, w, w, w }
+
+    local function wrapPrefixedHelp(text, widths, pt)
+        if not text or text == "" then return {} end
+        local function width(str) return pickTextWidth(str, pt, false) end
+        local words = {}
+        for wd in tostring(text):gmatch("%S+") do words[#words + 1] = wd end
+        if #words == 0 then return {} end
+
+        local lines = {}
+        local i = 1
+        for idx = 1, #widths do
+            local max_w = widths[idx]
+            local cur = ""
+            while i <= #words do
+                local try = (cur == "") and words[i] or (cur .. " " .. words[i])
+                if (idx > 1 and cur == "") or width(try) <= max_w then
+                    cur = try
+                    i = i + 1
+                else
+                    break
+                end
+            end
+            lines[idx] = cur
+            if i > #words then break end
+        end
+
+        if i <= #words and #lines > 0 then
+            local last_idx = #lines
+            local last = lines[last_idx]
+            local max_w = widths[last_idx]
+            while last ~= "" and width(last .. "…") > max_w do
+                local trimmed = last:gsub("%s*%S+$", "")
+                if trimmed == last then break end
+                last = trimmed
+            end
+            lines[last_idx] = (last ~= "") and (last .. "…") or "…"
+        end
+
+        while #lines > 0 and lines[#lines] == "" do
+            lines[#lines] = nil
+        end
+        return lines
+    end
+
+    local help_lines = wrapPrefixedHelp(help, line_widths, help_pt)
+    local help_rows = math.max(1, #help_lines)
+    local help_h = math.max(min_icon_h, (help_rows - 1) * help_step + help_lh) + scale(4)
+    local footer_h = scale(30)
+    local footer_y = content_top + content_h - footer_h
+    local body_y = help_top + help_h
+    local body_bottom = footer_y - scale(4)
+    local body_h = body_bottom - body_y
+
+    tw_pref:paintTo(bb, x0, help_top + math.floor((help_lh - pref_sz.h) / 2))
+    tw_pref:free()
+
+    for i, line in ipairs(help_lines) do
+        if line ~= "" then
+            local tw = TextWidget:new{ text = line, face = Font:getFace("cfont", scaleText(help_pt)), fgcolor = GRAY }
+            local lsz = tw:getSize()
+            local lx = (i == 1) and (x0 + pref_sz.w) or x0
+            local ly = help_top + (i - 1) * help_step + math.floor((help_lh - lsz.h) / 2)
+            tw:paintTo(bb, lx, ly)
+            tw:free()
+        end
+    end
+
+    -- Flecha ‹ / › con los SVG de chevrón (se invierte al tocarla)
+    local function paintArrow(ax, ay, aw, ah, icon, key)
+        local pressed = (self._pressed_btn == key)
+        paintPill(bb, ax, ay, aw, ah, pressed)
+        if icon then
+            local isz = icon:getSize()
+            paintIconOn(bb, icon, ax + math.floor((aw - isz.w) / 2), ay + math.floor((ah - isz.h) / 2), pressed)
+        end
+    end
+
+    -- Riel + perilla (mismo estilo que el slider de brillo)
+    local function paintTrack(tx, tw_, cy, frac, dragging)
+        local knob, track_h = scale(18), scale(3)
+        local track_x = tx + math.floor(knob / 2)
+        local track_w = tw_ - knob
+        local kx = math.floor(frac * track_w)
+        local tr = math.floor(track_h / 2)
+        local fill_w = math.max(track_h, kx + (dragging and 0 or math.floor(knob / 2)))
+        paintRoundRect(bb, track_x, cy - tr, track_w, track_h, tr, Blitbuffer.COLOR_LIGHT_GRAY)
+        paintRoundRect(bb, track_x, cy - tr, math.min(track_w, fill_w), track_h, tr, BLACK)
+        if not dragging then
+            local ring = 1
+            local ky = cy - math.floor(knob / 2)
+            local kxx = track_x + kx - math.floor(knob / 2)
+            local kr = math.floor(knob / 2)
+            paintRoundRect(bb, kxx, ky, knob, knob, kr, Blitbuffer.COLOR_DARK_GRAY)
+            paintRoundRect(bb, kxx + ring, ky + ring, knob - 2 * ring, knob - 2 * ring, math.max(1, kr - ring), WHITE)
+        end
+        return track_x, track_w
+    end
+
+    -- ---------- Cuerpo ----------
+    if spec.presets and spec.mode ~= "bars" then
+        -- Lo más simple primero: un botón por valor con nombre (Small / Medium / Large...)
+        local n = #spec.presets
+        local pgap = scale(6)
+        local pw = math.floor((w - (n - 1) * pgap) / n)
+        local ph = math.min(scale(44), math.max(scale(28), body_h - scale(8)))
+        local matched = false
+        for _i, p in ipairs(spec.presets) do
+            if valuesEqual(p.value, spec.pending) then matched = true; break end
+        end
+        -- Si el valor actual no es ninguno de los botones (se ajustó con la barra), se avisa debajo en chico
+        local note_h = (not matched and body_h >= ph + scale(20)) and scale(14) or 0
+        local group_h = ph + note_h
+        local py = body_y + math.floor((body_h - group_h) / 2)
+        -- Un solo tamaño de letra para todos los botones (el más grande en que entra el más largo, en negrita,
+        -- que es como se ve el elegido): así ninguno se corta y se ven parejos
+        local label_pt = 12
+        for pt = 12, 6, -1 do
+            local fits = true
+            for _i, p in ipairs(spec.presets) do
+                if pickTextWidth(p.label, pt, true) > pw - scale(10) then fits = false; break end
+            end
+            label_pt = pt
+            if fits then break end
+        end
+        for i, p in ipairs(spec.presets) do
+            local px = x0 + (i - 1) * (pw + pgap)
+            local sel = valuesEqual(p.value, spec.pending)
+            local fg = paintPill(bb, px, py, pw, ph, sel)
+            local tw = fitTextWidget(p.label, label_pt, label_pt, pw - scale(8), sel, fg)
+            local sz = tw:getSize()
+            tw:paintTo(bb, px + math.floor((pw - sz.w) / 2), py + math.floor((ph - sz.h) / 2))
+            tw:free()
+            hit.presets[#hit.presets + 1] = {
+                dimen = Geom:new{ x = px - math.floor(pgap / 2), y = py - scale(4), w = pw + pgap, h = ph + scale(8) },
+                value = p.value,
+            }
+        end
+        if note_h > 0 then
+            local tw_n = fitTextWidget(_("Custom") .. ": " .. self:_pickerText(spec, spec.pending), 9, 6, w, false, GRAY)
+            local nsz = tw_n:getSize()
+            tw_n:paintTo(bb, x0 + math.floor((w - nsz.w) / 2), py + ph + scale(3))
+            tw_n:free()
+        end
+
+    elseif spec.kind == "numeric" then
+        local vy = body_y
+        local arrow_w, arrow_h = scale(44), scale(28)
+        local row1_h = scale(30)
+        local ay = vy + math.floor((row1_h - arrow_h) / 2)
+        paintArrow(x0, ay, arrow_w, arrow_h, self.icon_chev_left, "pick_minus")
+        paintArrow(x0 + w - arrow_w, ay, arrow_w, arrow_h, self.icon_chevron_right, "pick_plus")
+        hit.minus = Geom:new{ x = x0 - scale(6), y = vy, w = arrow_w + scale(12), h = row1_h }
+        hit.plus = Geom:new{ x = x0 + w - arrow_w - scale(6), y = vy, w = arrow_w + scale(12), h = row1_h }
+
+        local tw_v = fitTextWidget(self:_pickerText(spec, spec.pending), 18, 10, w - arrow_w * 2 - scale(8), true, BLACK)
+        local vsz = tw_v:getSize()
+        tw_v:paintTo(bb, x0 + math.floor((w - vsz.w) / 2), vy + math.floor((row1_h - vsz.h) / 2))
+        tw_v:free()
+
+        -- ¿Entran los valores típicos sin cortarse? Si no (son muchos), se saca la fila y queda solo el slider
+        local chips = spec.chips or {}
+        local chip_fmt = spec.chip_fmt or fmtCleanNum
+        local chip_gap = scale(3)
+        local chip_pt = false
+        if #chips > 0 then
+            if spec._chip_pt == nil then
+                local cw = math.floor((w - (#chips - 1) * chip_gap) / #chips)
+                spec._chip_pt = false
+                for pt = 9, 6, -1 do
+                    local all_fit = true
+                    for _i, v in ipairs(chips) do
+                        if pickTextWidth(chip_fmt(v), pt, false) > cw - scale(5) then all_fit = false; break end
+                    end
+                    if all_fit then spec._chip_pt = pt; break end
+                end
+            end
+            chip_pt = spec._chip_pt
+        end
+
+        local slider_h = scale(34)
+        local sy
+        if chip_pt then
+            sy = vy + row1_h + scale(4)
+        else
+            sy = vy + row1_h + math.floor((body_h - row1_h - slider_h) / 2)
+        end
+        local cy = sy + math.floor(slider_h / 2)
+        local frac = math.max(0, math.min(1, (spec.pending - spec.lo) / (spec.hi - spec.lo)))
+        local track_x, track_w = paintTrack(x0, w, cy, frac, self._pick_drag == true)
+        hit.track = Geom:new{ x = x0 - scale(4), y = cy - scale(18), w = w + scale(8), h = scale(36) }
+        hit.track_x, hit.track_w = track_x, track_w
+
+        if chip_pt then
+            local n = #chips
+            local chip_y = sy + slider_h + scale(4)
+            local chip_h = math.min(scale(26), math.max(scale(18), body_bottom - chip_y - scale(2)))
+            local cw = math.floor((w - (n - 1) * chip_gap) / n)
+            local face = Font:getFace("cfont", scaleText(chip_pt))
+            for i, v in ipairs(chips) do
+                local cx = x0 + (i - 1) * (cw + chip_gap)
+                local sel = math.abs(v - spec.pending) < 0.000001
+                local fg = paintPill(bb, cx, chip_y, cw, chip_h, sel)
+                local tw = TextWidget:new{ text = chip_fmt(v), face = face, bold = sel, fgcolor = fg }
+                local sz = tw:getSize()
+                tw:paintTo(bb, cx + math.floor((cw - sz.w) / 2), chip_y + math.floor((chip_h - sz.h) / 2))
+                tw:free()
+                hit.chips[#hit.chips + 1] = {
+                    dimen = Geom:new{ x = cx - math.floor(chip_gap / 2), y = chip_y - scale(2), w = cw + chip_gap, h = chip_h + scale(4) },
+                    value = v,
+                }
+            end
+        end
+
+    elseif spec.kind == "dual" then
+        -- Dos valores: cada uno con sus flechas y su riel
+        local rh = math.floor(body_h / 2)
+        local arrow_w, arrow_h = scale(34), scale(22)
+        for k = 1, 2 do
+            local f = spec.fields[k]
+            local ry = body_y + (k - 1) * rh
+            local line1_h = math.floor(rh * 0.5)
+            local ay = ry + math.floor((line1_h - arrow_h) / 2)
+            local pk, pm = "pick_minus" .. k, "pick_plus" .. k
+            paintArrow(x0, ay, arrow_w, arrow_h, self.icon_chev_left, pk)
+            paintArrow(x0 + w - arrow_w, ay, arrow_w, arrow_h, self.icon_chevron_right, pm)
+
+            -- "Etiqueta  valor" centrado entre las flechas
+            local avail = w - arrow_w * 2 - scale(8)
+            local tw_name = fitTextWidget(f.label, 10, 8, math.floor(avail * 0.5), false, GRAY)
+            local tw_val = fitTextWidget(spec.fmt(spec.pending[k]) .. (spec.unit or ""), 15, 9,
+                avail - tw_name:getSize().w - scale(6), true, BLACK)
+            local nsz, vsz = tw_name:getSize(), tw_val:getSize()
+            local total = nsz.w + scale(6) + vsz.w
+            local tx = x0 + math.floor((w - total) / 2)
+            tw_name:paintTo(bb, tx, ry + math.floor((line1_h - nsz.h) / 2) + scale(1))
+            tw_val:paintTo(bb, tx + nsz.w + scale(6), ry + math.floor((line1_h - vsz.h) / 2))
+            tw_name:free()
+            tw_val:free()
+
+            local cy = ry + line1_h + math.floor((rh - line1_h) / 2)
+            local frac = math.max(0, math.min(1, (spec.pending[k] - f.lo) / (f.hi - f.lo)))
+            local track_x, track_w = paintTrack(x0, w, cy, frac, self._pick_drag == k)
+            hit.fields[k] = {
+                minus = Geom:new{ x = x0 - scale(6), y = ry, w = arrow_w + scale(12), h = line1_h },
+                plus = Geom:new{ x = x0 + w - arrow_w - scale(6), y = ry, w = arrow_w + scale(12), h = line1_h },
+                track = Geom:new{ x = x0 - scale(4), y = cy - scale(14), w = w + scale(8), h = scale(28) },
+                track_x = track_x, track_w = track_w,
+            }
+        end
+
+    elseif spec.kind == "list" then
+        local n = #spec.items
+        local row_gap = (n <= 4) and scale(3) or scale(1)
+        local rh = math.min(scale(36), math.floor((body_h - math.max(0, n - 1) * row_gap) / math.max(1, n)))
+        local total_list_h = n * rh + math.max(0, n - 1) * row_gap
+        local start_y = body_y + math.floor((body_h - total_list_h) / 2)
+        local press_col = Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_LIGHT_GRAY
+        for i, it in ipairs(spec.items) do
+            local ry = start_y + (i - 1) * (rh + row_gap)
+            local sel = valuesEqual(it.value, spec.pending)
+            local pressed = (self._pressed_btn == ("pick_tile_" .. i))
+
+            if pressed then
+                local pm = scale(6)
+                paintRoundRect(bb, r.x + border + pm, ry, inner_w - pm * 2, rh, scale(8), press_col)
+            end
+
+            local check_space = 0
+            if sel then
+                local tw_c = TextWidget:new{
+                    text = "✓",
+                    face = Font:getFace("cfont", scaleText(13)),
+                    bold = true,
+                    fgcolor = BLACK,
+                }
+                local csz = tw_c:getSize()
+                tw_c:paintTo(bb, x0 + w - csz.w, ry + math.floor((rh - csz.h) / 2))
+                tw_c:free()
+                check_space = csz.w + scale(8)
+            end
+
+            local tw = fitTextWidget(it.label, 12, 8, w - check_space, sel, BLACK)
+            local sz = tw:getSize()
+            tw:paintTo(bb, x0, ry + math.floor((rh - sz.h) / 2))
+            tw:free()
+
+            hit.tiles[#hit.tiles + 1] = {
+                dimen = Geom:new{ x = r.x + border, y = ry, w = inner_w, h = rh },
+                value = it.value,
+                index = i,
+            }
+        end
+
+    else -- grilla con íconos (dirección, zoom, alineación, rotación)
+        local n = #spec.items
+        local cols = (n <= 5) and n or 4
+        local rows = math.ceil(n / cols)
+        local gap = scale(4)
+        -- ¿Los casilleros tienen ícono? Entonces el título del elegido va abajo. Si el texto ya está adentro
+        -- del casillero (números, etc.) el título sería repetido y solo ocuparía lugar: no se pone.
+        local has_icons = false
+        if ok_iw and IconWidget then
+            for _i, it in ipairs(spec.items) do
+                if it.icon then has_icons = true; break end
+            end
+        end
+        -- Título del elegido: se mide su alto real (antes era un número fijo y el pie lo tapaba)
+        local caption_title = selected_item and (selected_item.long or selected_item.label) or nil
+        local caption_h, caption_gap = 0, 0
+        if has_icons and caption_title then
+            local probe_c = TextWidget:new{ text = "Ag", face = Font:getFace("cfont", scaleText(9)), bold = true }
+            caption_h = probe_c:getSize().h
+            probe_c:free()
+            caption_gap = scale(3)
+        end
+        local caption_block = (caption_h > 0) and (caption_h + caption_gap) or 0
+        local avail_h = body_h - caption_block
+        local tile_w = math.floor((w - (cols - 1) * gap) / cols)
+        local tile_h = math.min(scale(50), math.floor((avail_h - (rows - 1) * gap) / rows))
+        local grid_h = rows * tile_h + (rows - 1) * gap
+        -- Grilla + título se centran juntos en el cuerpo (y siempre quedan adentro: nunca llegan al pie)
+        local gy = body_y + math.max(0, math.floor((body_h - (grid_h + caption_block)) / 2))
+        for i, it in ipairs(spec.items) do
+            local col = (i - 1) % cols
+            local row = math.floor((i - 1) / cols)
+            local tx = x0 + col * (tile_w + gap)
+            local ty = gy + row * (tile_h + gap)
+            local sel = valuesEqual(it.value, spec.pending)
+            local rad = scale(8)
+            if sel then
+                paintRoundRect(bb, tx, ty, tile_w, tile_h, rad, BLACK)
+                paintRoundRect(bb, tx + scale(2), ty + scale(2), tile_w - scale(4), tile_h - scale(4), rad - scale(2), WHITE)
+            else
+                paintRoundRect(bb, tx, ty, tile_w, tile_h, rad, Blitbuffer.COLOR_LIGHT_GRAY)
+                paintRoundRect(bb, tx + 1, ty + 1, tile_w - 2, tile_h - 2, rad - 1, WHITE)
+            end
+            local icon_sz = math.min(scale(34), tile_h - scale(8), tile_w - scale(8))
+            local shown_icon = false
+            if it.icon and ok_iw and IconWidget and icon_sz > scale(10) then
+                shown_icon = pcall(function()
+                    local iw = IconWidget:new{ icon = it.icon, width = icon_sz, height = icon_sz }
+                    iw:paintTo(bb, tx + math.floor((tile_w - icon_sz) / 2), ty + math.floor((tile_h - icon_sz) / 2))
+                    iw:free()
+                end)
+            end
+            if not shown_icon then
+                -- Sin ícono: el texto va adentro del casillero
+                local tw = fitTextWidget(it.label, 11, 7, tile_w - scale(4), sel, BLACK)
+                local sz = tw:getSize()
+                tw:paintTo(bb, tx + math.floor((tile_w - sz.w) / 2), ty + math.floor((tile_h - sz.h) / 2))
+                tw:free()
+            end
+            hit.tiles[#hit.tiles + 1] = {
+                dimen = Geom:new{ x = tx, y = ty, w = tile_w, h = tile_h }, value = it.value,
+            }
+        end
+        -- Título de la opción elegida, debajo de la grilla (solo cuando los casilleros son íconos)
+        if caption_block > 0 then
+            local tw_c = fitTextWidget(caption_title, 9, 6, w, true, BLACK)
+            local csz = tw_c:getSize()
+            tw_c:paintTo(bb, x0 + math.floor((w - csz.w) / 2), gy + grid_h + caption_gap)
+            tw_c:free()
+        end
+    end
+
+    -- ---------- Pie inferior: Cancel (izq.) · Default (centro) · Apply (der.) ----------
+    local cancel_pressed = (self._pressed_btn == "pick_cancel")
+    local cancel_col = cancel_pressed and BLACK or GRAY
+    local tw_cancel = fitTextWidget(_("Cancel"), 11, 8, math.floor(w * 0.3), false, cancel_col)
+    local csz = tw_cancel:getSize()
+    if cancel_pressed then
+        paintRoundRect(bb, x0 - scale(6), footer_y + scale(3), csz.w + scale(12), footer_h - scale(6), scale(6), PRESSED_TAB_BG)
+    end
+    tw_cancel:paintTo(bb, x0, footer_y + math.floor((footer_h - csz.h) / 2))
+    tw_cancel:free()
+    hit.btn_cancel = Geom:new{
+        x = r.x + border,
+        y = footer_y,
+        w = pad + csz.w + scale(10),
+        h = footer_h,
+    }
+
+    local def_val = self:_pickerDefaultValue(spec)
+    local can_def = (def_val ~= nil) and not valuesEqual(spec.pending, def_val)
+    local def_pressed = (self._pressed_btn == "pick_def")
+    local def_h = scale(22)
+    local def_y = footer_y + math.floor((footer_h - def_h) / 2)
+    local def_fg = paintPill(bb, 0, -100, 10, def_h, def_pressed)
+    if not def_pressed and not can_def then
+        def_fg = GRAY
+    end
+    local tw_def = fitTextWidget(_("Default"), 10, 7, math.floor(w * 0.34), false, def_fg)
+    local dsz = tw_def:getSize()
+    local def_w = dsz.w + scale(16)
+    local def_x = x0 + math.floor((w - def_w) / 2)
+    paintPill(bb, def_x, def_y, def_w, def_h, def_pressed)
+    tw_def:paintTo(bb, def_x + math.floor((def_w - dsz.w) / 2), def_y + math.floor((def_h - dsz.h) / 2))
+    tw_def:free()
+    hit.btn_def = Geom:new{
+        x = def_x - scale(4),
+        y = footer_y,
+        w = def_w + scale(8),
+        h = footer_h,
+    }
+
+    local apply_pressed = (self._pressed_btn == "pick_apply")
+    local apply_col = (has_changes or apply_pressed) and BLACK or GRAY
+    local tw_apply = fitTextWidget(_("Apply"), 11, 8, math.floor(w * 0.3), true, apply_col)
+    local asz = tw_apply:getSize()
+    local apply_x = x0 + w - asz.w
+    if apply_pressed then
+        paintRoundRect(bb, apply_x - scale(6), footer_y + scale(3), asz.w + scale(12), footer_h - scale(6), scale(6), PRESSED_TAB_BG)
+    end
+    tw_apply:paintTo(bb, apply_x, footer_y + math.floor((footer_h - asz.h) / 2))
+    tw_apply:free()
+    hit.btn_apply = Geom:new{
+        x = apply_x - scale(10),
+        y = footer_y,
+        w = asz.w + pad + scale(10),
+        h = footer_h,
+    }
+end
+
 function ScrubberMenu:paintTo(bb, x, y)
+    if self._crop_hidden then return end
     local r = self.popup_rect
     local pad = scale(16)
-    local border = scale(2)
+    local border = math.max(1, scale(1))
     local radius = scale(16)
 
     local is_night = self:isNightMode()
@@ -1747,23 +4013,30 @@ function ScrubberMenu:paintTo(bb, x, y)
     tw_gear:paintTo(bb, self.tab_quick_dimen.x + math.floor((self.tab_quick_dimen.w - gsz.w) / 2), tab_y + math.floor((tab_h - gsz.h) / 2) + scale(LAMP_Y_NUDGE))
     tw_gear:free()
 
-    local is_typo = (self.active_tab == "typo" or self.active_tab == "font_list")
-    local tw_aa = TextWidget:new{
-        text = "Aa",
-        face = Font:getFace("cfont", scale(13)),
-        bold = is_typo,
-        fgcolor = is_typo and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
-    }
-    local aasz = tw_aa:getSize()
-    tw_aa:paintTo(bb, self.tab_typo_dimen.x + math.floor((self.tab_typo_dimen.w - aasz.w) / 2), tab_y + math.floor((tab_h - aasz.h) / 2))
-    tw_aa:free()
+    local is_typo = (self.active_tab == "typo" or self.active_tab == "font_list" or self.active_tab == "more_list" or self.active_tab == "opt_picker")
+    if self:_isTypoSubview() and self.icon_back then
+        -- Dentro de un submenú de Aa (fuentes, More, selector de una opción) el botón es la flecha de "volver"
+        local bsz = self.icon_back:getSize()
+        self.icon_back:paintTo(bb, self.tab_typo_dimen.x + math.floor((self.tab_typo_dimen.w - bsz.w) / 2),
+            tab_y + math.floor((tab_h - bsz.h) / 2))
+    else
+        local tw_aa = TextWidget:new{
+            text = "Aa",
+            face = Font:getFace("cfont", scale(13)),
+            bold = is_typo,
+            fgcolor = is_typo and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_DARK_GRAY,
+        }
+        local aasz = tw_aa:getSize()
+        tw_aa:paintTo(bb, self.tab_typo_dimen.x + math.floor((self.tab_typo_dimen.w - aasz.w) / 2), tab_y + math.floor((tab_h - aasz.h) / 2))
+        tw_aa:free()
+    end
 
-    -- Línea divisoria inferior de pestañas: gris y más gruesa (crece hacia arriba, el contenido no se mueve).
+    -- Línea divisoria inferior de pestañas: hairline de 1px en COLOR_GRAY_E.
     -- El indicador negro de la pestaña activa se pinta DESPUÉS, por encima de esta línea.
-    local div_h = scale(2)
-    bb:paintRect(r.x + border, tab_y + tab_h - div_h, inner_w, div_h, Blitbuffer.COLOR_LIGHT_GRAY)
+    local div_h = math.max(1, scale(1))
+    bb:paintRect(r.x + border, tab_y + tab_h - div_h, inner_w, div_h, Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_LIGHT_GRAY)
 
-    local ind_h = scale(3)   -- más alto que la línea: la cubre por completo en el tramo activo
+    local ind_h = math.max(2, scale(2))   -- cubre la línea divisoria en el tramo activo
     if is_quick then
         bb:paintRect(self.tab_quick_dimen.x + scale(16), tab_y + tab_h - ind_h, half_w - scale(32), ind_h, Blitbuffer.COLOR_BLACK)
     else
@@ -1789,7 +4062,7 @@ function ScrubberMenu:paintTo(bb, x, y)
         local light_slider = self:_getLightSlider()   -- nil: el dispositivo no da acceso al nivel → solo queda el toggle
         local head_h = scale(24)                       -- cabecera: lo que mide el toggle
         local head_gap = scale(6)                      -- aire entre la cabecera y el slider
-        local slider_h = light_slider and scale(20) or 0   -- alto visible del slider = la perilla (la zona de toque es más alta)
+        local slider_h = light_slider and scale(18) or 0   -- alto visible del slider = la perilla (la zona de toque es más alta)
         local block_h = head_h + (light_slider and (head_gap + slider_h) or 0)
         local bottom_h = scale(44)                     -- caja de toque de los íconos de abajo
         local icon_vis = scale(34)                     -- alto visible de la fila de abajo: lo que mide la píldora de búsqueda
@@ -1939,8 +4212,85 @@ function ScrubberMenu:paintTo(bb, x, y)
             end
         end
 
+        -- PDF / CBZ: en vez de fuente / tamaño / interlineado, tres accesos a submenús (Reflow, Page, Visual)
+        local is_paging = (self:getDocKind() == "paging")
+        local r1_y, r2_y, r3_y = content_top, content_top + row_h, content_top + row_h * 2
+        self.btn_entry_dimens = nil
+        if is_paging then
+            self.btn_font_row_dimen = nil
+            self.btn_size_dec_dimen, self.btn_size_inc_dimen = nil, nil
+            self.btn_space_dec_dimen, self.btn_space_inc_dimen = nil, nil
+            self.btn_size_mid_dimen, self.btn_space_mid_dimen = nil, nil
+            self.btn_entry_dimens = {}
+            local entries = {}
+            for _i, def in ipairs({
+                { group = "page",   label = _("Page"),   icon = self.icon_view_page },
+                { group = "reflow", label = _("Reflow"), icon = self.icon_col_one },
+                { group = "visual", label = _("Visual"), icon = self.icon_droplet2 },
+            }) do
+                -- Un grupo sin opciones para este documento (p. ej. Reflow en un CBZ) no se muestra
+                if #self:_groupRows(def.group) > 0 then
+                    def.summary = self:_groupSummary(def.group)
+                    entries[#entries + 1] = def
+                end
+            end
+            local chev_sz = scale(16)
+            for i, e in ipairs(entries) do
+                local ey = content_top + (i - 1) * row_h
+                self.btn_entry_dimens[#self.btn_entry_dimens + 1] = {
+                    group = e.group,
+                    dimen = Geom:new{ x = r.x + border, y = ey, w = inner_w, h = row_h },
+                }
+                local chev_x = row_x + row_w - chev_sz
+                local chev_y = ey + math.floor((row_h - chev_sz) / 2)
+                local painted = false
+                if self.icon_chevron_right then
+                    painted = pcall(function() self.icon_chevron_right:paintTo(bb, chev_x, chev_y) end)
+                end
+                if not painted then
+                    local tw_c = TextWidget:new{ text = "›", face = Font:getFace("cfont", scale(14)), bold = true, fgcolor = Blitbuffer.COLOR_BLACK }
+                    local csz = tw_c:getSize()
+                    tw_c:paintTo(bb, chev_x + math.floor((chev_sz - csz.w) / 2), ey + math.floor((row_h - csz.h) / 2))
+                    tw_c:free()
+                end
+                local right_edge = chev_x - scale(8)
+                if e.summary and e.summary ~= "" then
+                    local tw_s = TextWidget:new{
+                        text = e.summary,
+                        face = Font:getFace("cfont", scaleText(11)),
+                        fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                        max_width = math.floor(row_w * 0.4),
+                        truncate_with_ellipsis = true,
+                    }
+                    local ssz = tw_s:getSize()
+                    tw_s:paintTo(bb, right_edge - ssz.w, ey + math.floor((row_h - ssz.h) / 2))
+                    tw_s:free()
+                    right_edge = right_edge - ssz.w - scale(8)
+                end
+                -- Ícono al inicio de la fila (si hay) y el nombre a continuación
+                local label_x = row_x
+                if e.icon then
+                    local isz = e.icon:getSize()
+                    local drawn = pcall(function()
+                        e.icon:paintTo(bb, row_x, ey + math.floor((row_h - isz.h) / 2))
+                    end)
+                    if drawn then label_x = row_x + isz.w + scale(10) end
+                end
+                local tw_l = TextWidget:new{
+                    text = e.label,
+                    face = Font:getFace("cfont", scaleText(13)),
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    max_width = math.max(scale(40), right_edge - label_x),
+                    truncate_with_ellipsis = true,
+                }
+                local lsz = tw_l:getSize()
+                tw_l:paintTo(bb, label_x, ey + math.floor((row_h - lsz.h) / 2))
+                tw_l:free()
+            end
+        else
         -- 1. FILA FUENTE: Nombre de Fuente (con su propia font) + Chevron a la derecha
-        local r1_y = content_top
+        r1_y = content_top
         self.btn_font_row_dimen = Geom:new{ x = r.x + border, y = r1_y, w = inner_w, h = row_h }
 
         local chev_sz = scale(16)
@@ -1959,7 +4309,10 @@ function ScrubberMenu:paintTo(bb, x, y)
         end
 
         local cur_font = self:getBookFontFace()
-        local max_font_w = math.max(scale(40), chev_x - row_x - scale(8))
+        local has_pin1 = self.icon_pin and self:_isDefaultSet({ "font_face" })
+        local psz1 = has_pin1 and self.icon_pin:getSize() or { w = 0, h = 0 }
+        local pin1_extra = has_pin1 and (scale(5) + psz1.w) or 0
+        local max_font_w = math.max(scale(40), chev_x - row_x - scale(8) - pin1_extra)
         local font_face_preview = getCreFace(cur_font, scaleText(13))
 
         local tw_font = TextWidget:new{
@@ -1972,10 +4325,13 @@ function ScrubberMenu:paintTo(bb, x, y)
         }
         local ftsz = tw_font:getSize()
         tw_font:paintTo(bb, row_x, r1_y + math.floor((row_h - ftsz.h) / 2))
+        if has_pin1 then
+            self.icon_pin:paintTo(bb, row_x + ftsz.w + scale(5), r1_y + math.floor((row_h - psz1.h) / 2))
+        end
         tw_font:free()
 
         -- 2. FILA TAMAÑO DE TEXTO: [ − ]   Aa  22 pt   [ + ]
-        local r2_y = r1_y + row_h
+        r2_y = r1_y + row_h
 
         local step_w = scale(42)
         local step_h = scale(30)
@@ -1984,6 +4340,9 @@ function ScrubberMenu:paintTo(bb, x, y)
 
         self.btn_size_dec_dimen = Geom:new{ x = r.x + border, y = r2_y, w = pad + step_w + scale(8), h = row_h }
         self.btn_size_inc_dimen = Geom:new{ x = right_step_x - scale(8), y = r2_y, w = pad + step_w + scale(8), h = row_h }
+        self.btn_size_mid_dimen = Geom:new{
+            x = self.btn_size_dec_dimen.x + self.btn_size_dec_dimen.w, y = r2_y,
+            w = math.max(0, self.btn_size_inc_dimen.x - (self.btn_size_dec_dimen.x + self.btn_size_dec_dimen.w)), h = row_h }
 
         paintStepPill(row_x, step2_y, step_w, step_h, false, self._pressed_btn == "size_dec")
         paintStepPill(right_step_x, step2_y, step_w, step_h, true, self._pressed_btn == "size_inc")
@@ -2004,20 +4363,29 @@ function ScrubberMenu:paintTo(bb, x, y)
         local aasz2 = tw_aa_ico:getSize()
         local svsz = tw_sz_val:getSize()
         local gap_lbl = scale(6)
-        local total_w2 = aasz2.w + gap_lbl + svsz.w
+        local has_pin2 = self.icon_pin and self:_isDefaultSet({ "font_size" })
+        local psz2 = has_pin2 and self.icon_pin:getSize() or { w = 0, h = 0 }
+        local pin2_extra = has_pin2 and (scale(4) + psz2.w) or 0
+        local total_w2 = aasz2.w + gap_lbl + svsz.w + pin2_extra
         local start_x2 = r.x + math.floor((r.w - total_w2) / 2)
 
         tw_aa_ico:paintTo(bb, start_x2, r2_y + math.floor((row_h - aasz2.h) / 2))
         tw_sz_val:paintTo(bb, start_x2 + aasz2.w + gap_lbl, r2_y + math.floor((row_h - svsz.h) / 2))
+        if has_pin2 then
+            self.icon_pin:paintTo(bb, start_x2 + aasz2.w + gap_lbl + svsz.w + scale(4), r2_y + math.floor((row_h - psz2.h) / 2))
+        end
         tw_aa_ico:free()
         tw_sz_val:free()
 
         -- 3. FILA INTERLINEADO: [ − ]   ≡  100%   [ + ]
-        local r3_y = r2_y + row_h
+        r3_y = r2_y + row_h
 
         local step3_y = r3_y + math.floor((row_h - step_h) / 2)
         self.btn_space_dec_dimen = Geom:new{ x = r.x + border, y = r3_y, w = pad + step_w + scale(8), h = row_h }
         self.btn_space_inc_dimen = Geom:new{ x = right_step_x - scale(8), y = r3_y, w = pad + step_w + scale(8), h = row_h }
+        self.btn_space_mid_dimen = Geom:new{
+            x = self.btn_space_dec_dimen.x + self.btn_space_dec_dimen.w, y = r3_y,
+            w = math.max(0, self.btn_space_inc_dimen.x - (self.btn_space_dec_dimen.x + self.btn_space_dec_dimen.w)), h = row_h }
 
         paintStepPill(row_x, step3_y, step_w, step_h, false, self._pressed_btn == "space_dec")
         paintStepPill(right_step_x, step3_y, step_w, step_h, true, self._pressed_btn == "space_inc")
@@ -2037,61 +4405,115 @@ function ScrubberMenu:paintTo(bb, x, y)
         }
         local eqsz = tw_eq_ico:getSize()
         local spsz = tw_sp_val:getSize()
-        local total_w3 = eqsz.w + gap_lbl + spsz.w
+        local has_pin3 = self.icon_pin and self:_isDefaultSet({ "line_spacing" })
+        local psz3 = has_pin3 and self.icon_pin:getSize() or { w = 0, h = 0 }
+        local pin3_extra = has_pin3 and (scale(4) + psz3.w) or 0
+        local total_w3 = eqsz.w + gap_lbl + spsz.w + pin3_extra
         local start_x3 = r.x + math.floor((r.w - total_w3) / 2)
 
         tw_eq_ico:paintTo(bb, start_x3, r3_y + math.floor((row_h - eqsz.h) / 2))
         tw_sp_val:paintTo(bb, start_x3 + eqsz.w + gap_lbl, r3_y + math.floor((row_h - spsz.h) / 2))
+        if has_pin3 then
+            self.icon_pin:paintTo(bb, start_x3 + eqsz.w + gap_lbl + spsz.w + scale(4), r3_y + math.floor((row_h - psz3.h) / 2))
+        end
         tw_eq_ico:free()
         tw_sp_val:free()
 
-        -- 4. FILA INFERIOR: Píldora segmentada de ancho completo (solo SVG) + ícono de rotar a la derecha
+        end
+
+        -- 4. FILA INFERIOR: píldora segmentada (columnas / modo de vista) + botón More (⋮) + rotar
         local r4_y = r3_y + row_h
 
         local opt_h = scale(34)
         local opt_y = r4_y + math.floor((row_h - opt_h) / 2)
-        local rot_sz = scale(32)
+        local btn_sz = scale(32)
+        local btn_gap = scale(2)
         local pill_gap = scale(10)
-        local rot_x = row_x + row_w - rot_sz
-        local pill_w = rot_x - pill_gap - row_x
-        local seg_w = math.floor(pill_w / 2)
+        -- EPUB: More (⋮) queda en el extremo derecho y Rotar a su izquierda.
+        -- PDF / CBZ: no hay More, así que Rotar ocupa el extremo derecho.
+        local edge_x = row_x + row_w - btn_sz
+        local more_x = edge_x
+        local rot_x = is_paging and edge_x or (edge_x - btn_gap - btn_sz)
 
-        local seg_icons, selected
+        local seg_icons, selected, seg_n
         if self:getDocKind() == "paging" then
             seg_icons = { self.icon_view_page, self.icon_view_cont }
             selected = self:isContinuousView() and 2 or 1
+            seg_n = 2
+        elseif self:_optAvailable("view_mode") then
+            -- EPUB: una columna / dos columnas / modo continuo (scroll)
+            seg_icons = { self.icon_col_one, self.icon_col_two, self.icon_view_cont }
+            selected = self:isRollingScroll() and 3 or self:getBookColumns()
+            seg_n = 3
         else
             seg_icons = { self.icon_col_one, self.icon_col_two }
             selected = self:getBookColumns()
+            seg_n = 2
         end
 
-        paintSegmented(bb, row_x, opt_y, pill_w, opt_h, seg_icons, nil, selected)
-        self.btn_seg_dimens = {
-            Geom:new{ x = row_x, y = r4_y, w = seg_w, h = row_h },
-            Geom:new{ x = row_x + seg_w, y = r4_y, w = pill_w - seg_w, h = row_h },
-        }
+        local layout_names = (self:getDocKind() == "paging") and { "page_scroll" }
+            or (seg_n == 3 and { "visible_pages", "view_mode" } or { "visible_pages" })
+        local has_pin4 = self.icon_pin and self:_isDefaultSet(layout_names)
+        local psz4 = has_pin4 and self.icon_pin:getSize() or { w = 0, h = 0 }
+        local pin4_space = has_pin4 and (psz4.w + scale(4)) or 0
+        local pill_w = rot_x - pill_gap - pin4_space - row_x   -- Rotar es siempre el botón más a la izquierda
 
-        local ic_rot = self.icon_rotate
-        if ic_rot then
-            local isz = ic_rot:getSize()
-            local ix = rot_x + math.floor((rot_sz - isz.w) / 2)
+        paintSegmented(bb, row_x, opt_y, pill_w, opt_h, seg_icons, nil, selected, seg_n)
+        if has_pin4 then
+            self.icon_pin:paintTo(bb, row_x + pill_w + scale(5), r4_y + math.floor((row_h - psz4.h) / 2))
+        end
+        local seg_w = math.floor(pill_w / seg_n)
+        self.btn_seg_dimens = {}
+        for i = 1, seg_n do
+            local sx = row_x + (i - 1) * seg_w
+            local sw_i = (i == seg_n) and (pill_w - (seg_n - 1) * seg_w) or seg_w
+            self.btn_seg_dimens[i] = Geom:new{ x = sx, y = r4_y, w = sw_i, h = row_h }
+        end
+
+        -- Botón More (⋮) y botón de rotar: el ícono se invierte un instante al tocarlo
+        local function paintSideBtn(icon, bx, pressed_key)
+            if not icon then return end
+            local isz = icon:getSize()
+            local ix = bx + math.floor((btn_sz - isz.w) / 2)
             local iy = r4_y + math.floor((row_h - isz.h) / 2)
-            if self._pressed_btn == "rotate" then
+            if self._pressed_btn == pressed_key then
                 local box = scale(38)
-                local bx = rot_x + math.floor((rot_sz - box) / 2)
-                paintRoundRect(bb, bx, r4_y + math.floor((row_h - box) / 2), box, box, scale(8), Blitbuffer.COLOR_BLACK)
-                paintIconOn(bb, ic_rot, ix, iy, true)
+                local bxx = bx + math.floor((btn_sz - box) / 2)
+                paintRoundRect(bb, bxx, r4_y + math.floor((row_h - box) / 2), box, box, scale(8), Blitbuffer.COLOR_BLACK)
+                paintIconOn(bb, icon, ix, iy, true)
             else
-                ic_rot:paintTo(bb, ix, iy)
+                icon:paintTo(bb, ix, iy)
             end
         end
+        if not is_paging then paintSideBtn(self.icon_more, more_x, "more") end
+        paintSideBtn(self.icon_rotate, rot_x, "rotate")
+
+        local right_edge = r.x + r.w - border
         local rot_zone_x = rot_x - math.floor(pill_gap / 2)
-        self.btn_rotate_dimen = Geom:new{
-            x = rot_zone_x,
-            y = r4_y,
-            w = (r.x + r.w - border) - rot_zone_x,
-            h = row_h,
+        if is_paging then
+            self.btn_rotate_dimen = Geom:new{ x = rot_zone_x, y = r4_y, w = right_edge - rot_zone_x, h = row_h }
+            self.btn_more_dimen = nil
+        else
+            local more_zone_x = more_x - math.floor(btn_gap / 2)
+            self.btn_rotate_dimen = Geom:new{ x = rot_zone_x, y = r4_y, w = more_zone_x - rot_zone_x, h = row_h }
+            self.btn_more_dimen = Geom:new{ x = more_zone_x, y = r4_y, w = right_edge - more_zone_x, h = row_h }
+        end
+
+        -- Zonas para mantener apretado (poner / sacar valor por defecto)
+        local full_x, full_w = r.x + border, inner_w
+        self._typo_hold = {
+            { label = _("Font"), names = { "font_face" },
+              dimen = Geom:new{ x = full_x, y = r1_y, w = full_w, h = row_h } },
+            { label = _("Font size"), names = { "font_size" }, native = "font_size",
+              dimen = Geom:new{ x = full_x, y = r2_y, w = full_w, h = row_h } },
+            { label = _("Line spacing"), names = { "line_spacing" }, native = "line_spacing",
+              dimen = Geom:new{ x = full_x, y = r3_y, w = full_w, h = row_h } },
+            { label = _("Layout"),
+              names = layout_names,
+              dimen = Geom:new{ x = row_x, y = r4_y, w = pill_w + pin4_space, h = row_h } },
         }
+        -- PDF / CBZ: las tres primeras filas son accesos a submenús; solo la fila de abajo tiene valor por defecto
+        if is_paging then self._typo_hold = { self._typo_hold[4] } end
 
     -- ====================================================
     -- SUBVISTA: LISTA PAGINADA DE FUENTES (CADA UNA EN SU PROPIA FUENTE)
@@ -2131,10 +4553,6 @@ function ScrubberMenu:paintTo(bb, x, y)
                 local fname = fonts[i]
                 local row_rect = Geom:new{ x = r.x + border, y = curr_y, w = inner_w, h = rh }
                 table.insert(self.font_row_dimens, { dimen = row_rect, font = fname })
-
-                if i > start_i then
-                    bb:paintRect(r.x + border, curr_y, inner_w, 1, Blitbuffer.COLOR_LIGHT_GRAY)
-                end
 
                 local is_sel = (fname == cur_font)
                 local item_face = getCreFace(fname, scaleText(13))
@@ -2179,7 +4597,6 @@ function ScrubberMenu:paintTo(bb, x, y)
             if self.font_total_pages > 1 then
                 local fy = content_top + (per_page * rh)
                 local fh = self.font_footer_h
-                bb:paintRect(r.x + border, fy, inner_w, scale(2), Blitbuffer.COLOR_LIGHT_GRAY)  -- igual que la divisoria de los tabs
                 self.font_footer_dimen = Geom:new{ x = r.x + border, y = fy, w = inner_w, h = fh }
 
                 local total_pages = self.font_total_pages
@@ -2209,6 +4626,255 @@ function ScrubberMenu:paintTo(bb, x, y)
                 self.font_pill_dimen = nil
                 self.font_footer_dimen = nil
             end
+        end
+
+    -- ====================================================
+    -- SUBVISTA: SELECTOR PROPIO DE UNA OPCIÓN
+    -- ====================================================
+    elseif self.active_tab == "opt_picker" then
+        self:_paintPicker(bb, r, border, inner_w, content_top, content_h)
+
+    -- ====================================================
+    -- SUBVISTA: MÁS OPCIONES (botón ⋮ de la pestaña Aa)
+    -- ====================================================
+    elseif self.active_tab == "more_list" then
+        local conf = self:_conf() or {}
+        local sect_h = scale(26)
+        local full_rh = self.font_row_h
+        local pages, paginated = self:_morePages()
+        self.more_total_pages = math.max(1, #pages)
+        self.more_page = math.max(1, math.min(self.more_page or 1, self.more_total_pages))
+        self.more_pill_dimen = nil
+        self.more_pill_info = nil
+        local page_def = pages[self.more_page] or { entries = {} }
+        local rows = page_def.entries
+        local count = #rows
+        local per_page = self.fonts_per_page or 5
+
+        local rh
+        if paginated then
+            rh = full_rh
+        elseif page_def.plain then
+            rh = (count > 0) and math.min(full_rh, math.floor(content_h / count)) or full_rh
+        else
+            rh = full_rh
+        end
+        self.more_hits = {}
+
+        if count == 0 then
+            local tw_empty = TextWidget:new{
+                text = _("No more options"),
+                face = Font:getFace("cfont", scale(11)),
+                bold = true,
+                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+            }
+            local esz = tw_empty:getSize()
+            tw_empty:paintTo(bb, r.x + math.floor((r.w - esz.w) / 2), content_top + scale(40))
+            tw_empty:free()
+        end
+
+        local m_pad = scale(12)
+        local row_x = r.x + m_pad
+        local right = r.x + r.w - m_pad
+        local base_fsz = math.max(8, scaleText(10))
+        local row_face = Font:getFace("cfont", base_fsz)
+        local val_face = Font:getFace("cfont", base_fsz)
+
+        local cur_y = content_top
+        local used_h = 0
+        for i = 1, count do
+            local row = rows[i]
+            if row.section then
+                -- Rótulo de sección: texto chico, gris y en negrita, pegado a las filas de abajo
+                local tw_sec = TextWidget:new{
+                    text = tostring(row.section),
+                    face = Font:getFace("cfont", scaleText(9)),
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                    max_width = r.w - m_pad * 2,
+                    truncate_with_ellipsis = true,
+                }
+                local ssz = tw_sec:getSize()
+                tw_sec:paintTo(bb, row_x + scale(2), math.max(cur_y + scale(4), cur_y + sect_h - ssz.h - scale(3)))
+                tw_sec:free()
+                cur_y = cur_y + sect_h
+                used_h = used_h + sect_h
+                goto continue_row
+            end
+            do
+            local ry = cur_y
+            cur_y = cur_y + rh
+            used_h = used_h + rh
+            local hit = { row = row, dimen = Geom:new{ x = r.x + border, y = ry, w = inner_w, h = rh } }
+            self.more_hits[#self.more_hits + 1] = hit
+
+            local value = row.name and self:_currentFor(row.name) or nil
+            local ctl_left = right
+            local lbl_off = 0   -- corrimiento del nombre cuando la fila lleva un ícono al inicio
+
+            if row.kind == "step" then
+                local step_w = scale(26)
+                local step_h = math.min(scale(22), rh - scale(6))
+                local minus_x = row_x
+                local plus_x = right - step_w
+                local sy = ry + math.floor((rh - step_h) / 2)
+                paintMiniStep(bb, minus_x, sy, step_w, step_h, false, self._pressed_btn == "more_dec_" .. row.id)
+                paintMiniStep(bb, plus_x, sy, step_w, step_h, true, self._pressed_btn == "more_inc_" .. row.id)
+
+                local lbl_x = minus_x + step_w + scale(8)
+                local val_right = plus_x - scale(8)
+
+                local val_txt = value ~= nil and self:_optValueText(row.name, value) or "-"
+                local tw_v = TextWidget:new{
+                    text = val_txt,
+                    face = val_face,
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                }
+                local vsz = tw_v:getSize()
+                local val_x = val_right - vsz.w
+                tw_v:paintTo(bb, val_x, ry + math.floor((rh - vsz.h) / 2))
+                tw_v:free()
+
+                local has_pin = self.icon_pin and row.names and self:_isDefaultSet(row.names)
+                local psz = has_pin and self.icon_pin:getSize() or { w = 0, h = 0 }
+                local pin_extra = has_pin and (scale(3) + psz.w) or 0
+                local lbl_max_w = math.max(scale(24), val_x - lbl_x - scale(6) - pin_extra)
+
+                local tw_l = TextWidget:new{
+                    text = row.label,
+                    face = row_face,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    max_width = lbl_max_w,
+                    truncate_with_ellipsis = true,
+                }
+                local lsz = tw_l:getSize()
+                tw_l:paintTo(bb, lbl_x, ry + math.floor((rh - lsz.h) / 2))
+                if has_pin then
+                    self.icon_pin:paintTo(bb, lbl_x + lsz.w + scale(3), ry + math.floor((rh - psz.h) / 2))
+                end
+                tw_l:free()
+
+                hit.dec = Geom:new{ x = r.x + border, y = ry, w = m_pad + step_w + scale(6), h = rh }
+                hit.inc = Geom:new{ x = plus_x - scale(6), y = ry, w = m_pad + step_w + scale(6), h = rh }
+                hit.mid = Geom:new{ x = hit.dec.x + hit.dec.w, y = ry,
+                    w = math.max(0, hit.inc.x - (hit.dec.x + hit.dec.w)), h = rh }
+            elseif row.kind == "group" then
+                -- Entrada a un submenú: solo el nombre y la flechita
+                local chev_x = right - scale(14)
+                local painted = false
+                if self.icon_chevron_right then
+                    painted = pcall(function()
+                        self.icon_chevron_right:paintTo(bb, chev_x, ry + math.floor((rh - scale(16)) / 2))
+                    end)
+                end
+                hit.ctl = Geom:new{ x = r.x + border, y = ry, w = inner_w, h = rh }
+                ctl_left = painted and chev_x or right
+                local row_icon = (row.id == "view_options" and self.icon_expand)
+                    or (row.id == "style_options" and self.icon_droplet2) or nil
+                if row_icon then
+                    local isz = row_icon:getSize()
+                    local drawn = pcall(function()
+                        row_icon:paintTo(bb, row_x, ry + math.floor((rh - isz.h) / 2))
+                    end)
+                    if drawn then lbl_off = isz.w + scale(10) end
+                end
+            elseif row.kind == "pick" then
+                -- PDF / CBZ: valor actual + flechita; tocar abre el selector (no se cambia nada hasta confirmar)
+                local val_txt = value ~= nil and self:_optValueText(row.name, value) or "-"
+                local chev_sz = scale(14)
+                local chev_x = right - chev_sz
+                local painted = false
+                if self.icon_chevron_right then
+                    painted = pcall(function()
+                        self.icon_chevron_right:paintTo(bb, chev_x, ry + math.floor((rh - scale(16)) / 2))
+                    end)
+                end
+                local tw_v = TextWidget:new{
+                    text = val_txt,
+                    face = val_face,
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    max_width = math.floor(inner_w * 0.45),
+                    truncate_with_ellipsis = true,
+                }
+                local vsz = tw_v:getSize()
+                local val_x = (painted and chev_x - scale(6) or right) - vsz.w
+                tw_v:paintTo(bb, val_x, ry + math.floor((rh - vsz.h) / 2))
+                tw_v:free()
+                hit.ctl = Geom:new{ x = r.x + border, y = ry, w = inner_w, h = rh }
+                ctl_left = val_x
+            elseif row.kind == "cycle" then
+                local val_txt = value ~= nil and self:_optValueText(row.name, value) or "-"
+                local tw_v = TextWidget:new{
+                    text = val_txt,
+                    face = val_face,
+                    bold = true,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                }
+                local vsz = tw_v:getSize()
+                local val_x = right - vsz.w
+                tw_v:paintTo(bb, val_x, ry + math.floor((rh - vsz.h) / 2))
+                tw_v:free()
+                hit.ctl = Geom:new{ x = r.x + border, y = ry, w = inner_w, h = rh }
+                ctl_left = val_x
+            else -- switch
+                local on = value ~= nil and value ~= 0 and value ~= false
+                local sw_w = scale(36)
+                local sw_h = math.min(scale(20), rh - scale(8))
+                local sx = right - sw_w
+                paintSwitch(bb, sx, ry + math.floor((rh - sw_h) / 2), sw_w, sw_h, on)
+                hit.ctl = Geom:new{ x = sx - scale(12), y = ry, w = sw_w + scale(12) + m_pad, h = rh }
+                hit.label = Geom:new{ x = r.x + border, y = ry, w = math.max(0, (sx - scale(12)) - (r.x + border)), h = rh }
+                ctl_left = sx
+            end
+
+            -- Etiqueta (+ marca de pin si el valor actual es el que está guardado por defecto)
+            if row.kind ~= "step" then
+                local tw_l = TextWidget:new{
+                    text = row.label,
+                    face = row_face,
+                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    max_width = math.max(scale(40), ctl_left - row_x - lbl_off - scale(10)),
+                    truncate_with_ellipsis = true,
+                }
+                local lsz = tw_l:getSize()
+                tw_l:paintTo(bb, row_x + lbl_off, ry + math.floor((rh - lsz.h) / 2))
+                if self.icon_pin and row.names and self:_isDefaultSet(row.names) then
+                    local pin_x = row_x + lbl_off + lsz.w + scale(4)
+                    local psz = self.icon_pin:getSize()
+                    if pin_x + psz.w < ctl_left - scale(2) then
+                        self.icon_pin:paintTo(bb, pin_x, ry + math.floor((rh - psz.h) / 2))
+                    end
+                end
+                tw_l:free()
+            end
+            end -- do
+            ::continue_row::
+        end
+
+        -- Pie con puntitos de página (solo si la lista tiene más de una página)
+        if paginated and self.more_total_pages > 1 then
+            local fy = content_top + (per_page * full_rh)
+            local fh = self.font_footer_h
+
+            local total_pages = self.more_total_pages
+            local dot_r = math.max(2, math.floor(scale(2.5)))
+            local natural_pitch = scale(10)
+            local budget = inner_w - (scale(20) * 2)
+            local pitch = math.min(natural_pitch, (budget - 2 * dot_r) / (total_pages - 1))
+
+            local pill_widget = GlimpsePill:new{
+                padding_h = scale(8), height = scale(16), radius = scale(7), stroke = scale(1),
+                inner = GlimpseDots:new{ nb = total_pages, cur = self.more_page, pitch = math.floor(pitch), dot_r = dot_r, height = scale(8) }
+            }
+            local pill_sz = pill_widget:getSize()
+            local pill_x = r.x + math.floor((r.w - pill_sz.w) / 2)
+            local pill_y = fy + math.floor((fh - pill_sz.h) / 2)
+            self.more_pill_dimen = Geom:new{ x = pill_x, y = pill_y, w = pill_sz.w, h = pill_sz.h }
+            self.more_pill_info = { nb = total_pages, pitch = pitch, r_max = math.floor(dot_r * 1.5), pad_h = scale(8) }
+            pill_widget:paintTo(bb, pill_x, pill_y)
+            pill_widget:free()
         end
 
     -- ====================================================
@@ -2252,10 +4918,6 @@ function ScrubberMenu:paintTo(bb, x, y)
                 local row_rect = Geom:new{ x = r.x + border, y = curr_y, w = inner_w, h = rh }
                 table.insert(self.action_row_dimens, { dimen = row_rect, id = act_id })
 
-                if i > start_i then
-                    bb:paintRect(r.x + border, curr_y, inner_w, 1, Blitbuffer.COLOR_LIGHT_GRAY)
-                end
-
                 local icon_name = self:getActionIcon(act)
                 local icon_sz = scale(18)
                 local icon_widget = loadSvg(icon_name, icon_sz, Blitbuffer.COLOR_BLACK)
@@ -2287,7 +4949,6 @@ function ScrubberMenu:paintTo(bb, x, y)
             if self.actions_total_pages > 1 then
                 local fy = content_top + (per_page * rh)
                 local fh = self.font_footer_h
-                bb:paintRect(r.x + border, fy, inner_w, scale(2), Blitbuffer.COLOR_LIGHT_GRAY)  -- igual que la divisoria de los tabs
                 self.actions_footer_dimen = Geom:new{ x = r.x + border, y = fy, w = inner_w, h = fh }
 
                 local total_pages = self.actions_total_pages
@@ -2352,6 +5013,7 @@ end
 function ScrubberMenu:onTap(arg1, arg2)
     local ges = arg2 or arg1
     if not ges or not ges.pos then return false end
+    if self._light_drag then self:_endLightDrag() end
 
     -- Mientras la pastilla gris está en pantalla, se absorben los toques
     if self._flash_busy then return true end
@@ -2373,7 +5035,10 @@ function ScrubberMenu:onTap(arg1, arg2)
     end
 
     if self.tab_typo_dimen and ges.pos:intersectWith(self.tab_typo_dimen) then
-        if self.active_tab ~= "typo" then
+        if self:_isTypoSubview() then
+            -- En un submenú: la flecha vuelve UN nivel (al menú anterior)
+            self:_flashThen("tab_typo", function() self:_typoBack() end)
+        elseif self.active_tab ~= "typo" then
             self:_flashThen("tab_typo", function()
                 self.active_tab = "typo"
                 self:refreshMenu()
@@ -2409,8 +5074,9 @@ function ScrubberMenu:onTap(arg1, arg2)
         if self.btn_search_dimen and ges.pos:intersectWith(self.btn_search_dimen) then
             self._pressed_btn = "search"
             UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
-            UIManager:scheduleIn(0.06, function()
+            UIManager:scheduleIn(0.05, function()
                 self._pressed_btn = nil
+                if self._closed then return end
                 self:openBookSearch()
             end)
             return true
@@ -2459,6 +5125,17 @@ function ScrubberMenu:onTap(arg1, arg2)
 
     -- Acciones Pestaña 2: Tipografía
     elseif self.active_tab == "typo" then
+        -- PDF / CBZ: tocar Reflow / Page / Visual abre su lista de opciones
+        for _i, e in ipairs(self.btn_entry_dimens or {}) do
+            if ges.pos:intersectWith(e.dimen) then
+                self.more_group = e.group
+                self.more_page = 1
+                self.active_tab = "more_list"
+                self:refreshMenu()
+                return true
+            end
+        end
+
         -- Fila de Fuente (tocar abre el catálogo)
         if self.btn_font_row_dimen and ges.pos:intersectWith(self.btn_font_row_dimen) then
             local fonts = self:getAvailableFonts()
@@ -2471,6 +5148,16 @@ function ScrubberMenu:onTap(arg1, arg2)
             end
             self.active_tab = "font_list"
             self:refreshMenu()
+            return true
+        end
+
+        -- Tocar el valor (centro) abre el selector propio de la opción
+        if self.btn_size_mid_dimen and ges.pos:intersectWith(self.btn_size_mid_dimen) then
+            self:_openPicker("font_size", _("Font size"), "typo", { "font_size" })
+            return true
+        end
+        if self.btn_space_mid_dimen and ges.pos:intersectWith(self.btn_space_mid_dimen) then
+            self:_openPicker("line_spacing", _("Line spacing"), "typo", { "line_spacing" })
             return true
         end
 
@@ -2502,18 +5189,34 @@ function ScrubberMenu:onTap(arg1, arg2)
             return true
         end
 
-        -- Columnas (One / Two) o modo de vista (Page / Continuous): cada mitad de la píldora es una opción
+        -- Columnas (1 / 2) o modo de vista (Page / Continuous): cada segmento de la píldora es una opción.
+        -- En un EPUB hay un tercero: modo continuo (scroll).
         if self.btn_seg_dimens then
             for i, dimen in ipairs(self.btn_seg_dimens) do
                 if ges.pos:intersectWith(dimen) then
                     if self:getDocKind() == "paging" then
                         self:setViewMode(i == 2)
                     else
-                        self:setColumns(i)
+                        self:setRollingLayout(i)
                     end
                     return true
                 end
             end
+        end
+
+        -- Botón More (⋮): abre la lista con el resto de las opciones
+        if self.btn_more_dimen and ges.pos:intersectWith(self.btn_more_dimen) then
+            self._pressed_btn = "more"
+            UIManager:setDirty(self, "ui", expandRect(self.popup_rect, scale(8)))
+            UIManager:scheduleIn(0.06, function()
+                self._pressed_btn = nil
+                if self._closed then return end
+                self.more_page = 1
+                self.more_group = nil
+                self.active_tab = "more_list"
+                self:refreshMenu()
+            end)
+            return true
         end
 
         -- Rotar a horizontal: el ícono se marca un instante antes de actuar
@@ -2571,6 +5274,62 @@ function ScrubberMenu:onTap(arg1, arg2)
             return true
         end
 
+    -- Acciones Subvista: selector propio de una opción
+    elseif self.active_tab == "opt_picker" then
+        self:_pickerTap(ges.pos)
+        return true
+
+    -- Acciones Subvista: Más opciones (⋮)
+    elseif self.active_tab == "more_list" then
+        for _i, hit in ipairs(self.more_hits or {}) do
+            local row = hit.row
+            if hit.dec and ges.pos:intersectWith(hit.dec) then
+                self:_flashStepBtn("more_dec_" .. row.id, hit.dec, function() self:_moreStep(row, -1) end)
+                return true
+            end
+            if hit.inc and ges.pos:intersectWith(hit.inc) then
+                self:_flashStepBtn("more_inc_" .. row.id, hit.inc, function() self:_moreStep(row, 1) end)
+                return true
+            end
+            local mirror = (row.id == "margin_tb") and "b_page_margin" or nil
+            if hit.mid and ges.pos:intersectWith(hit.mid) then
+                self:_openPicker(row.name, row.label, "more_list", row.names, mirror)
+                return true
+            end
+            if hit.ctl and ges.pos:intersectWith(hit.ctl) then
+                if row.kind == "group" then
+                    self.more_group = row.group
+                    self.more_page = 1
+                    self:refreshMenu()
+                    return true
+                end
+                if row.kind == "pick" or row.kind == "cycle" then
+                    self:_openPicker(row.name, row.label, "more_list", row.names, mirror)
+                else
+                    self:_moreToggle(row)
+                end
+                return true
+            end
+            -- Interruptor: el nombre abre su propio menú (explicación + estrellita de predeterminado)
+            if hit.label and ges.pos:intersectWith(hit.label) then
+                self:_openPicker(row.name, row.label, "more_list", row.names, mirror)
+                return true
+            end
+        end
+        -- Toque directo en los puntitos de página
+        if self.more_pill_dimen and ges.pos:intersectWith(self.more_pill_dimen) then
+            if self.more_pill_info then
+                local rel_x = ges.pos.x - self.more_pill_dimen.x - self.more_pill_info.pad_h - self.more_pill_info.r_max
+                local idx = math.floor(rel_x / self.more_pill_info.pitch + 0.5) + 1
+                idx = math.max(1, math.min(self.more_pill_info.nb, idx))
+                if idx ~= self.more_page then
+                    self.more_page = idx
+                    self:refreshMenu()
+                end
+            end
+            return true
+        end
+
     -- Acciones Subvista: Acciones Rápidas
     elseif self.active_tab == "actions_list" then
         if self.btn_empty_add_action and ges.pos:intersectWith(self.btn_empty_add_action) then
@@ -2615,6 +5374,7 @@ function ScrubberMenu:onTap(arg1, arg2)
 end
 
 function ScrubberMenu:onShow()
+    self:_syncPeek()
     local dirty_rect = expandRect(self.popup_rect, scale(8))
     UIManager:setDirty(self, function() return "ui", dirty_rect end)
 end
@@ -2646,6 +5406,8 @@ function ScrubberMenu:onCloseWidget()
         self.tw_check,
         self.icon_search, self.icon_rotate,
         self.icon_col_one, self.icon_col_two, self.icon_view_page, self.icon_view_cont,
+        self.icon_more, self.icon_pin,
+        self.icon_chev_left, self.icon_star, self.icon_star_on,
     }
     for _, w in ipairs(to_free) do
         if w and w.free then pcall(function() w:free() end) end
@@ -2658,45 +5420,13 @@ function ScrubberMenu:onCloseWidget()
     local s = self.scrubber_ui
     local ui = self.ui
 
+    -- Si el scrubber estaba escondido (pestaña Aa), vuelve entero
+    self:_releasePeek()
+
     if typo_changed then
         if s then
             -- MODO A: Se abrió desde el Page Scrubber (Grid / Split / Simple)
-            -- 1. Vaciar caché de miniaturas del scrubber
-            s._tile_cache = {}
-            if s._clearGridTiles then s:_clearGridTiles(true) end
-
-            -- 2. Alternar 1px la dimensión solicitada para que ReaderThumbnail regenere con la nueva fuente
-            if s._grid_item_w then
-                s._thumb_req_w = (s._thumb_req_w == s._grid_item_w) and (s._grid_item_w + 1) or s._grid_item_w
-            end
-            if s._thumb_req_split_w then
-                s._thumb_req_split_w = s._thumb_req_split_w + 1
-            end
-
-            -- 3. Actualizar y regenerar la cuadrícula usando el flujo limpio de previewPage
-            UIManager:nextTick(function()
-                pcall(function()
-                    if ui and ui.document and ui.document.getPageCount then
-                        s._total_pages = ui.document:getPageCount()
-                    end
-                    if s._slider then
-                        s._slider.value_max = s._total_pages
-                    end
-                    if s._updateChapterMarks then s:_updateChapterMarks() end
-
-                    if s._previewPage then
-                        s:_previewPage(s._cur_page or 1, false)
-                    elseif s._updateGridPages then
-                        s:_updateGridPages()
-                    end
-
-                    if Device:isKindle() or Device:hasEink() then
-                        UIManager:setDirty(nil, "full")
-                    else
-                        UIManager:setDirty(s, "ui", s.dimen)
-                    end
-                end)
-            end)
+            self:_regenScrubber()
         else
             -- MODO B: Se abrió directamente desde el gesto de lectura en el libro
             UIManager:nextTick(function()
@@ -2713,15 +5443,14 @@ function ScrubberMenu:onCloseWidget()
                 end)
             end)
         end
-    else
+    elseif not self._suppress_close_dirty then
         local dirty_geom = expandRect(self.popup_rect, scale(8))
-        if s then
+        if s and not s._closing then
             UIManager:setDirty(s, function() return "ui", dirty_geom end)
-        end
-        if ui then
+        elseif ui then
             UIManager:setDirty(ui, function() return "ui", dirty_geom end)
         else
-            UIManager:setDirty(nil, function() return "ui", dirty_geom end)
+            UIManager:setDirty(nil, "ui", dirty_geom)
         end
     end
 end
