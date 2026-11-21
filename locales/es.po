@@ -674,3 +674,381 @@ msgstr "Pines de recorrido en la barra"
 
 msgid "left"
 msgstr "restantes"
+
+msgid "Margin"
+msgstr "Margen"
+
+msgid "Margin L/R"
+msgstr "Margen I/D"
+
+msgid "Margin T/B"
+msgstr "Margen Sup/Inf"
+
+msgid "Contrast"
+msgstr "Contraste"
+
+msgid "Font hinting"
+msgstr "Hinting de fuente"
+
+msgid "Embedded style"
+msgstr "Estilo del libro"
+
+msgid "Word spacing"
+msgstr "Espacio entre palabras"
+
+msgid "Word expansion"
+msgstr "Expansión de palabras"
+
+msgid "Set as default"
+msgstr "Poner por defecto"
+
+msgid "Remove default"
+msgstr "Quitar por defecto"
+
+msgid "No more options"
+msgstr "No hay más opciones"
+
+msgid "Font"
+msgstr "Fuente"
+
+msgid "Font size"
+msgstr "Tamaño de fuente"
+
+msgid "Line spacing"
+msgstr "Interlineado"
+
+msgid "Reflow"
+msgstr "Reflow"
+
+msgid "Visual"
+msgstr "Visual"
+
+msgid "Page crop"
+msgstr "Recorte de página"
+
+msgid "Auto straighten"
+msgstr "Enderezar automático"
+
+msgid "Fit zoom to"
+msgstr "Ajustar zoom a"
+
+msgid "Fit"
+msgstr "Ajuste"
+
+msgid "Direction"
+msgstr "Dirección"
+
+msgid "Zoom factor"
+msgstr "Factor de zoom"
+
+msgid "White threshold"
+msgstr "Umbral de blanco"
+
+msgid "Dewatermark"
+msgstr "Quitar marca de agua"
+
+msgid "Background cleanup"
+msgstr "Limpiar fondo"
+
+msgid "Dithering"
+msgstr "Tramado"
+
+msgid "Word gap"
+msgstr "Espacio entre palabras"
+
+msgid "Alignment"
+msgstr "Alineación"
+
+msgid "On"
+msgstr "Sí"
+
+msgid "Rows"
+msgstr "Filas"
+
+msgid "Saturation"
+msgstr "Saturación"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "was"
+msgstr "antes"
+
+msgid "Space added around the page after the crop and zoom are applied."
+msgstr "Espacio que se agrega alrededor de la página después del recorte y el zoom."
+
+msgid "Rotates tilted scanned pages, up to the selected angle."
+msgstr "Endereza páginas escaneadas torcidas, hasta el ángulo elegido."
+
+msgid "Higher values make the text darker and the page background cleaner."
+msgstr "Con valores más altos el texto se ve más oscuro y el fondo más limpio."
+
+msgid "Lower values fade the colors, higher values make them stronger."
+msgstr "Con valores bajos los colores se apagan; con valores altos se intensifican."
+
+msgid "Pixels lighter than this level are turned white. Lower values give a whiter background."
+msgstr "Los píxeles más claros que este nivel pasan a blanco. Con valores bajos el fondo queda más blanco."
+
+msgid "Fixed zoom applied to the page when Fit zoom to is set to manual."
+msgstr "Zoom fijo que se aplica a la página cuando Ajustar zoom a está en manual."
+
+msgid "How many columns or rows the page is split into."
+msgstr "En cuántas columnas o filas se divide la página."
+
+msgid "Order in which the view moves across the page when you turn pages."
+msgstr "Orden en que se mueve la vista por la página al pasar de página."
+
+msgid "Cuts the blank margins of the original page."
+msgstr "Recorta los márgenes en blanco de la página original."
+
+msgid "How the page is resized to fit the screen."
+msgstr "Cómo se ajusta el tamaño de la página a la pantalla."
+
+msgid "Which side of the page is fitted to the screen."
+msgstr "Qué lado de la página se ajusta a la pantalla."
+
+msgid "Size of the book text."
+msgstr "Tamaño del texto del libro."
+
+msgid "Space between the lines of text."
+msgstr "Espacio entre las líneas de texto."
+
+msgid "Keeps the original margins of the page."
+msgstr "Mantiene los márgenes originales de la página."
+
+msgid "Finds the content area by itself and trims the blank margins."
+msgstr "Encuentra solo el área de contenido y recorta los márgenes en blanco."
+
+msgid "Finds the content by itself inside an area you mark once. The menu hides while you mark it."
+msgstr "Encuentra el contenido solo dentro de un área que marcás una vez. El menú se esconde mientras la marcás."
+
+msgid "You mark the area to keep yourself. The menu hides while you do it and comes back after."
+msgstr "Marcás vos el área a conservar. El menú se esconde mientras lo hacés y vuelve después."
+
+msgid "Fits the whole page on the screen."
+msgstr "Ajusta la página entera a la pantalla."
+
+msgid "Fits the page content and ignores the blank margins."
+msgstr "Ajusta el contenido de la página e ignora los márgenes en blanco."
+
+msgid "Splits the page into columns and shows one at a time."
+msgstr "Divide la página en columnas y muestra una por vez."
+
+msgid "Splits the page into rows and shows one at a time."
+msgstr "Divide la página en filas y muestra una por vez."
+
+msgid "Uses a fixed zoom factor that you choose."
+msgstr "Usa un factor de zoom fijo que elegís."
+
+msgid "The whole page is visible."
+msgstr "Se ve la página entera."
+
+msgid "Fits the page width; you scroll vertically."
+msgstr "Ajusta el ancho de la página; te desplazás en vertical."
+
+msgid "Fits the page height; you scroll horizontally."
+msgstr "Ajusta el alto de la página; te desplazás en horizontal."
+
+msgid "Space around the page after crop and zoom."
+msgstr "Espacio alrededor de la página después del recorte y el zoom."
+
+msgid "Straightens tilted scans, up to this angle."
+msgstr "Endereza escaneos torcidos, hasta este ángulo."
+
+msgid "Darker text and a cleaner background."
+msgstr "Texto más oscuro y fondo más limpio."
+
+msgid "Lower fades the colors, higher intensifies them."
+msgstr "Más bajo apaga los colores, más alto los intensifica."
+
+msgid "Lighter pixels become white. Lower = whiter page."
+msgstr "Los píxeles más claros pasan a blanco. Más bajo = página más blanca."
+
+msgid "Fixed zoom used when Fit zoom to is manual."
+msgstr "Zoom fijo cuando Ajustar zoom a está en manual."
+
+msgid "Columns or rows the page is split into."
+msgstr "Columnas o filas en que se divide la página."
+
+msgid "Order in which the view moves across the page."
+msgstr "Orden en que se mueve la vista por la página."
+
+msgid "Cuts the blank margins of the page."
+msgstr "Recorta los márgenes en blanco de la página."
+
+msgid "How the page is fitted to the screen."
+msgstr "Cómo se ajusta la página a la pantalla."
+
+msgid "Which side of the page is fitted."
+msgstr "Qué lado de la página se ajusta."
+
+msgid "Space at the left and right of the page."
+msgstr "Espacio a la izquierda y a la derecha de la página."
+
+msgid "Space above and below the text."
+msgstr "Espacio arriba y abajo del texto."
+
+msgid "Width of the spaces between words."
+msgstr "Ancho de los espacios entre palabras."
+
+msgid "How much words may stretch to fill a line."
+msgstr "Cuánto pueden estirarse las palabras para llenar una línea."
+
+msgid "Keeps the original margins."
+msgstr "Mantiene los márgenes originales."
+
+msgid "Finds the content and trims the blank margins."
+msgstr "Encuentra el contenido y recorta los márgenes en blanco."
+
+msgid "Auto-detects inside an area you mark once."
+msgstr "Detecta solo dentro de un área que marcás una vez."
+
+msgid "You mark the area. The menu hides meanwhile."
+msgstr "Marcás vos el área. El menú se esconde mientras tanto."
+
+msgid "Fits the whole page."
+msgstr "Ajusta la página entera."
+
+msgid "Fits the content, ignoring blank margins."
+msgstr "Ajusta el contenido, sin los márgenes en blanco."
+
+msgid "Shows one column at a time."
+msgstr "Muestra una columna por vez."
+
+msgid "Shows one row at a time."
+msgstr "Muestra una fila por vez."
+
+msgid "Uses the fixed zoom factor."
+msgstr "Usa el factor de zoom fijo."
+
+msgid "Whole page visible."
+msgstr "Se ve la página entera."
+
+msgid "Fits the width; scroll vertically."
+msgstr "Ajusta el ancho; te desplazás en vertical."
+
+msgid "Fits the height; scroll horizontally."
+msgstr "Ajusta el alto; te desplazás en horizontal."
+
+msgid "Left"
+msgstr "Izquierda"
+
+msgid "Right"
+msgstr "Derecha"
+
+msgid "Zoom (dpi)"
+msgstr "Zoom (dpi)"
+
+msgid "Render mode"
+msgstr "Modo de render"
+
+msgid "Font weight"
+msgstr "Grosor de fuente"
+
+msgid "Font kerning"
+msgstr "Kerning de fuente"
+
+msgid "Embedded fonts"
+msgstr "Fuentes incrustadas"
+
+msgid "Image scaling"
+msgstr "Escalado de imágenes"
+
+msgid "Rotation"
+msgstr "Rotación"
+
+msgid "View options"
+msgstr "Opciones de vista"
+
+msgid "Style options"
+msgstr "Opciones de estilo"
+
+msgid "0°"
+msgstr "0°"
+
+msgid "90° CW"
+msgstr "90° horario"
+
+msgid "180°"
+msgstr "180°"
+
+msgid "90° CCW"
+msgstr "90° antihorario"
+
+msgid "Scales CSS units and images. 96 = 1:1."
+msgstr "Escala las unidades CSS y las imágenes. 96 = 1:1."
+
+msgid "How the book layout is rendered."
+msgstr "Cómo se dibuja el diseño del libro."
+
+msgid "Makes the text lighter or bolder."
+msgstr "Hace el texto más liviano o más grueso."
+
+msgid "Sharper or smoother font outlines."
+msgstr "Contornos de letra más nítidos o más suaves."
+
+msgid "Adjusts the space between letter pairs."
+msgstr "Ajusta el espacio entre pares de letras."
+
+msgid "Uses the stylesheet included in the book."
+msgstr "Usa la hoja de estilo incluida en el libro."
+
+msgid "Uses the fonts included in the book."
+msgstr "Usa las fuentes incluidas en el libro."
+
+msgid "Quality used when scaling images."
+msgstr "Calidad al escalar las imágenes."
+
+msgid "Screen orientation."
+msgstr "Orientación de la pantalla."
+
+msgid "Original CR3 block rendering."
+msgstr "Renderizado de bloques original de CR3."
+
+msgid "Flat layout with accurate page breaks."
+msgstr "Diseño plano con cortes de página exactos."
+
+msgid "Adds floats, avoids overflows."
+msgstr "Agrega elementos flotantes y evita desbordes."
+
+msgid "Like a web browser; may overflow."
+msgstr "Como un navegador web; puede desbordar."
+
+msgid "No hinting."
+msgstr "Sin hinting."
+
+msgid "Uses the hinting of the font."
+msgstr "Usa el hinting de la propia fuente."
+
+msgid "Automatic hinting."
+msgstr "Hinting automático."
+
+msgid "No kerning."
+msgstr "Sin kerning."
+
+msgid "Fast kerning."
+msgstr "Kerning rápido."
+
+msgid "Good quality kerning."
+msgstr "Kerning de buena calidad."
+
+msgid "Best quality kerning."
+msgstr "Kerning de la mejor calidad."
+
+msgid "Swipe up"
+msgstr "Deslizar hacia arriba"
+
+msgid "Swipe up to"
+msgstr "Deslizar hacia arriba para abrir"
+
+msgid "Index"
+msgstr "Índice"
+
+msgid "Index (Table of Content)"
+msgstr "Índice (tabla de contenido)"
+
+msgid "Multi-Grid"
+msgstr "Multi-Grid"
+
+msgid "Some"
+msgstr "Algo"
