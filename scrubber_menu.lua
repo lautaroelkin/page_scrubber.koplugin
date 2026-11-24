@@ -5,7 +5,7 @@
 
 local Device          = require("device")
 local Blitbuffer      = require("ffi/blitbuffer")
-local Font            = require("ui/font")
+local Font            = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
@@ -14,7 +14,7 @@ local UIManager       = require("ui/uimanager")
 local Event           = require("ui/event")
 local logger          = require("logger")
 local ScrubberState   = require("scrubber_state")
-local Notification    = require("ui/widget/notification")
+local Notification    = require("ps_dialogs").Notification
 local _               = require("gettext")
 local util            = require("util")
 local ok_tbw, TextBoxWidget = pcall(require, "ui/widget/textboxwidget")
@@ -1824,33 +1824,56 @@ function ScrubberMenu:_showDefaultDialog(label, names)
     for _i, it in ipairs(list) do
         if G_reader_settings:readSetting(self:_defaultKey(it.name)) ~= nil then has_default = true end
     end
+
+    local function setDefault()
+        for _j, it in ipairs(list) do
+            G_reader_settings:saveSetting(self:_defaultKey(it.name), deepCopy(it.value))
+        end
+        if G_reader_settings.flush then G_reader_settings:flush() end
+        if not self._closed then self:refreshMenu() end
+    end
+    local function removeDefault()
+        for _j, it in ipairs(list) do
+            G_reader_settings:delSetting(self:_defaultKey(it.name))
+        end
+        if G_reader_settings.flush then G_reader_settings:flush() end
+        if not self._closed then self:refreshMenu() end
+    end
+
+    -- Hoja propia del plugin (ps_sheet.lua): sube desde abajo y cubre la barra inferior del scrubber
+    local ok, Sheet = pcall(require, "ps_sheet")
+    if ok and Sheet and type(Sheet.options) == "function" then
+        local opts = {
+            { id = "set", label = _("Set as default"), icon = "img-folder-fav" },
+        }
+        if has_default then
+            opts[#opts + 1] = { id = "remove", label = _("Remove default"), icon = "trash-2" }
+        end
+        opts[#opts + 1] = { id = "cancel", label = _("Cancel"), icon = "x" }
+        Sheet.options{
+            title = label,
+            rows = {
+                {
+                    options = opts,
+                    close = true,
+                    on_pick = function(id)
+                        if id == "set" then setDefault()
+                        elseif id == "remove" then removeDefault() end
+                    end,
+                },
+            },
+        }
+        return
+    end
+
+    -- Sin la hoja propia (no debería pasar): el diálogo de KOReader de siempre
     local ButtonDialog = require("ui/widget/buttondialog")
     local dialog
     local buttons = {
-        {{
-            text = _("Set as default"),
-            callback = function()
-                UIManager:close(dialog)
-                for _j, it in ipairs(list) do
-                    G_reader_settings:saveSetting(self:_defaultKey(it.name), deepCopy(it.value))
-                end
-                if G_reader_settings.flush then G_reader_settings:flush() end
-                if not self._closed then self:refreshMenu() end
-            end,
-        }},
+        {{ text = _("Set as default"), callback = function() UIManager:close(dialog); setDefault() end }},
     }
     if has_default then
-        buttons[#buttons + 1] = {{
-            text = _("Remove default"),
-            callback = function()
-                UIManager:close(dialog)
-                for _j, it in ipairs(list) do
-                    G_reader_settings:delSetting(self:_defaultKey(it.name))
-                end
-                if G_reader_settings.flush then G_reader_settings:flush() end
-                if not self._closed then self:refreshMenu() end
-            end,
-        }}
+        buttons[#buttons + 1] = {{ text = _("Remove default"), callback = function() UIManager:close(dialog); removeDefault() end }}
     end
     dialog = ButtonDialog:new{ title = label, buttons = buttons }
     UIManager:show(dialog)

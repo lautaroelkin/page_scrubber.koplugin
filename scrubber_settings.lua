@@ -5,7 +5,7 @@
 
 local Device          = require("device")
 local Blitbuffer      = require("ffi/blitbuffer")
-local Font            = require("ui/font")
+local Font            = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
@@ -13,8 +13,10 @@ local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local SpinWidget      = require("ui/widget/spinwidget")
 local InputDialog     = require("ui/widget/inputdialog")
-local InfoMessage     = require("ui/widget/infomessage")
-local ConfirmBox      = require("ui/widget/confirmbox")
+-- Carteles y preguntas con el aspecto de KiKome (ps_dialogs.lua); si el módulo faltara, los de KOReader
+local ok_psd, PSDialogs = pcall(require, "ps_dialogs")
+local InfoMessage     = ok_psd and PSDialogs.InfoMessage or require("ui/widget/infomessage")
+local ConfirmBox      = ok_psd and PSDialogs.ConfirmBox or require("ui/widget/confirmbox")
 local FontList        = require("fontlist")
 local cre             = require("document/credocument"):engineInit()
 
@@ -243,8 +245,18 @@ end
 local ok_icon_mgr, IconManager = pcall(require, "icon_manager")
 if not ok_icon_mgr then IconManager = nil end
 
+-- Botones de otros plugins agregados a la barra del selection menu ("Add button")
+local ok_selcb, SelCustom = pcall(require, "sel_custom_buttons")
+if not ok_selcb then SelCustom = nil end
+
 local function getSvgPath(filename)
     if not filename or filename == "" then return nil end
+    -- Ruta absoluta (el svg de un botón agregado con "Add button")
+    if filename:sub(1, 1) == "/" then
+        local f = io.open(filename, "r")
+        if f then f:close(); return filename end
+        return nil
+    end
     if IconManager then
         local resolved = IconManager.resolvePath(filename)
         if resolved then return resolved end
@@ -498,6 +510,15 @@ function ScrubberSettings:saveSetting(key, val)
     end
 end
 
+-- Los dos ajustes de Reading Pop-Ups > Notes menu (Menu on highlight tap y Menu notes): apagados por
+-- defecto, salvo que ya esté activado el Scrubber Selection Menu. Si se tocaron, vale lo elegido.
+-- (Misma regla que notesMenuSetting en floating_dict.lua.)
+function ScrubberSettings:notesMenuValue(key)
+    local v = self:readSetting(key, nil)
+    if v ~= nil then return v == true end
+    return self:readSetting("page_scrubber_selection_menu_enabled", false) == true
+end
+
 -- =========================================================================
 -- MOTOR MODULAR PARA LISTAS REORDENABLES CON TOGGLE (FÁCILMENTE REPLICABLE)
 -- =========================================================================
@@ -617,6 +638,7 @@ function ScrubberSettings:getOrderableTogglePage(cfg)
                 kind = "orderable_toggle",
                 text = def.text,
                 icon = def.icon,
+                external = def.external,
                 setting = def.setting,
                 default = (def.default == nil) and true or def.default,
                 order_setting = cfg.order_setting,
@@ -648,7 +670,7 @@ end
 
 -- Texto del valor actual (Small / Medium / Large) de una opción, para mostrarlo a la derecha de la fila
 function ScrubberSettings:sizeLabel(key, default)
-    local map = { small = _("Small"), medium = _("Medium"), large = _("Large") }
+    local map = { small = _("Small"), medium = _("Medium"), large = _("Large"), automatic = _("Automatic") }
     return map[self:readSetting(key, default)] or ""
 end
 
@@ -1073,14 +1095,52 @@ function ScrubberSettings:getPageDefinition(page_id)
         }
 
     elseif page_id == "popups" then
-        local dict_enabled = self:readSetting("page_scrubber_floating_dict_enabled", false)
-        local sel_enabled = self:readSetting("page_scrubber_selection_menu_enabled", false)
+        local dict_on = self:readSetting("page_scrubber_floating_dict_enabled", false)
+        local sel_on = self:readSetting("page_scrubber_selection_menu_enabled", false)
+        local notes_on = self:notesMenuValue("page_scrubber_hl_tap_menu") or self:notesMenuValue("page_scrubber_notes_menu")
 
         return {
             title = _("Reading Pop-Ups"),
             items = {
                 {
-                    section = _("Dictionary"),
+                    text = _("Dictionary"),
+                    icon = "globe.svg",
+                    kind = "submenu",
+                    target = "popups_dict",
+                    value = dict_on and _("On") or _("Off"),
+                },
+                {
+                    text = _("Selection menu"),
+                    icon = "crop.svg",
+                    kind = "submenu",
+                    target = "popups_sel",
+                    value = sel_on and _("On") or _("Off"),
+                },
+                {
+                    text = _("Notes menu"),
+                    icon = "notebook-pen.svg",
+                    kind = "submenu",
+                    target = "popups_notes",
+                    value = notes_on and _("On") or _("Off"),
+                },
+                {
+                    section = _("Swipe up"),
+                    text = _("Swipe up to"),
+                    value = self:swipeUpLabel(),
+                    icon = "chevron-up.svg",
+                    kind = "submenu",
+                    target = "swipe_up",
+                },
+            }
+        }
+
+    elseif page_id == "popups_dict" then
+        local dict_enabled = self:readSetting("page_scrubber_floating_dict_enabled", false)
+
+        return {
+            title = _("Dictionary"),
+            items = {
+                {
                     text = _("Scrubber Dictionary"),
                     icon = "globe.svg",
                     kind = "toggle",
@@ -1105,14 +1165,22 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Dictionary text size"),
-                    value = ({ very_small = _("Very small"), small = _("Small"), normal = _("Normal"), large = _("Large"), very_large = _("Very large") })[self:readSetting("page_scrubber_dict_font_size", "normal")] or "",
+                    value = ({ very_small = _("Very small"), small = _("Small"), normal = _("Normal"), large = _("Large"), very_large = _("Very large"), automatic = _("Automatic") })[self:readSetting("page_scrubber_dict_font_size", "normal")] or "",
                     icon = "pencil-ruler.svg",
                     kind = "submenu",
                     target = "dict_text_size",
                     disabled = not dict_enabled,
                 },
+            }
+        }
+
+    elseif page_id == "popups_sel" then
+        local sel_enabled = self:readSetting("page_scrubber_selection_menu_enabled", false)
+
+        return {
+            title = _("Selection menu"),
+            items = {
                 {
-                    section = _("Selection menu"),
                     text = _("Scrubber Selection Menu"),
                     icon = "crop.svg",
                     kind = "toggle",
@@ -1122,7 +1190,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 },
                 {
                     text = _("Position of selection menu"),
-                    value = ({ right_v = _("Right (Vertical)"), left_v = _("Left (Vertical)"), bottom_h = _("Bottom (Horizontal)"), center_h = _("Center (Horizontal)") })[self:readSetting("page_scrubber_sel_menu_position", "right_v")] or "",
+                    value = ({ right_v = _("Right (Vertical)"), left_v = _("Left (Vertical)"), bottom_h = _("Bottom (Horizontal)"), center_h = _("Center (Horizontal)"), auto_h = _("Auto (follows selection)") })[self:readSetting("page_scrubber_sel_menu_position", "right_v")] or "",
                     icon = "square-arrow-right-enter.svg",
                     kind = "submenu",
                     target = "sel_pos",
@@ -1143,13 +1211,35 @@ function ScrubberSettings:getPageDefinition(page_id)
                     target = "sel_buttons",
                     disabled = not sel_enabled,
                 },
+            }
+        }
+
+    elseif page_id == "popups_notes" then
+        return {
+            title = _("Notes menu"),
+            items = {
                 {
-                    section = _("Swipe up"),
-                    text = _("Swipe up to"),
-                    value = self:swipeUpLabel(),
-                    icon = "chevron-up.svg",
-                    kind = "submenu",
-                    target = "swipe_up",
+                    text = _("Menu on highlight tap"),
+                    icon = "droplet.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_hl_tap_menu",
+                    read_func = function() return self:notesMenuValue("page_scrubber_hl_tap_menu") end,
+                    on_change = function(new_val) self:saveSetting("page_scrubber_hl_tap_menu", new_val) end,
+                },
+                {
+                    text = _("Menu notes"),
+                    icon = "notebook-pen.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_notes_menu",
+                    read_func = function() return self:notesMenuValue("page_scrubber_notes_menu") end,
+                    on_change = function(new_val) self:saveSetting("page_scrubber_notes_menu", new_val) end,
+                },
+                {
+                    text = _("KiKome keyboard"),
+                    icon = "keyboard.svg",
+                    kind = "toggle",
+                    setting = "page_scrubber_kikome_keyboard",
+                    default = true,
                 },
             }
         }
@@ -1203,6 +1293,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 { text = _("Normal"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "normal", checked = (cur == "normal") },
                 { text = _("Large"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "large", checked = (cur == "large") },
                 { text = _("Very large"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "very_large", checked = (cur == "very_large") },
+                { text = _("Automatic"), icon = nil, kind = "radio", setting = "page_scrubber_dict_font_size", val = "automatic", checked = (cur == "automatic") },
             }
         }
 
@@ -1220,11 +1311,8 @@ function ScrubberSettings:getPageDefinition(page_id)
                   or (package.loaded["apps/reader/modules/readerassistant"] ~= nil)
         end)
 
-        return self:getOrderableTogglePage({
-            title = _("Buttons in selection menu"),
-            order_setting = "page_scrubber_sel_btn_order",
-            default_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "select", "dict", "wiki", "translate", "more" },
-            items_def = {
+        local sel_default_order = { "xray", "ai", "note", "strikethrough", "underline", "invert", "highlight", "select", "dict", "wiki", "translate", "more" }
+        local sel_items_def = {
                 xray          = { text = "X-Ray", icon = "xray.svg", setting = "page_scrubber_sel_show_xray", default = has_xray },
                 ai            = { text = _("AI Assistant"), icon = "sparkles.svg", setting = "page_scrubber_sel_show_ai", default = has_ai },
                 note          = { text = _("Note"), icon = "notepad-text.svg", setting = "page_scrubber_sel_show_note", default = true },
@@ -1237,8 +1325,51 @@ function ScrubberSettings:getPageDefinition(page_id)
                 wiki          = { text = _("Wikipedia"), icon = "globe.svg", setting = "page_scrubber_sel_show_wiki", default = false },
                 translate     = { text = _("Translate"), icon = "languages.svg", setting = "page_scrubber_sel_show_translate", default = false },
                 more          = { text = _("More"), icon = "more.svg", setting = "page_scrubber_sel_show_more", default = true },
-            }
+        }
+        if SelCustom then
+            sel_default_order = SelCustom.withCustomKeys(sel_default_order)
+            for _i, ce in ipairs(SelCustom.list()) do
+                sel_items_def[ce.key] = {
+                    text = ce.text, icon = SelCustom.iconPath(ce), external = true,
+                    setting = SelCustom.toggleSetting(ce.key), default = true,
+                }
+            end
+        end
+
+        local sel_page = self:getOrderableTogglePage({
+            title = _("Buttons in selection menu"),
+            order_setting = "page_scrubber_sel_btn_order",
+            default_order = sel_default_order,
+            items_def = sel_items_def,
         })
+
+        -- Antes de "Restore default order": los botones agregados (tocarlos para cambiarles el
+        -- svg o quitarlos) y "Add button", para sumar un botón de otro plugin a la barra principal
+        if SelCustom then
+            local restore_row = table.remove(sel_page.items)
+            local first_added = true
+            for _i, ce in ipairs(SelCustom.list()) do
+                local ce_key = ce.key
+                table.insert(sel_page.items, {
+                    section = first_added and _("Added buttons") or nil,
+                    text = ce.text,
+                    icon = SelCustom.iconPath(ce),
+                    external = true,
+                    value = _("Edit"),
+                    kind = "action",
+                    action = function() self:editSelectionButton(ce_key) end,
+                })
+                first_added = false
+            end
+            table.insert(sel_page.items, {
+                text = _("Add button"),
+                icon = "square-plus.svg",
+                kind = "action",
+                action = function() self:addSelectionButton() end,
+            })
+            table.insert(sel_page.items, restore_row)
+        end
+        return sel_page
 
     elseif page_id == "sel_pos" then
         local cur = self:readSetting("page_scrubber_sel_menu_position", "right_v")
@@ -1249,6 +1380,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 { text = _("Left (Vertical)"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_position", val = "left_v", checked = (cur == "left_v") },
                 { text = _("Bottom (Horizontal)"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_position", val = "bottom_h", checked = (cur == "bottom_h") },
                 { text = _("Center (Horizontal)"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_position", val = "center_h", checked = (cur == "center_h") },
+                { text = _("Auto (follows selection)"), icon = nil, kind = "radio", setting = "page_scrubber_sel_menu_position", val = "auto_h", checked = (cur == "auto_h") },
             }
         }
 
@@ -1318,6 +1450,7 @@ function ScrubberSettings:getPageDefinition(page_id)
                 { text = _("Small"), icon = nil, kind = "radio", setting = "page_scrubber_text_size", val = "small", checked = (cur == "small") },
                 { text = _("Medium"), icon = nil, kind = "radio", setting = "page_scrubber_text_size", val = "medium", checked = (cur == "medium") },
                 { text = _("Large"), icon = nil, kind = "radio", setting = "page_scrubber_text_size", val = "large", checked = (cur == "large") },
+                { text = _("Automatic"), icon = nil, kind = "radio", setting = "page_scrubber_text_size", val = "automatic", checked = (cur == "automatic") },
             }
         }
 
@@ -1350,10 +1483,10 @@ function ScrubberSettings:getPageDefinition(page_id)
         end
 
         table.insert(items, {
-            text = _("Add wallpaper"),
+            text = _("Choose from files"),
             icon = "folder.svg",
             kind = "action",
-            action = function() self:showWallpaperFolderInfo() end,
+            action = function() self:chooseWallpaperFile() end,
         })
 
         return {
@@ -1528,6 +1661,8 @@ function ScrubberSettings:calculateGlobalCardWidth()
                 tw:free()
             end
             for _i, item in ipairs(pdef.items or {}) do
+              -- Los nombres de botones de otros plugins ("Add button") no estiran el menú
+              if not item.external then
                 local tw = TextWidget:new{
                     text = item.text,
                     face = Font:getFace("cfont", scaleText(11)),
@@ -1542,6 +1677,7 @@ function ScrubberSettings:calculateGlobalCardWidth()
                     tv:free()
                 end
                 if w_total > max_item_w then max_item_w = w_total end
+              end
             end
         end
     end
@@ -3342,20 +3478,177 @@ function ScrubberSettings:executeAction(action_id)
     end)
 end
 
-function ScrubberSettings:showWallpaperFolderInfo()
+-- Elegir un wallpaper desde los archivos con el selector de imágenes (copia del de KiKome).
+-- La imagen elegida pasa a la carpeta propia (si no está ya en una carpeta que el plugin lista)
+-- y queda seleccionada como fondo.
+function ScrubberSettings:chooseWallpaperFile()
     local ScrubberWallpaper = require("scrubber_wallpaper")
-    local own_dir = ScrubberWallpaper.getOwnDir() or "koreader/settings/page_scrubber/wallpapers"
-    local info_text = _("To add your own wallpapers, copy images (.png, .jpg) to:")
-        .. "\n\n" .. own_dir .. "/\n\n"
-        .. _("Shared folders also detected:") .. "\n"
-        .. "• koreader/settings/bookshelf/wallpapers/\n"
-        .. "• koreader/settings/simpleui/sui_wallpapers/\n"
-        .. "• /mnt/us/Wallpapers/"
+    local SvgPicker = require("svg_picker")
+    local lfs = require("libs/libkoreader-lfs")
 
-    UIManager:show(ConfirmBox:new{
-        text = info_text,
-        ok_text = _("OK"),
-    })
+    local start = self:readSetting("page_scrubber_wallpaper_last_dir", nil)
+    if type(start) ~= "string" or lfs.attributes(start, "mode") ~= "directory" then
+        start = ScrubberWallpaper.getOwnDir()
+    end
+
+    SvgPicker.show{
+        title = _("Choose a wallpaper"),
+        action_label = _("Use wallpaper"),
+        kind = "images",
+        extensions = ScrubberWallpaper.EXT_LIST,
+        start_dir = start,
+        on_finish = function(path)
+            if type(path) ~= "string" or path == "" then return end
+            local folder = path:match("^(.*)[/\\][^/\\]+$")
+            if folder and folder ~= "" then
+                self:saveSetting("page_scrubber_wallpaper_last_dir", folder)
+            end
+            local id, err = ScrubberWallpaper.importFile(path)
+            if not id then
+                UIManager:show(InfoMessage:new{ text = _("Could not use that image: ") .. tostring(err) })
+                return
+            end
+            self:saveSetting("page_scrubber_wallpaper", id)
+            pcall(function() ScrubberWallpaper.free() end)
+            if self.scrubber_ui then
+                UIManager:setDirty(self.scrubber_ui, "ui")
+            end
+            UIManager:nextTick(function() self:refreshView() end)
+        end,
+    }
+end
+
+-- ==========================================
+-- BOTONES DE OTROS PLUGINS EN EL SELECTION MENU ("Add button")
+-- ==========================================
+
+-- Paso 2 de "Add button" (y "Change icon"): el selector de svg. `info` es el botón elegido
+-- ({ id, reg_key, text }); con `existing_key` solo se cambia el svg de un botón ya agregado.
+function ScrubberSettings:pickSelectionButtonIcon(info, existing_key)
+    if not SelCustom then return end
+    local SvgPicker = require("svg_picker")
+    local lfs = require("libs/libkoreader-lfs")
+
+    local current
+    if existing_key then current = SelCustom.iconPath(SelCustom.get(existing_key)) end
+    local start = self:readSetting("page_scrubber_icons_last_dir", nil)
+    if type(start) ~= "string" or lfs.attributes(start, "mode") ~= "directory" then start = nil end
+
+    SvgPicker.show{
+        title = string.format(_("Choose an icon for %s"), tostring(info.text)),
+        action_label = _("Use icon"),
+        none_label = _("No icon"),
+        current = current,
+        start_dir = start,
+        extensions = { "svg" },
+        on_finish = function(path)
+            if path then
+                local folder = path:match("^(.*)[/\\][^/\\]+$")
+                if folder and folder ~= "" then
+                    self:saveSetting("page_scrubber_icons_last_dir", folder)
+                end
+            end
+            local ok, err
+            if existing_key then
+                if path then ok, err = SelCustom.setIcon(existing_key, path)
+                else ok = SelCustom.clearIcon(existing_key) end
+            else
+                ok, err = SelCustom.add(info, path)
+            end
+            if ok then
+                clear_icon_cache()
+                UIManager:nextTick(function() self:refreshView() end)
+                if not existing_key then require("ps_toast").show(_("Button added.")) end
+            else
+                require("ps_toast").error(_("Could not use that icon: ") .. tostring(err))
+            end
+        end,
+    }
+end
+
+-- "Add button": la lista a pantalla completa de KiKome (ps_list_picker.lua, el mismo selector que
+-- usa KiKome para elegir qué corre una acción) con los botones que otros plugins agregan al
+-- diálogo de resaltado y que aparecen en More; al elegir uno se pasa al selector de svg.
+function ScrubberSettings:addSelectionButton()
+    if not SelCustom then return end
+    local Toast = require("ps_toast")
+    local available = SelCustom.available(self.ui)
+    if #available == 0 then
+        Toast.show(_("No more buttons from other plugins to add. They are the ones that appear when you tap More in the selection menu."), { timeout = 5 })
+        return
+    end
+
+    local by_id = {}
+    for _i, info in ipairs(available) do by_id[info.id] = info end
+
+    require("ps_list_picker").show{
+        title = _("Choose a button"),
+        action_label = _("Next"),
+        empty_text = _("No more buttons from other plugins to add."),
+        state = { picked = nil },
+        rows = function(picker)
+            local rows = {}
+            for _i, info in ipairs(available) do
+                rows[#rows + 1] = {
+                    id = info.id, text = info.text, sub = info.plugin,
+                    icon = "package", marker = "tick", selected = (picker.state.picked == info.id),
+                }
+            end
+            return rows
+        end,
+        can_finish = function(picker) return picker.state.picked ~= nil end,
+        on_tap = function(row, picker)
+            -- uno a la vez: tocarlo de nuevo lo suelta
+            picker.state.picked = (picker.state.picked ~= row.id) and row.id or nil
+            picker:reload()
+        end,
+        on_finish = function(picker)
+            local info = by_id[picker.state.picked]
+            if info then
+                UIManager:nextTick(function() self:pickSelectionButtonIcon(info, nil) end)
+            end
+        end,
+    }
+end
+
+-- Tocar un botón agregado: una hoja de KiKome (ps_sheet.lua) para cambiarle el svg, quitarlo o
+-- cancelar; quitarlo pide confirmación con la hoja de confirmación del plugin.
+function ScrubberSettings:editSelectionButton(key)
+    if not SelCustom then return end
+    local ce = SelCustom.get(key)
+    if not ce then return end
+    local Sheet = require("ps_sheet")
+    local Toast = require("ps_toast")
+    Sheet.options{
+        title = ce.text,
+        rows = {
+            {
+                options = {
+                    { id = "icon",   label = _("Change icon"),   icon = "image" },
+                    { id = "remove", label = _("Remove button"), icon = "trash-2" },
+                    { id = "cancel", label = _("Cancel"),        icon = "x" },
+                },
+                close = true,
+                on_pick = function(id)
+                    if id == "icon" then
+                        self:pickSelectionButtonIcon(ce, ce.key)
+                    elseif id == "remove" then
+                        Sheet.confirm{
+                            title = _("Remove button"),
+                            message = string.format(_("Remove the button \"%s\" from the selection menu?"), ce.text),
+                            confirm_text = _("Remove"),
+                            on_confirm = function()
+                                SelCustom.remove(ce.key)
+                                clear_icon_cache()
+                                self:refreshView()
+                                Toast.show(_("Button removed."))
+                            end,
+                        }
+                    end
+                end,
+            },
+        },
+    }
 end
 
 function ScrubberSettings:openScaleDialog()
@@ -3517,30 +3810,85 @@ function ScrubberSettings:confirmClearImageCache()
 end
 
 -- Selector de carpeta para el modo estudio "solo en una carpeta".
+-- Usa la lista a pantalla completa de KiKome (ps_list_picker.lua, la misma con la que KiKome elige la carpeta
+-- de destino de Copiar / Mover) en vez del PathChooser de KOReader: la primera fila sube a la carpeta de
+-- arriba, tocar una carpeta la abre y la píldora negra elige la carpeta que está abierta.
 -- Al confirmar guarda la carpeta, pasa el modo a "folder" y reabre el scrubber.
 function ScrubberSettings:chooseReviewFolder()
-    local PathChooser = require("ui/widget/pathchooser")
     local lfs = require("libs/libkoreader-lfs")
 
-    local start = self:readSetting("page_scrubber_review_folder", nil)
-    if type(start) ~= "string" or lfs.attributes(start, "mode") ~= "directory" then
-        start = G_reader_settings and G_reader_settings:readSetting("home_dir") or nil
+    local function isDir(path)
+        return type(path) == "string" and path ~= "" and lfs.attributes(path, "mode") == "directory"
+    end
+    local function clean(path)
+        if #path > 1 then path = path:gsub("/+$", "") end
+        return path
+    end
+    local function parentOf(dir)
+        local parent = dir:match("^(.*)/[^/]+/*$")
+        if not parent or parent == "" then return "/" end
+        return parent
     end
 
-    UIManager:show(PathChooser:new{
+    -- Arranca en la carpeta ya elegida; si no hay, en la carpeta de inicio de KOReader
+    local start = self:readSetting("page_scrubber_review_folder", nil)
+    if not isDir(start) then
+        start = G_reader_settings and G_reader_settings:readSetting("home_dir") or nil
+    end
+    start = isDir(start) and clean(start) or "/"
+
+    -- Subcarpetas de una carpeta, sin las ocultas ni las .sdr de los libros
+    local function folders(dir)
+        local out = {}
+        local ok, iter, st = pcall(lfs.dir, dir)
+        if not ok then return out end
+        for name in iter, st do
+            if name:sub(1, 1) ~= "." and not name:match("%.sdr$") then
+                local path = (dir == "/" and "" or dir) .. "/" .. name
+                if isDir(path) then out[#out + 1] = { name = name, path = path } end
+            end
+        end
+        table.sort(out, function(a, b) return a.name:lower() < b.name:lower() end)
+        return out
+    end
+
+    require("ps_list_picker").show{
         title = _("Choose study folder"),
-        path = start,
-        select_directory = true,
-        select_file = false,
-        show_files = false,
-        onConfirm = function(path)
+        action_label = _("Use this folder"),
+        empty_text = _("No folders here."),
+        state = { dir = start },
+        subtitle = function(picker) return picker.state.dir end,
+        rows = function(picker)
+            local dir = picker.state.dir
+            local rows = {}
+            if dir ~= "/" then
+                rows[#rows + 1] = {
+                    id = "__up", icon = "arrow-left", text = _("Parent folder"),
+                    sub = parentOf(dir), dir = parentOf(dir),
+                }
+            end
+            for _i, f in ipairs(folders(dir)) do
+                rows[#rows + 1] = {
+                    id = f.path, icon = "folder", text = f.name,
+                    marker = "chevron", dir = f.path,
+                }
+            end
+            return rows
+        end,
+        can_finish = function() return true end,
+        on_tap = function(row, picker)
+            picker.state.dir = row.dir
+            picker:reload(true)
+        end,
+        on_finish = function(picker)
+            local path = picker.state.dir
             if type(path) ~= "string" or path == "" then return end
-            if #path > 1 then path = path:gsub("/+$", "") end
+            path = clean(path)
             self:saveSetting("page_scrubber_review_folder", path)
             self:saveSetting("page_scrubber_review_mode", "folder")
             self:reopenEntireScrubber()
         end,
-    })
+    }
 end
 
 -- Reinicia el repaso espaciado (SRS) del libro abierto: todas las tarjetas empiezan de nuevo
@@ -3570,6 +3918,7 @@ function ScrubberSettings:confirmResetSettings()
         text = _("Reset ALL PageScrubber settings to their defaults? This also clears your favorite fonts and quick actions. Tip: back them up first."),
         ok_text = _("Reset"),
         ok_callback = function()
+            if SelCustom then pcall(SelCustom.clearIcons) end
             pcall(function()
                 for k in pairs(collectOwnSettings()) do
                     G_reader_settings:delSetting(k)
@@ -3616,8 +3965,15 @@ function ScrubberSettings:exportNotes()
     local safe_title = title:gsub("%s+", "_"):gsub("[\\/:*?\"<>|]", "")
     local default_filename = safe_title .. "_" .. _("Notes") .. ".md"
 
+    -- Con el teclado de KiKome activado el nombre se escribe en el campo del plugin; si no, el diálogo de KOReader
+    local PromptDialog = InputDialog
+    local ok_pd, ps_dialog = pcall(require, "ps_notes_dialog")
+    if ok_pd and ps_dialog and ps_dialog.InputDialog and ps_dialog.useKikomeKeyboard() then
+        PromptDialog = ps_dialog.InputDialog
+    end
+
     local dialog
-    dialog = InputDialog:new{
+    dialog = PromptDialog:new{
         title = _("Export as..."),
         input = default_filename,
         buttons = {
@@ -4417,22 +4773,20 @@ end
 -- ==========================================
 function ScrubberSettings:pickCustomIcon(filename)
     if not IconManager then return end
-    local PathChooser = require("ui/widget/pathchooser")
+    local SvgPicker = require("svg_picker")
     local lfs = require("libs/libkoreader-lfs")
 
     local start = self:readSetting("page_scrubber_icons_last_dir", nil)
     if type(start) ~= "string" or lfs.attributes(start, "mode") ~= "directory" then
-        start = G_reader_settings and G_reader_settings:readSetting("home_dir") or nil
+        start = nil
     end
 
-    UIManager:show(PathChooser:new{
+    SvgPicker.show{
         title = string.format(_("Pick an SVG for %s"), filename),
-        path = start,
-        select_file = true,
-        select_directory = false,
-        show_files = true,
-        file_filter = function(fname) return IconManager.isSvgFile(fname) end,
-        onConfirm = function(path)
+        action_label = _("Use icon"),
+        extensions = { "svg" },
+        start_dir = start,
+        on_finish = function(path)
             if type(path) ~= "string" or path == "" then return end
             if not IconManager.isSvgFile(path) then
                 UIManager:show(InfoMessage:new{ text = _("Please select a .svg file") })
@@ -4454,7 +4808,7 @@ function ScrubberSettings:pickCustomIcon(filename)
                 UIManager:show(InfoMessage:new{ text = _("Could not use that icon: ") .. tostring(err) })
             end
         end,
-    })
+    }
 end
 
 function ScrubberSettings:confirmResetIcon(filename)

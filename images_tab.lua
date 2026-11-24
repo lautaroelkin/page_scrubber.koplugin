@@ -17,7 +17,7 @@ local UIManager = require("ui/uimanager")
 local Blitbuffer = require("ffi/blitbuffer")
 local Device = require("device")
 local Screen = Device.screen
-local Font = require("ui/font")
+local Font = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local TextWidget = require("ui/widget/textwidget")
 local logger = require("logger")
 local Scanner = require("image_scanner")
@@ -110,30 +110,47 @@ function ImagesTab.install(PageScrubber, _)
 
     -- Lista de la carpeta elegida (nil = todas las imagenes)
     function PageScrubber:_imgList()
-        local entries, folder = self:_imgEntries(), self._img_folder
+        local entries = self:_imgEntries()
+        -- Carpetas elegidas (puede ser mas de una): una imagen entra si esta en cualquiera de ellas
+        local fset = self:_fltSet("folders")
+        local fver = self._flt and self._flt.ver
         local st = state(self)
         -- Las entradas se reconstruyen (objeto nuevo) ante cualquier cambio, asi que la identidad basta
         local lc = st.list_cache
-        if lc and lc.entries == entries and lc.folder == folder then return lc.list end
+        if lc and lc.entries == entries and lc.ver == fver then return lc.list end
+        local any = next(fset) ~= nil
         local out = {}
         for _, e in ipairs(entries) do
-            if folder == nil
-               or (folder == "fav" and e.is_fav)
-               or (folder == "general" and e.cls == "general")
-               or (folder == "junk" and e.cls == "junk") then
+            if not any
+               or (fset.fav and e.is_fav)
+               or (fset.general and e.cls == "general")
+               or (fset.junk and e.cls == "junk") then
                 out[#out + 1] = e
             end
         end
-        st.list_cache = { entries = entries, folder = folder, list = out }
+        st.list_cache = { entries = entries, ver = fver, list = out }
         return out
+    end
+
+    -- Cantidad de imagenes por clasificacion (para la hoja de filtro)
+    function PageScrubber:_imgFolderCounts()
+        local c = { fav = 0, general = 0, junk = 0 }
+        for _, e in ipairs(self:_imgEntries()) do
+            if e.is_fav then c.fav = c.fav + 1 end
+            if e.cls == "general" then c.general = c.general + 1
+            elseif e.cls == "junk" then c.junk = c.junk + 1 end
+        end
+        return c
     end
 
     -- Iconos de carpeta (favoritas / generales / basura) SOLO de las carpetas que tienen imagenes.
     -- La carpeta que esta elegida en este momento se mantiene visible para poder deseleccionarla.
     function PageScrubber:_imgFilterDefs()
         -- Se pide 2-3 veces por frame de pintado: se calcula una sola vez por frame
+        local fset = self:_fltSet("folders")
+        local fver = self._flt and self._flt.ver
         local fm = self._img_defs_memo
-        if self._in_paint and fm and fm.seq == self._paint_seq and fm.folder == self._img_folder then
+        if self._in_paint and fm and fm.seq == self._paint_seq and fm.ver == fver then
             return fm.defs
         end
         local entries = self:_imgEntries()
@@ -151,7 +168,7 @@ function ImagesTab.install(PageScrubber, _)
             st.has_cache = hc
         end
         local has = { fav = hc.has.fav, general = hc.has.general, junk = hc.has.junk }
-        if self._img_folder then has[self._img_folder] = true end
+        for k in pairs(fset) do has[k] = true end
         local all = {
             { key = "fav",     icon_on = self.icon_img_fav_on,  icon_off = self.icon_img_fav_off },
             { key = "general", icon_on = self.icon_img_gen_on,  icon_off = self.icon_img_gen_off },
@@ -162,7 +179,7 @@ function ImagesTab.install(PageScrubber, _)
             if has[d.key] then defs[#defs + 1] = d end
         end
         if self._in_paint then
-            self._img_defs_memo = { seq = self._paint_seq, folder = self._img_folder, defs = defs }
+            self._img_defs_memo = { seq = self._paint_seq, ver = fver, defs = defs }
         end
         return defs
     end

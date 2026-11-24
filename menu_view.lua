@@ -3,7 +3,7 @@
 ]]--
 
 local Blitbuffer = require("ffi/blitbuffer")
-local Font       = require("ui/font")
+local Font       = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 
@@ -118,9 +118,12 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     current_tab_x = current_tab_x + sort_tab_w + tab_sp
 
     local function drawTabWithShift(id, icon_char, count_num)
-        local is_active = (scrubber._active_tab == id)
+        local is_active = scrubber:_tabIsLit(id)
         local bg = is_active and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
-        local fg = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+        local is_off = (not is_active) and count_num ~= nil and count_num == 0
+        scrubber._tab_disabled = scrubber._tab_disabled or {}
+        scrubber._tab_disabled[id] = is_off or nil
+        local fg = is_active and Blitbuffer.COLOR_WHITE or (is_off and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK)
 
         local tw_ic = TextWidget:new{ text = icon_char, face = Font:getFace("cfont", S_CHIQUITO), fgcolor = fg }
         local tw_cnt = TextWidget:new{ text = "(" .. tostring(count_num) .. ")", face = Font:getFace("cfont", S_CHIQUITO), fgcolor = fg }
@@ -157,6 +160,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
         return dimen
     end
     
+    scrubber._tab_disabled = {}
     scrubber._tab_bm_dimen   = drawTabWithShift("bookmarks", "\u{E7B9}", bm_count)
     scrubber._tab_hl_dimen   = drawTabWithShift("highlights", "\u{E931}", hl_count)
     scrubber._tab_note_dimen = drawTabWithShift("notes", "\u{F075}", note_count)
@@ -477,7 +481,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     local active_fd = nil
     if has_active_filter then
         for _, fd in ipairs(filter_defs) do
-            if fd.key == scrubber._hl_filter then active_fd = fd; break end
+            if scrubber:_filterKeyOn(fd.key) then active_fd = fd; break end
         end
         if active_fd then
             active_icon_w = S(13) + S(4)
@@ -535,7 +539,7 @@ function MenuView.paint(scrubber, bb, title_strip_y, title_strip_h)
     if is_multi_hl then
         local unselected_filters = {}
         for _, fd in ipairs(present_filters) do
-            if fd.key ~= scrubber._hl_filter then
+            if not scrubber:_filterKeyOn(fd.key) then
                 table.insert(unselected_filters, fd)
             end
         end

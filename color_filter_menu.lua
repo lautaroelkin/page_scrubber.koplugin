@@ -6,7 +6,7 @@
 
 local Device         = require("device")
 local Blitbuffer     = require("ffi/blitbuffer")
-local Font           = require("ui/font")
+local Font           = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")

@@ -6,7 +6,7 @@
 ]]--
 
 local Blitbuffer = require("ffi/blitbuffer")
-local Font       = require("ui/font")
+local Font       = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 

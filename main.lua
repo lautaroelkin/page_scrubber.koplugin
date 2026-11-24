@@ -248,7 +248,7 @@ function ReaderUI:onPageScrubberToggleRTL()
         pcall(function() ui.doc_settings:flush() end)
     end
 
-    local InfoMessage = require("ui/widget/infomessage")
+    local InfoMessage = require("ps_dialogs").InfoMessage
     local msg = new_val and _("Page Scrubber: RTL (ON)") or _("Page Scrubber: RTL (OFF)")
     UIManager:show(InfoMessage:new{
         text = msg,
@@ -265,7 +265,7 @@ function ReaderUI:onPageScrubberStudy()
     if not ui.document then return end
 
     if not require("srs").isStudyActive(ui) then
-        local InfoMessage = require("ui/widget/infomessage")
+        local InfoMessage = require("ps_dialogs").InfoMessage
         UIManager:show(InfoMessage:new{ text = _("Study mode is off for this book."), timeout = 2 })
         return true
     end

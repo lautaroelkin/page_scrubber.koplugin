@@ -174,6 +174,47 @@ function M.list()
     return out
 end
 
+-- Deja un archivo elegido con el selector listo para usarse como fondo y devuelve su ID.
+-- Si ya está en una carpeta que el plugin lista (la propia o una compartida) se usa donde está;
+-- si no, se copia a la carpeta propia (con otro nombre si ya hay un archivo distinto con ese nombre),
+-- así el fondo no se pierde si el original se mueve. Devuelve nil y el motivo si falla.
+function M.importFile(path)
+    local fs = lfs()
+    if not fs or type(path) ~= "string" or fs.attributes(path, "mode") ~= "file" then
+        return nil, "missing file"
+    end
+    local dir, name = path:match("^(.*)/([^/]+)$")
+    if not name then return nil, "bad path" end
+    local ext = name:match("%.([^%.]+)$")
+    if not (ext and EXTS[ext:lower()]) then return nil, "not an image" end
+
+    M.ensureDir()
+    local own = M.getOwnDir()
+    if not own then return nil, "no folder" end
+    if dir == own then return name end
+    for _, extra in ipairs(M.getExtraDirs()) do
+        if dir == extra.dir then return extra.token .. ":" .. name end
+    end
+
+    local src_size = fs.attributes(path, "size")
+    local stem = name:match("^(.+)%.[^%.]+$") or name
+    local dst_name = name
+    local n = 1
+    while fs.attributes(own .. "/" .. dst_name, "mode") == "file" do
+        -- Mismo nombre y mismo tamaño: es el mismo archivo, ya está copiado
+        if fs.attributes(own .. "/" .. dst_name, "size") == src_size then return dst_name end
+        n = n + 1
+        dst_name = stem .. "-" .. n .. "." .. ext
+        if n > 99 then return nil, "too many copies" end
+    end
+    local dst = own .. "/" .. dst_name
+    if not copyFile(path, dst) then
+        os.remove(dst)
+        return nil, "copy failed"
+    end
+    return dst_name
+end
+
 -- Resuelve la ruta física del archivo a partir de su ID
 function M.getPathForId(id)
     if type(id) ~= "string" or id == "" or id == "none" then return nil end

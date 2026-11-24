@@ -10,9 +10,9 @@
 -- Al terminar ofrece reiniciar KOReader.
 -- Basado en el updater de Kobold/Mythos.
 
-local ConfirmBox  = require("ui/widget/confirmbox")
+local ConfirmBox  = require("ps_dialogs").ConfirmBox
 local DataStorage = require("datastorage")
-local InfoMessage = require("ui/widget/infomessage")
+local InfoMessage = require("ps_dialogs").InfoMessage
 local UIManager   = require("ui/uimanager")
 local lfs         = require("libs/libkoreader-lfs")
 local logger      = require("logger")

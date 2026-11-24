@@ -7,12 +7,12 @@ local CenterContainer = require("ui/widget/container/centercontainer")
 local Device          = require("device")
 local DocCache        = require("document/doccache")
 local Event           = require("ui/event")
-local Font            = require("ui/font")
+local Font            = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
-local InfoMessage     = require("ui/widget/infomessage")
+local InfoMessage     = require("ps_dialogs").InfoMessage
 local InputDialog     = require("ui/widget/inputdialog")
 local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
@@ -460,6 +460,7 @@ local PageScrubber = InputContainer:extend{ name = "page_scrubber", transparent 
 
 function PageScrubber:init()
     local t_init = PageScrubber.perfStart()
+    pcall(function() require("ps_bar").register(self) end)   -- para ubicar hojas y carteles sobre la barra inferior
     PageScrubber._stopJumpWatch()   -- un scrubber nuevo cancela cualquier vigilancia de un salto anterior
     -- Android: miniaturas dibujadas en el proceso principal en vez de con fork (ver scrubber_thumbs.lua).
     pcall(function()
@@ -760,6 +761,7 @@ function PageScrubber:init()
 
     self.icon_sort_asc  = createSafeIcon("\u{EBBB}", "arrow-up-wide-narrow.svg", tab_icon_sz)
     self.icon_sort_desc = createSafeIcon("\u{EBBC}", "arrow-down-wide-narrow.svg", tab_icon_sz)
+    self.icon_filter_btn = createSafeIcon("\u{F0B0}", "list-filter.svg", tab_icon_sz)
 
     local pol_icon_sz = S(20) 
     self.icon_pol_note = createSafeIcon("\u{F448}", "gravity-ui--pencil-to-square.svg", pol_icon_sz)
@@ -1418,6 +1420,21 @@ function PageScrubber:_extractAnnotations()
         end
     end
 
+    -- "All": highlights + notas sin repetir las que tienen ambos (para el filtro del split menu)
+    do
+        local seen_all = {}
+        self._all_types_present = { normal = false, invert = false, underline = false, strikethrough = false }
+        self._all_color_counts = {}
+        local function add_all(e)
+            self._all_types_present[e.type] = true
+            if e.color then self._all_color_counts[e.color] = (self._all_color_counts[e.color] or 0) + 1 end
+        end
+        for _, e in ipairs(self._cached_hl) do seen_all[e] = true; add_all(e) end
+        for _, e in ipairs(self._cached_notes) do
+            if not seen_all[e] then add_all(e) end
+        end
+    end
+
     -- Cargar fechas para páginas con marcadores puros
     local function extract_dates(src)
         if type(src) ~= "table" then return end
@@ -1438,18 +1455,31 @@ function PageScrubber:_extractAnnotations()
     extract_dates(self.ui.bookmark and self.ui.bookmark.bookmarks)
 
     -- Validar que el filtro de color siga existiendo
-    if self._hl_color_filter then
-        local counts = (self._active_tab == "notes") and self._note_color_counts or self._hl_color_counts
-        if (self._active_tab ~= "highlights" and self._active_tab ~= "notes")
-           or not counts or (counts[self._hl_color_filter] or 0) <= 0 then
-            self._hl_color_filter = nil
+    local color_set = self:_fltSet("colors")
+    if next(color_set) ~= nil then
+        local counts = (self._active_tab == "notes") and self._note_color_counts
+            or ((self._active_tab == "all") and self._all_color_counts or self._hl_color_counts)
+        if (self._active_tab ~= "highlights" and self._active_tab ~= "notes" and self._active_tab ~= "all")
+           or not counts then
+            self:_fltStore("colors", {})
+        else
+            local ns, changed = {}, false
+            for k in pairs(color_set) do
+                if (counts[k] or 0) > 0 then ns[k] = true else changed = true end
+            end
+            if changed then self:_fltStore("colors", ns) end
         end
     end
 
-    -- Validar que el filtro de tipo activo siga existiendo (dentro del color elegido, si hay)
-    local types_present = self:_getTypesPresent()
-    if self._hl_filter and not types_present[self._hl_filter] then
-        self._hl_filter = nil
+    -- Validar que los filtros de tipo activos sigan existiendo
+    local style_set = self:_fltSet("styles")
+    if next(style_set) ~= nil then
+        local types_present = self:_getTypesPresent(true)
+        local ns, changed = {}, false
+        for k in pairs(style_set) do
+            if types_present[k] then ns[k] = true else changed = true end
+        end
+        if changed then self:_fltStore("styles", ns) end
     end
 end
 
@@ -1462,7 +1492,8 @@ end
 -- Colores presentes en la pestaña (en el orden del menú de KOReader), con su cantidad
 function PageScrubber:_getColorList(tab)
     tab = tab or self._active_tab
-    local counts = (tab == "notes") and self._note_color_counts or self._hl_color_counts
+    local counts = (tab == "notes") and self._note_color_counts
+        or ((tab == "all") and self._all_color_counts or self._hl_color_counts)
     local list, seen = {}, {}
     if not counts then return list end
     for _, key in ipairs(HL_COLOR_ORDER) do
@@ -1485,7 +1516,7 @@ end
 -- Color elegido en el filtro y su cantidad dentro de la pestaña (o nil si no hay filtro)
 function PageScrubber:_getSelectedColorInfo(tab)
     tab = tab or self._active_tab
-    if not self._hl_color_filter or (tab ~= "highlights" and tab ~= "notes") then return nil end
+    if not self._hl_color_filter or (tab ~= "highlights" and tab ~= "notes") then return nil end  -- (en "All" no hay pestaña propia)
     for _, c in ipairs(self:_getColorList(tab)) do
         if c.key == self._hl_color_filter then return c.key, c.count end
     end
@@ -1507,7 +1538,7 @@ end
 -- Mini-indicador a la izquierda del número en las filas del split menu (color o ícono de tipo)
 function PageScrubber:_paintRowVisualHint(bb, x, row_y, row_h, item_obj, is_r_sel)
     local tab = self._active_tab
-    if tab ~= "bookmarks" and tab ~= "highlights" and tab ~= "notes" and tab ~= "images" then
+    if tab ~= "bookmarks" and tab ~= "highlights" and tab ~= "notes" and tab ~= "images" and tab ~= "all" then
         return
     end
     if tab ~= "bookmarks" and type(item_obj) ~= "table" then
@@ -1519,7 +1550,7 @@ function PageScrubber:_paintRowVisualHint(bb, x, row_y, row_h, item_obj, is_r_se
     local color_key = nil
     local chip_key = nil
 
-    if tab == "bookmarks" then
+    if tab == "bookmarks" or (type(item_obj) == "table" and item_obj.is_bookmark) then
         style_icon = self.icon_filter_bm_on
     elseif tab == "images" then
         if item_obj.is_fav then
@@ -1586,7 +1617,7 @@ end
 
 -- Ancho del lápiz si este highlight lo lleva (solo pestaña highlights con nota); nil si no
 function PageScrubber:_noteMarkWidth(item_obj)
-    if self._active_tab ~= "highlights" or type(item_obj) ~= "table" then return nil end
+    if (self._active_tab ~= "highlights" and self._active_tab ~= "all") or type(item_obj) ~= "table" then return nil end
     if type(item_obj.note) ~= "string" or item_obj.note == "" then return nil end
     local icon = self.icon_filter_note_on
     return icon and icon:getSize().w or nil
@@ -1606,7 +1637,7 @@ end
 
 -- Lápiz a la derecha del número de página: solo en la pestaña de highlights, si ese highlight tiene nota
 function PageScrubber:_paintRowNoteMark(bb, x, row_y, row_h, item_obj, is_r_sel, max_x)
-    if self._active_tab ~= "highlights" or type(item_obj) ~= "table" then return end
+    if (self._active_tab ~= "highlights" and self._active_tab ~= "all") or type(item_obj) ~= "table" then return end
     if type(item_obj.note) ~= "string" or item_obj.note == "" then return end
     local icon = self.icon_filter_note_on
     if not icon then return end
@@ -1626,7 +1657,7 @@ end
 function PageScrubber:_hasMultiHighlightColor(tab, htype)
     tab = tab or self._active_tab
     htype = htype or "normal"
-    local list = (tab == "notes") and self._cached_notes or self._cached_hl
+    local list = self:_getAnnList(tab)
     if type(list) ~= "table" then return false end
     local c = self._multi_hl_color_cache
     if c and c.list == list and c.n == #list and c.tab == tab and c.htype == htype then return c.val end
@@ -1649,14 +1680,16 @@ function PageScrubber:_hasMultiColor(tab)
 end
 
 -- Tipos de estilo presentes en la pestaña activa (respetando el filtro de color)
-function PageScrubber:_getTypesPresent()
+function PageScrubber:_getTypesPresent(ignore_colors)
     local tab = self._active_tab
-    local base = (tab == "notes") and self._note_types_present or self._hl_types_present
-    if not self._hl_color_filter then return base end
-    local list = (tab == "notes") and self._cached_notes or self._cached_hl
+    local base = (tab == "notes") and self._note_types_present
+        or ((tab == "all") and self._all_types_present or self._hl_types_present)
+    local colors = (not ignore_colors) and self:_fltSet("colors") or nil
+    if not colors or next(colors) == nil then return base or {} end
+    local list = self:_getAnnList(tab)
     local present = { normal = false, invert = false, underline = false, strikethrough = false }
     for _, it in ipairs(list or {}) do
-        if it.color == self._hl_color_filter then present[it.type] = true end
+        if colors[it.color] then present[it.type] = true end
     end
     return present
 end
@@ -1665,8 +1698,13 @@ function PageScrubber:_setColorFilter(key)
     if key == self._hl_color_filter then key = nil end
     self._hl_color_filter = key
     local types_present = self:_getTypesPresent()
-    if self._hl_filter and not types_present[self._hl_filter] then
-        self._hl_filter = nil
+    local style_set = self:_fltSet("styles")
+    if next(style_set) ~= nil then
+        local ns, changed = {}, false
+        for k in pairs(style_set) do
+            if types_present[k] then ns[k] = true else changed = true end
+        end
+        if changed then self:_fltStore("styles", ns) end
     end
     self._split_bm_page = 1
     self._split_selected_item = nil
@@ -1875,23 +1913,498 @@ function PageScrubber:_paintChevronUp(bb, x, y, w, h, color)
     end
 end
 
+-- ---- Filtro del split menu (botón de filtro + hoja de opciones, estilo KiKome) ----
+
+-- Lista de anotaciones de una pestaña ("All" = highlights + notas sin repetir, solo de lo que se esté mostrando).
+-- full = true ignora la selección de qué mostrar y devuelve todos los highlights + notas.
+function PageScrubber:_getAnnList(tab, full)
+    tab = tab or self._active_tab
+    if tab == "notes" then return self._cached_notes or {} end
+    if tab ~= "all" then return self._cached_hl or {} end
+    local kinds = (not full) and self:_fltKinds() or nil
+    local want_hl = (not kinds) or kinds.highlights == true
+    local want_notes = (not kinds) or kinds.notes == true
+    local key = (want_hl and 1 or 0) + (want_notes and 2 or 0)
+    local m = self._all_ann_memo
+    if m and m.hl == self._cached_hl and m.notes == self._cached_notes and m.key == key then return m.list end
+    local list, seen = {}, {}
+    if want_hl then
+        for _, e in ipairs(self._cached_hl or {}) do seen[e] = true; list[#list + 1] = e end
+    end
+    if want_notes then
+        for _, e in ipairs(self._cached_notes or {}) do
+            if not seen[e] then list[#list + 1] = e end
+        end
+    end
+    self._all_ann_memo = { hl = self._cached_hl, notes = self._cached_notes, key = key, list = list }
+    return list
+end
+
+-- Marcador convertido en ítem de lista (siempre el mismo objeto por página, para que la selección lo reconozca)
+function PageScrubber:_getBookmarkWrapper(p)
+    self._bm_wrap_cache = self._bm_wrap_cache or {}
+    local w = self._bm_wrap_cache[p]
+    if not w then
+        w = { is_bookmark = true, page = p, order = 0, total_on_page = 1, type = "bookmark",
+              text = "", note = "", raw_index = 0 }
+        self._bm_wrap_cache[p] = w
+    end
+    w.disp_page = tostring(self:_getDisplayPageInfo(p))
+    return w
+end
+
+-- Ítems de la lista "All": anotaciones + marcadores (solo los tipos elegidos en el filtro "Show")
+function PageScrubber:_getAllListItems()
+    local out = {}
+    local kinds = self:_fltKinds()
+    for _, e in ipairs(self:_getAnnList("all")) do out[#out + 1] = e end
+    if not kinds or kinds.bookmarks then
+        for _, p in ipairs(self:_getAllBookmarks() or {}) do
+            local n = tonumber(p)
+            if n then out[#out + 1] = self:_getBookmarkWrapper(n) end
+        end
+    end
+    return out
+end
+
+-- ---- Filtros de selección múltiple ----
+-- Estilo, color y carpeta de imágenes aceptan varias opciones a la vez. El estado vive en self._flt
+-- (conjuntos { clave = true }). Los campos de siempre (_hl_filter, _hl_color_filter, _img_folder) quedan
+-- como espejo: nil sin nada elegido, la clave si hay una sola, "__multi" si hay varias. Así el código
+-- viejo que pregunta "¿hay filtro?" sigue andando, y si algo cambia esos campos a mano (reseteos al
+-- cambiar de pestaña, etc.) _fltSet lo nota y adopta ese valor.
+PageScrubber.FLT_MULTI = "__multi"
+PageScrubber.FLT_FIELDS = { styles = "_hl_filter", colors = "_hl_color_filter", folders = "_img_folder" }
+
+function PageScrubber:_fltMirror(set)
+    local n, only = 0, nil
+    for k in pairs(set) do n = n + 1; only = k end
+    if n == 0 then return nil end
+    if n == 1 then return only end
+    return self.FLT_MULTI
+end
+
+-- Conjunto vigente de un filtro: "styles", "colors" o "folders"
+function PageScrubber:_fltSet(field)
+    local flt = self._flt
+    if not flt then flt = { ver = 0 }; self._flt = flt end
+    local fname = self.FLT_FIELDS[field]
+    local cur = self[fname]
+    local set = flt[field]
+    if set and cur == self:_fltMirror(set) then return set end
+    -- Otro código cambió el campo de siempre: se adopta ese valor
+    local ns = {}
+    if cur ~= nil and cur ~= self.FLT_MULTI then ns[cur] = true end
+    flt[field] = ns
+    flt.ver = flt.ver + 1
+    if cur == self.FLT_MULTI then self[fname] = nil end
+    return ns
+end
+
+function PageScrubber:_fltStore(field, set)
+    local flt = self._flt
+    if not flt then flt = { ver = 0 }; self._flt = flt end
+    flt[field] = set
+    self[self.FLT_FIELDS[field]] = self:_fltMirror(set)
+    flt.ver = flt.ver + 1
+end
+
+-- Prende o apaga una clave (on = nil alterna)
+function PageScrubber:_fltToggle(field, key, on)
+    local ns = {}
+    for k in pairs(self:_fltSet(field)) do ns[k] = true end
+    if on == nil then on = not ns[key] end
+    ns[key] = on and true or nil
+    self:_fltStore(field, ns)
+end
+
+-- Filtros rápidos de estilo (los íconos del menú derecho y del panel de detalles): de a UN estilo por vez.
+-- Tocar uno lo elige solo (si había varios elegidos desde el botón de filtro, quedan reemplazados por este);
+-- tocar el que ya es el único elegido lo apaga. Para elegir varios a la vez se usa el botón de filtro de la izquierda.
+function PageScrubber:_fltPickStyle(key)
+    local cur = self:_fltSet("styles")
+    local n = 0
+    for _ in pairs(cur) do n = n + 1 end
+    if cur[key] == true and n == 1 then
+        self:_fltStore("styles", {})
+    else
+        self:_fltStore("styles", { [key] = true })
+    end
+end
+
+-- Qué listas entran en "All" cuando son solo algunas: { bookmarks, highlights, notes } o nil (todas)
+function PageScrubber:_fltKinds()
+    local k = self._flt and self._flt.kinds
+    if k and self._active_tab == "all" then return k end
+    return nil
+end
+
+-- ¿Se pinta este tab "prendido" (negro)? Además del tab activo, con varias listas elegidas en el filtro
+-- (marcadores + highlights, etc.) se prenden todas las que se están mostrando.
+function PageScrubber:_tabIsLit(id)
+    local tab = self._active_tab
+    if tab == id then return true end
+    if tab ~= "all" or id == "images" then return false end
+    local k = self:_fltKinds()
+    if not k then return true end
+    return k[id] == true
+end
+
+-- ¿Está prendido este icono del filtro rápido (estilo, o carpeta en el tab de imágenes)?
+function PageScrubber:_filterKeyOn(key)
+    local field = (self._active_tab == "images") and "folders" or "styles"
+    return self:_fltSet(field)[key] == true
+end
+
+function PageScrubber:_filterButtonActive()
+    return self._active_tab == "all" or self._hl_filter ~= nil or self._hl_color_filter ~= nil
+        or (self._active_tab == "images" and self._img_folder ~= nil)
+end
+
+-- Quita filtros de estilo/color que ya no existen en la lista activa
+function PageScrubber:_sanitizeFilters()
+    local tab = self._active_tab
+    if tab ~= "highlights" and tab ~= "notes" and tab ~= "all" then
+        if next(self:_fltSet("styles")) ~= nil then self:_fltStore("styles", {}) end
+        if next(self:_fltSet("colors")) ~= nil then self:_fltStore("colors", {}) end
+        return
+    end
+    -- Estilos que ya no existen
+    local styles = self:_fltSet("styles")
+    if next(styles) ~= nil then
+        local present = {}
+        for _, e in ipairs(self:_getAnnList(tab)) do
+            if e.type then present[e.type] = true end
+        end
+        local ns, changed = {}, false
+        for k in pairs(styles) do
+            if present[k] then ns[k] = true else changed = true end
+        end
+        if changed then self:_fltStore("styles", ns); styles = ns end
+    end
+    -- Colores que ya no existen con los estilos elegidos ("invert" solo no tiene color)
+    local colors = self:_fltSet("colors")
+    if next(colors) ~= nil then
+        local only_invert = next(styles) ~= nil
+        for k in pairs(styles) do
+            if k ~= "invert" then only_invert = false; break end
+        end
+        local have = {}
+        if not only_invert then
+            for _, c in ipairs(self:_getColorListFor(tab, styles)) do have[c.key] = true end
+        end
+        local ns, changed = {}, false
+        for k in pairs(colors) do
+            if have[k] then ns[k] = true else changed = true end
+        end
+        if changed then self:_fltStore("colors", ns) end
+    end
+end
+
+-- Cambia qué se lista: "all", "bookmarks", "highlights", "notes" o "images".
+-- Con "all", kinds = { bookmarks = true, ... } muestra solo esos tipos (nil = todos).
+function PageScrubber:_setListKind(kind, kinds)
+    local flt = self._flt
+    if not flt then flt = { ver = 0 }; self._flt = flt end
+    local prev_tab = self._active_tab
+    if kind == prev_tab and kind ~= "all" then return end
+    flt.kinds = (kind == "all") and kinds or nil
+    flt.ver = flt.ver + 1
+    self._active_tab = kind
+    if kind == "images" then
+        -- Las imágenes tienen sus propias carpetas: estilo y color no aplican
+        self:_fltStore("styles", {})
+        self:_fltStore("colors", {})
+        self:_fltStore("folders", {})
+    elseif prev_tab == "images" then
+        self:_fltStore("folders", {})
+    end
+    self._split_bm_page = 1
+    self._split_selected_item = nil
+    self:_scheduleDetailsResync()
+    if kind == "images" and self._imgEnsureScan then self:_imgEnsureScan() end
+    self:_extractAnnotations()
+    self:_sanitizeFilters()
+end
+
+-- Colores presentes (con cantidad) entre las anotaciones de la pestaña que tienen alguno de los estilos dados
+-- (styles = conjunto { estilo = true }; vacío o nil = todos)
+function PageScrubber:_getColorListFor(tab, styles)
+    local counts, list = {}, {}
+    local any_style = styles ~= nil and next(styles) ~= nil
+    for _, e in ipairs(self:_getAnnList(tab)) do
+        if e.color and e.type ~= "invert" and (not any_style or styles[e.type]) then
+            counts[e.color] = (counts[e.color] or 0) + 1
+        end
+    end
+    local seen = {}
+    for _, key in ipairs(HL_COLOR_ORDER) do
+        if (counts[key] or 0) > 0 then
+            list[#list + 1] = { key = key, count = counts[key], name = HL_COLOR_NAMES[key] or key }
+            seen[key] = true
+        end
+    end
+    local extras = {}
+    for key, n in pairs(counts) do
+        if not seen[key] and n > 0 then extras[#extras + 1] = key end
+    end
+    table.sort(extras)
+    for _, key in ipairs(extras) do
+        list[#list + 1] = { key = key, count = counts[key], name = key:sub(1, 1):upper() .. key:sub(2) }
+    end
+    return list
+end
+
+-- Botón de filtro: hoja con orden, qué mostrar, carpetas de imágenes, estilo y color (como el filtro de KiKome).
+-- Todo menos el orden admite varias opciones a la vez.
+function PageScrubber:_openFilterSheet()
+    local scrubber = self
+    local ok, Sheet = pcall(require, "ps_sheet")
+    if not ok or not Sheet or type(Sheet.options) ~= "function" then
+        -- Sin la hoja nueva: el botón sigue alternando el orden como antes
+        self._sort_order = (self._sort_order == "asc") and "desc" or "asc"
+        self._split_bm_page = 1
+        self._force_menu_sync = false
+        self._hide_action_buttons = true
+        UIManager:setDirty(self, "ui", self.dimen)
+        return
+    end
+    if self._filter_sheet and not self._filter_sheet.closed then return end
+
+    local sheet
+    local function refreshBehind()
+        UIManager:nextTick(function()
+            if scrubber._closing then return end
+            local top = (sheet and not sheet.closed and sheet.top) or scrubber.dimen.h
+            UIManager:setDirty(scrubber, "ui", Geom:new{ x = 0, y = 0, w = scrubber.dimen.w, h = math.max(1, top) })
+        end)
+    end
+    local function changed(rebuild)
+        scrubber:_sanitizeFilters()
+        scrubber._split_bm_page = 1
+        scrubber._split_selected_item = nil
+        scrubber._force_menu_sync = false
+        scrubber._hide_action_buttons = true
+        scrubber:_scheduleDetailsResync()
+        if sheet and rebuild then sheet.rows = rebuild() end
+        refreshBehind()
+    end
+
+    local function withCount(label, n) return string.format("%s (%d)", label, n) end
+    local function copySet(set)
+        local c = {}
+        for k, v in pairs(set) do c[k] = v end
+        return c
+    end
+
+    -- Listas que se muestran ahora, como conjunto de ids de la fila "Show"
+    local function currentKinds()
+        local tab = scrubber._active_tab
+        if tab == "all" then
+            local k = scrubber:_fltKinds()
+            if k then return copySet(k) end
+            return { bookmarks = true, highlights = true, notes = true }
+        end
+        return { [tab] = true }
+    end
+
+    local buildRows
+    buildRows = function()
+        local tab = scrubber._active_tab
+        local rows = {}
+
+        local order_row = {
+            label = _("Order"), selected = scrubber._sort_order,
+            options = {
+                { id = "asc",  label = _("Ascending"),  icon = "arrow-up-wide-narrow" },
+                { id = "desc", label = _("Descending"), icon = "arrow-down-wide-narrow" },
+            },
+            on_pick = function(id)
+                scrubber._sort_order = id
+                scrubber._split_bm_page = 1
+                scrubber._force_menu_sync = false
+                scrubber._hide_action_buttons = true
+                refreshBehind()
+            end,
+        }
+
+        local in_images = (tab == "images")
+        rows[#rows + 1] = order_row
+
+        -- Sección aparte para las imágenes ("Gallery"): al prenderla desaparecen el estilo y el color de los highlights
+        -- (la fila Show queda arriba, sin nada elegido); al apagarla (o al tocar una opción de Show) se vuelve a las listas
+        local function addImagesSection()
+            if not scrubber._imgTabEnabled then return end
+            local n_img = scrubber._imgCount and scrubber:_imgCount() or nil
+            rows[#rows + 1] = {
+                label = _("Gallery"),
+                toggle = true, selected = in_images and "images" or nil,
+                options = { { id = "images", label = n_img and withCount(_("Images"), n_img) or _("Images"), icon = "image" } },
+                on_pick = function(id)
+                    if id == "images" then
+                        local k = scrubber._flt and scrubber._flt.kinds
+                        scrubber._ann_return = { tab = scrubber._active_tab, kinds = k and copySet(k) or nil }
+                        scrubber:_setListKind("images")
+                    else
+                        local ret = scrubber._ann_return
+                        scrubber._ann_return = nil
+                        if ret and ret.tab and ret.tab ~= "images" then
+                            scrubber:_setListKind(ret.tab, ret.kinds)
+                        else
+                            scrubber:_setListKind("all", nil)
+                        end
+                    end
+                    changed(buildRows)
+                end,
+            }
+        end
+
+        do
+            -- Qué mostrar: varias listas a la vez (marcadores, highlights y notas). Con las tres prendidas es la lista completa.
+            -- Con la galería prendida la fila sigue ahí, sin nada elegido: tocar una opción apaga la galería y muestra esa lista
+            local bm_n = #(scrubber:_getAllBookmarks() or {})
+            local shown = in_images and {} or currentKinds()
+            local show_opts = {
+                { id = "bookmarks",  label = withCount(_("Bookmarks"), bm_n),                        icon = "gravity-ui--bookmark" },
+                { id = "highlights", label = withCount(_("Highlights"), #(scrubber._cached_hl or {})), icon = "boxicons--highlight" },
+                { id = "notes",      label = withCount(_("Notes"), #(scrubber._cached_notes or {})),   icon = "pencil-line" },
+            }
+            rows[#rows + 1] = {
+                label = _("Show"), multi = true, selected = shown, options = show_opts,
+                on_pick = function(id)
+                    if scrubber._active_tab == "images" then
+                        scrubber._ann_return = nil
+                        scrubber:_setListKind(id)
+                        changed(buildRows)
+                        return
+                    end
+                    local want = currentKinds()
+                    if want[id] then want[id] = nil else want[id] = true end
+                    local n, only = 0, nil
+                    for k in pairs(want) do n = n + 1; only = k end
+                    if n == 0 then
+                        -- Siempre queda algo mostrándose: la opción que se apagó vuelve a quedar prendida
+                        want, n, only = { [id] = true }, 1, id
+                    end
+                    if n >= 3 then
+                        scrubber:_setListKind("all", nil)
+                    elseif n == 1 then
+                        scrubber:_setListKind(only)
+                    else
+                        scrubber:_setListKind("all", want)
+                    end
+                    changed(buildRows)
+                end,
+            }
+        end
+
+        if tab == "images" then
+            addImagesSection()
+            -- Clasificaciones del tab de imágenes (solo las que tienen imágenes, más las que ya están elegidas)
+            local fset = scrubber:_fltSet("folders")
+            local counts = scrubber._imgFolderCounts and scrubber:_imgFolderCounts() or { fav = 0, general = 0, junk = 0 }
+            local fdefs = {
+                { id = "fav",     label = withCount(_("Favorites"), counts.fav),     icon = "img-folder-fav",     n = counts.fav },
+                { id = "general", label = withCount(_("General"), counts.general),   icon = "img-folder-general", n = counts.general },
+                { id = "junk",    label = withCount(_("Trash"), counts.junk),        icon = "trash-2",            n = counts.junk },
+            }
+            local fopts = {}
+            for _i, d in ipairs(fdefs) do
+                if d.n > 0 or fset[d.id] then fopts[#fopts + 1] = d end
+            end
+            if #fopts >= 2 or next(fset) ~= nil then
+                rows[#rows + 1] = {
+                    label = _("Image folders"), multi = true, options = fopts, selected = copySet(fset),
+                    on_pick = function(id, on)
+                        scrubber:_fltToggle("folders", id, on)
+                        changed(buildRows)
+                    end,
+                }
+            end
+        elseif tab == "all" or tab == "highlights" or tab == "notes" then
+            -- Estilos presentes en lo que se está mostrando
+            local sset = scrubber:_fltSet("styles")
+            local present = {}
+            for _i, e in ipairs(scrubber:_getAnnList(tab)) do
+                if e.type then present[e.type] = true end
+            end
+            local defs = {
+                { id = "normal",        label = _("Highlight"),     icon = "droplet" },
+                { id = "underline",     label = _("Underline"),     icon = "underline" },
+                { id = "invert",        label = _("Invert"),        icon = "contrast" },
+                { id = "strikethrough", label = _("Strikethrough"), icon = "strikethrough" },
+            }
+            local opts = {}
+            for _i, d in ipairs(defs) do
+                if present[d.id] or sset[d.id] then opts[#opts + 1] = d end
+            end
+            if #opts >= 2 or next(sset) ~= nil then
+                rows[#rows + 1] = {
+                    label = _("Highlight style"), multi = true, options = opts, selected = copySet(sset),
+                    on_pick = function(id, on)
+                        scrubber:_fltToggle("styles", id, on)
+                        changed(buildRows)
+                    end,
+                }
+            end
+
+            -- Colores: solo los que hay con los estilos elegidos; con "invert" solo no hay colores
+            local only_invert = next(sset) ~= nil
+            for k in pairs(sset) do
+                if k ~= "invert" then only_invert = false; break end
+            end
+            if not only_invert then
+                local cset = scrubber:_fltSet("colors")
+                local colors = scrubber:_getColorListFor(tab, sset)
+                if #colors >= 2 or next(cset) ~= nil then
+                    local copts = {}
+                    for _i, c in ipairs(colors) do
+                        copts[#copts + 1] = { id = c.key, label = withCount(c.name, c.count), dot = c.key }
+                    end
+                    rows[#rows + 1] = {
+                        label = _("Color"), multi = true, options = copts, selected = copySet(cset),
+                        on_pick = function(id, on)
+                            scrubber:_fltToggle("colors", id, on)
+                            changed(buildRows)
+                        end,
+                    }
+                end
+            end
+        end
+        if not in_images then addImagesSection() end
+        return rows
+    end
+
+    sheet = Sheet.options{
+        title = _("Filter"), rows = buildRows(),
+        on_close = function()
+            scrubber._filter_sheet = nil
+            if not scrubber._closing then UIManager:setDirty(scrubber, "ui", scrubber.dimen) end
+        end,
+    }
+    self._filter_sheet = sheet
+end
+
 -- Dentro de un mismo frame de pintado la lista filtrada se pide varias veces (menu, panel de detalles,
 -- sincronizacion de seleccion...): se arma y ordena una sola vez mientras no cambie nada que la afecte.
 -- Fuera del pintado (gestos, teclas) siempre se recalcula.
 function PageScrubber:_getFilteredActiveList()
     if not self._in_paint then return self:_getFilteredActiveListUncached() end
     local fixed = self._split_fixed_page or self._origin_page
+    -- Con filtros de varias opciones los campos espejo no alcanzan: se compara también la versión del filtro
+    self:_fltSet("styles"); self:_fltSet("colors"); self:_fltSet("folders")
+    local fv = self._flt.ver
     local m = self._fal_memo
     if m and m.seq == self._paint_seq and m.tab == self._active_tab and m.hlf == self._hl_filter
         and m.hlcf == self._hl_color_filter and m.imgf == self._img_folder and m.sort == self._sort_order
         and m.fixed == fixed and m.hl == self._cached_hl and m.notes == self._cached_notes
-        and m.bms == self._cached_bms then
+        and m.bms == self._cached_bms and m.fv == fv then
         return m.list
     end
     local list = self:_getFilteredActiveListUncached()
     self._fal_memo = {
         seq = self._paint_seq, tab = self._active_tab, hlf = self._hl_filter, hlcf = self._hl_color_filter,
-        imgf = self._img_folder, sort = self._sort_order, fixed = fixed,
+        fv = fv, imgf = self._img_folder, sort = self._sort_order, fixed = fixed,
         hl = self._cached_hl, notes = self._cached_notes, bms = self._cached_bms, list = list,
     }
     return list
@@ -1903,7 +2416,11 @@ function PageScrubber:_getFilteredActiveListUncached()
     if self._active_tab == "bookmarks" then active_list = self:_getAllBookmarks()
     elseif self._active_tab == "highlights" then active_list = self._cached_hl or {}
     elseif self._active_tab == "notes" then active_list = self._cached_notes or {}
+    elseif self._active_tab == "all" then active_list = self:_getAllListItems()
     elseif self._active_tab == "images" and self._imgList then active_list = self:_imgList() end
+
+    local styles, colors = self:_fltSet("styles"), self:_fltSet("colors")
+    local has_styles, has_colors = next(styles) ~= nil, next(colors) ~= nil
 
     local other_items = {}
     for _, it in ipairs(active_list) do
@@ -1915,11 +2432,17 @@ function PageScrubber:_getFilteredActiveListUncached()
             end
         else
             local passes_filter = true
-            if self._hl_filter then
-                passes_filter = (it.type == self._hl_filter)
-            end
-            if passes_filter and self._hl_color_filter then
-                passes_filter = (it.color == self._hl_color_filter)
+            -- Los marcadores de "All" no tienen estilo ni color: si están elegidos, entran siempre
+            if not it.is_bookmark then
+                if has_styles then passes_filter = (styles[it.type] == true) end
+                if passes_filter and has_colors then
+                    if it.type == "invert" then
+                        -- "invert" no tiene color: entra si se pidió ese estilo
+                        passes_filter = (styles.invert == true)
+                    else
+                        passes_filter = (colors[it.color] == true)
+                    end
+                end
             end
             if passes_filter then
                 table.insert(other_items, it)
@@ -2015,13 +2538,25 @@ function PageScrubber:onPrevChapterKey()
     return true
 end
 
+-- Siguiente / anterior pestaña del split, salteando las que están vacías (apagadas)
+function PageScrubber:_cycleTab(dir)
+    local order = { "bookmarks", "highlights", "notes" }
+    if self._imgTabEnabled then order[#order + 1] = "images" end
+    local idx = 1
+    for i, id in ipairs(order) do if id == self._active_tab then idx = i; break end end
+    local n = #order
+    local pick = order[((idx - 1 + dir) % n) + 1]
+    for step = 1, n - 1 do
+        local cand = order[((idx - 1 + dir * step) % n) + 1]
+        if not (self._tab_disabled and self._tab_disabled[cand]) then pick = cand; break end
+    end
+    self._active_tab = pick
+end
+
 function PageScrubber:onPrevPage() 
     if self._closing then return true end
     if self._view_mode == "split" then
-        if self._active_tab == "images" then self._active_tab = "notes"
-        elseif self._active_tab == "notes" then self._active_tab = "highlights"
-        elseif self._active_tab == "highlights" then self._active_tab = "bookmarks"
-        else self._active_tab = self._imgTabEnabled and "images" or "notes" end
+        self:_cycleTab(-1)
         self._img_folder = nil
         self._split_selected_item = nil
         if self._active_tab == "images" then self:_imgEnsureScan() end
@@ -2041,10 +2576,7 @@ function PageScrubber:onPageBackward() return self:onPrevPage() end
 function PageScrubber:onNextPage() 
     if self._closing then return true end
     if self._view_mode == "split" then
-        if self._active_tab == "bookmarks" then self._active_tab = "highlights"
-        elseif self._active_tab == "highlights" then self._active_tab = "notes"
-        elseif self._active_tab == "notes" and self._imgTabEnabled then self._active_tab = "images"
-        else self._active_tab = "bookmarks" end
+        self:_cycleTab(1)
         self._img_folder = nil
         self._split_selected_item = nil
         if self._active_tab == "images" then self:_imgEnsureScan() end
@@ -3289,6 +3821,8 @@ end
 
 function PageScrubber:_buildDetailsData(ctx)
     local e = ctx.entry
+    -- Un marcador de la lista "All" se trata como el marcador de siempre (número de página)
+    if type(e) == "table" and e.is_bookmark then e = e.page end
     local is_tbl = (type(e) == "table")
     local page = is_tbl and tonumber(e.page) or tonumber(e) or self._cur_page
     local a = is_tbl and e.annotation or nil
@@ -3898,7 +4432,7 @@ function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, ful
         local defs = nil
         if self._active_tab == "images" and self._imgTabEnabled then
             defs = self:_imgFilterDefs()
-        elseif self._active_tab == "highlights" or self._active_tab == "notes" then
+        elseif self._active_tab == "highlights" or self._active_tab == "notes" or self._active_tab == "all" then
             local all_defs = {
                 { key = "normal",        icon_on = self.icon_filter_hl_on,  icon_off = self.icon_filter_hl_off },
                 { key = "underline",     icon_on = self.icon_filter_ul_on,  icon_off = self.icon_filter_ul_off },
@@ -3954,11 +4488,10 @@ function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, ful
     if #filt_list > 0 then
         local cell_h = title_h + S(16)
         local fx0 = self._details_close_dimen.x - filt_total_w
-        local active_key = (self._active_tab == "images") and self._img_folder or self._hl_filter
         self._details_filter_dimens = {}
         for i, fd in ipairs(filt_list) do
             local cx0 = fx0 + (i - 1) * filt_cell_w
-            local is_active = (active_key == fd.key)
+            local is_active = self:_filterKeyOn(fd.key)
             local ficon = is_active and fd.icon_on or fd.icon_off
             if ficon then
                 local fsz = ficon:getSize()
@@ -4511,18 +5044,28 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local current_tab_x = pr_x
     local r = math.floor(tab_h / 2)
 
-    local active_sort_icon = (self._sort_order == "asc") and self.icon_sort_asc or self.icon_sort_desc
+    local active_sort_icon = self.icon_filter_btn or ((self._sort_order == "asc") and self.icon_sort_asc or self.icon_sort_desc)
     local sort_tsz = active_sort_icon and active_sort_icon:getSize() or {w = S(18), h = S(18)}
     local sort_tab_w = sort_tsz.w + S(16)
+    local filt_on = self:_filterButtonActive()
 
     paintRoundRect(bb, current_tab_x, tab_draw_y, sort_tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, current_tab_x + b_thick, tab_draw_y + b_thick, sort_tab_w - b_thick*2, tab_h - b_thick*2, math.max(1, r - b_thick), Blitbuffer.COLOR_WHITE)
+    if not filt_on then
+        paintRoundRect(bb, current_tab_x + b_thick, tab_draw_y + b_thick, sort_tab_w - b_thick*2, tab_h - b_thick*2, math.max(1, r - b_thick), Blitbuffer.COLOR_WHITE)
+    end
 
     local stx = current_tab_x + math.floor((sort_tab_w - sort_tsz.w) / 2)
     local sty = tab_draw_y + math.floor((tab_h - sort_tsz.h) / 2)
 
     if active_sort_icon then
-        active_sort_icon:paintTo(bb, stx, sty)
+        if filt_on then
+            -- Filtro activo: pastilla negra con el ícono en blanco
+            bb:paintRect(stx, sty, sort_tsz.w, sort_tsz.h, Blitbuffer.COLOR_WHITE)
+            active_sort_icon:paintTo(bb, stx, sty)
+            bb:invertRect(stx, sty, sort_tsz.w, sort_tsz.h)
+        else
+            active_sort_icon:paintTo(bb, stx, sty)
+        end
     end
 
     self._tab_sort_dimen = Geom:new{ x = current_tab_x, y = tab_draw_y, w = sort_tab_w, h = tab_h }
@@ -4530,6 +5073,11 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
 
         local function drawTabWithSVG(id, icon_widget, count_num)
             local is_active = (self._active_tab == id)
+            -- Pestaña inactiva y sin nada: se ve apagada y no responde al toque
+            local lit = self:_tabIsLit(id)
+            local is_off = (not lit) and count_num ~= nil and count_num == 0
+            self._tab_disabled = self._tab_disabled or {}
+            self._tab_disabled[id] = is_off or nil
 
             -- Lazy caching para los contadores de pestañas
             if not self._tw_tab_count_normal then
@@ -4542,9 +5090,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             if is_active then sel_key, sel_count = self:_getSelectedColorInfo(id) end
             if sel_key then count_num = sel_count end
 
-            local tw_cnt = is_active and self._tw_tab_count_bold or self._tw_tab_count_normal
+            local tw_cnt = lit and self._tw_tab_count_bold or self._tw_tab_count_normal
             tw_cnt.text = nil
-            tw_cnt.fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+            tw_cnt.fgcolor = lit and Blitbuffer.COLOR_WHITE or (is_off and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK)
             -- count_num == nil (imagenes sin escanear): solo el icono, sin parentesis
             local has_count = (count_num ~= nil)
             tw_cnt:setText(has_count and ("(" .. tostring(count_num) .. ")") or "")
@@ -4580,12 +5128,13 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             local content_w = arrow_extra + isz.w + gap + name_extra_w + csz.w
             local tab_w = content_w + S(16)
 
-            if is_active then
+            if lit then
                 -- Relleno negro sólido completo sin marco blanco interno
                 paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_BLACK)
             else
                 -- Pestaña inactiva: gris, sin contorno
-                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r, Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
+                paintRoundRect(bb, current_tab_x, tab_draw_y, tab_w, tab_h, r,
+                    is_off and Blitbuffer.Color8(0xF6) or Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
             end
 
             local lead_x = current_tab_x + math.floor((tab_w - content_w) / 2)
@@ -4620,13 +5169,14 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                 self:_paintColorDot(bb, ix, iy, isz.w, sel_key, nil)
                 self._tw_tab_color_name:paintTo(bb, nx, ny)
             elseif icon_widget then
-                if is_active then
+                if lit then
                     -- Inversión del icono sobre fondo negro sólido para que quede blanco puro
                     bb:paintRect(ix, iy, isz.w, isz.h, Blitbuffer.COLOR_WHITE)
                     icon_widget:paintTo(bb, ix, iy)
                     bb:invertRect(ix, iy, isz.w, isz.h)
                 else
                     icon_widget:paintTo(bb, ix, iy)
+                    if is_off then pcall(bb.lightenRect, bb, ix, iy, isz.w, isz.h, 0.6) end
                 end
             end
 
@@ -4639,6 +5189,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     
     self._tab_arrow_dimen = nil
     self._tab_arrow_tab_dimen = nil
+    self._tab_disabled = {}
     self._tab_bm_dimen   = drawTabWithSVG("bookmarks", self.icon_tab_bm, bm_count)
     self._tab_hl_dimen   = drawTabWithSVG("highlights", self.icon_tab_hl, hl_count)
     self._tab_note_dimen = drawTabWithSVG("notes", self.icon_tab_note, note_count)
@@ -4768,6 +5319,23 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         elseif pd and pd.note then
             text_str = safe_string(pd.note, 500)
         end
+    elseif self._active_tab == "all" then
+        local sel = self._split_selected_item
+        if sel and sel.is_bookmark then
+            active_pol_icon = self.icon_pol_bm
+        elseif sel then
+            local pure_note = sel.annotation and sel.annotation.drawer == nil and type(sel.note) == "string" and sel.note ~= ""
+            active_pol_icon = pure_note and self.icon_pol_note or get_specific_style_icon(self.icon_pol_hl)
+            if sel.page == self._cur_page then
+                if type(sel.text) == "string" and sel.text ~= "" then
+                    text_str = "“" .. safe_string(sel.text, 500) .. "”"
+                elseif type(sel.note) == "string" and sel.note ~= "" then
+                    text_str = safe_string(sel.note, 500)
+                end
+            end
+        else
+            active_pol_icon = self.icon_pol_hl
+        end
     elseif self._active_tab == "images" and self._imgTabEnabled then
         active_pol_icon = self:_imgChinIcon(self._split_selected_item)
         text_str = self:_imgChinText(self._split_selected_item)
@@ -4894,7 +5462,10 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     local show_delete_btn = false
     
     if not self._is_comic then
-        if self._active_tab == "notes" or self._active_tab == "highlights" then
+        if self._active_tab == "all" then
+            local sel_all = self._split_selected_item
+            show_delete_btn = (sel_all ~= nil and not sel_all.is_bookmark and sel_all.page == self._cur_page)
+        elseif self._active_tab == "notes" or self._active_tab == "highlights" then
             if self._split_selected_item and self._split_selected_item.page == self._cur_page then
                 if self._active_tab == "notes" then
                     show_delete_btn = (self._split_selected_item.note and self._split_selected_item.note ~= "")
@@ -5183,7 +5754,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
     }
     local present_filters = {}
     local types_source = self:_getTypesPresent()
-    if self._active_tab == "highlights" or self._active_tab == "notes" then
+    if self._active_tab == "highlights" or self._active_tab == "notes" or self._active_tab == "all" then
         for _, fd in ipairs(filter_defs) do
             if types_source and types_source[fd.key] then table.insert(present_filters, fd) end
         end
@@ -5350,7 +5921,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
         local curr_f_y = menu_y + math.floor((header_h - f_h) / 2)
 
         for _, fd in ipairs(present_filters) do
-            local is_active = ((self._active_tab == "images" and self._img_folder or self._hl_filter) == fd.key)
+            local is_active = self:_filterKeyOn(fd.key)
             local touch_w = math.max(S(8), f_w + f_gap)
             local f_dimen = Geom:new{ x = curr_f_x, y = menu_y, w = touch_w, h = header_h }
             table.insert(self._hl_filter_dimens, { key = fd.key, dimen = f_dimen })
@@ -5446,7 +6017,7 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
             end
             
             local active_row_icon
-            if self._active_tab == "bookmarks" then
+            if self._active_tab == "bookmarks" or (item_obj and item_obj.is_bookmark) then
                 active_row_icon = self.icon_box_minus
             elseif self._active_tab == "images" then
                 -- favorita: "-" para quitarla; no favorita: "+" para agregarla
@@ -6466,8 +7037,11 @@ function PageScrubber:_setHighlightColor(new_color)
     end)
 
     -- 3. Si hay un color filtrado y el highlight sale de ese filtro, ya no queda seleccionado
-    if self._hl_color_filter and self._hl_color_filter ~= new_color then
-        self._split_selected_item = nil
+    do
+        local color_set = self:_fltSet("colors")
+        if next(color_set) ~= nil and not color_set[new_color] then
+            self._split_selected_item = nil
+        end
     end
 
     -- 4. Ocultar el selector de forma instantánea
@@ -6548,17 +7122,29 @@ function PageScrubber:_setHighlightType(new_drawer)
     if new_drawer == "invert" then new_filt = "invert"
     elseif new_drawer == "underscore" then new_filt = "underline"
     elseif new_drawer == "strikeout" then new_filt = "strikethrough" end
-    if self._hl_filter then
-        -- Con un color filtrado, "invert" (que no tiene color) sacaría todo de la lista: se quita el filtro de tipo
-        if self._hl_color_filter and new_filt == "invert" then
-            self._hl_filter = nil
-        else
-            self._hl_filter = new_filt
+    local style_set = self:_fltSet("styles")
+    if next(style_set) ~= nil then
+        local n = 0
+        for _ in pairs(style_set) do n = n + 1 end
+        if n == 1 then
+            -- Un solo estilo filtrado: el filtro sigue al highlight que cambió (como siempre).
+            -- Con un color filtrado, "invert" (que no tiene color) sacaría todo de la lista: se quita el filtro de tipo
+            if next(self:_fltSet("colors")) ~= nil and new_filt == "invert" then
+                self:_fltStore("styles", {})
+            else
+                self:_fltStore("styles", { [new_filt] = true })
+            end
+        elseif not style_set[new_filt] then
+            -- Varios estilos: se suma el nuevo para que el highlight siga en la lista
+            local ns = {}
+            for k in pairs(style_set) do ns[k] = true end
+            ns[new_filt] = true
+            self:_fltStore("styles", ns)
         end
     end
 
     -- Con un color filtrado, un highlight que pasa a invert sale de esa lista: ya no queda seleccionado
-    if self._hl_color_filter and new_drawer == "invert" then
+    if next(self:_fltSet("colors")) ~= nil and new_drawer == "invert" and not self:_fltSet("styles").invert then
         self._split_selected_item = nil
     end
 
@@ -7839,9 +8425,9 @@ function PageScrubber:onTap(_, ges)
                 if ges.pos:intersectWith(f.dimen) then
                     -- Mismo comportamiento que los filtros del menu derecho: tocar el activo lo apaga
                     if self._active_tab == "images" then
-                        if self._img_folder == f.key then self._img_folder = nil else self._img_folder = f.key end
+                        self:_fltToggle("folders", f.key)
                     else
-                        if self._hl_filter == f.key then self._hl_filter = nil else self._hl_filter = f.key end
+                        self:_fltPickStyle(f.key)
                     end
                     self._split_bm_page = 1
                     self._split_selected_item = nil; self:_scheduleDetailsResync()
@@ -7898,11 +8484,8 @@ function PageScrubber:onTap(_, ges)
         end
 
         if self._tab_sort_dimen and ges.pos:intersectWith(self._tab_sort_dimen) then
-            self._sort_order = (self._sort_order == "asc") and "desc" or "asc"
-            self._split_bm_page = 1
-            self._force_menu_sync = false
-            self._hide_action_buttons = true
-            UIManager:setDirty(self, "ui", self.dimen)
+            -- Botón de filtro: hoja con orden, tipo, estilo y color
+            self:_openFilterSheet()
             return true
         end
 
@@ -7917,12 +8500,20 @@ function PageScrubber:onTap(_, ges)
             end
             for _, f in ipairs(self._hl_filter_dimens or {}) do
                 if ges.pos:intersectWith(f.dimen) then
-                    if self._img_folder == f.key then self._img_folder = nil else self._img_folder = f.key end
+                    self:_fltToggle("folders", f.key)
                     self._split_bm_page = 1
                     self._split_selected_item = nil; self:_scheduleDetailsResync()
                     UIManager:setDirty(self, "ui", self.dimen)
                     return true
                 end
+            end
+        end
+
+        if self._tab_disabled then
+            local tabs_pos = { bookmarks = self._tab_bm_dimen, highlights = self._tab_hl_dimen,
+                notes = self._tab_note_dimen, images = self._tab_img_dimen }
+            for id, dim in pairs(tabs_pos) do
+                if self._tab_disabled[id] and dim and ges.pos:intersectWith(dim) then return true end
             end
         end
 
@@ -7955,7 +8546,7 @@ function PageScrubber:onTap(_, ges)
             return true
         end
 
-        if (self._active_tab == "highlights" or self._active_tab == "notes") and self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) then
+        if (self._active_tab == "highlights" or self._active_tab == "notes" or self._active_tab == "all") and self._hl_main_tab_dimen and ges.pos:intersectWith(self._hl_main_tab_dimen) then
             if self._hl_filter ~= nil or self._hl_color_filter ~= nil then
                 self._hl_filter = nil
                 self._hl_color_filter = nil
@@ -7966,14 +8557,10 @@ function PageScrubber:onTap(_, ges)
             end
         end
 
-        if (self._active_tab == "highlights" or self._active_tab == "notes") and self._hl_filter_dimens then
+        if (self._active_tab == "highlights" or self._active_tab == "notes" or self._active_tab == "all") and self._hl_filter_dimens then
             for _, f in ipairs(self._hl_filter_dimens) do
                 if ges.pos:intersectWith(f.dimen) then
-                    if self._hl_filter == f.key then
-                        self._hl_filter = nil
-                    else
-                        self._hl_filter = f.key
-                    end
+                    self:_fltPickStyle(f.key)
                     self._split_bm_page = 1
                     self._split_selected_item = nil; self:_scheduleDetailsResync()
                     UIManager:setDirty(self, "ui", self.dimen)
@@ -8070,7 +8657,7 @@ function PageScrubber:onTap(_, ges)
                     local order_num = (type(row.item) == "table" and row.item.order) or 1
                     local flash_id = "row_toggle_" .. tostring(row.page) .. "_" .. tostring(order_num)
                     self:_flashAndDo(flash_id, row.toggle_dimen, function()
-                        if self._active_tab == "bookmarks" then
+                        if self._active_tab == "bookmarks" or (type(row.item) == "table" and row.item.is_bookmark) then
                             self:_safeBookmarkToggle(row.page)
                         elseif self._active_tab == "images" then
                             self:_imgToggleFavorite(row.item)
@@ -8777,6 +9364,7 @@ end
 
 function PageScrubber:onCloseWidget()
     self._closing = true
+    pcall(function() require("ps_bar").unregister(self) end)
     self._typo_peek = false
     if self._peek_bb then
         pcall(function() self._peek_bb:free() end)
@@ -8842,7 +9430,7 @@ function PageScrubber:onCloseWidget()
         self.tw_booktitle, self.tw_chapter, self.tw_info,
         self.tw_lib, self.tw_lib_label, self.tw_fn, self.tw_bm, self.tw_gallery, self.tw_toc, self.tw_grid_toggle, self.tw_x,
         self.icon_gs_x_inv, self.icon_gs_chevron_left_inv, self.icon_gs_chevron_right_inv,
-        self.icon_tab_chev_down, self.icon_tab_chev_up, self.icon_tab_review, self.icon_study_alert, self.icon_study_done,
+        self.icon_filter_btn, self.icon_tab_chev_down, self.icon_tab_chev_up, self.icon_tab_review, self.icon_study_alert, self.icon_study_done,
         self.tw_ch_l, self.tw_ch_r,
         self.tw_ctrl_prev, self.tw_ctrl_next,
         self.tw_fb_l, self.tw_fb_r,

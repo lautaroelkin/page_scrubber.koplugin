@@ -5,7 +5,7 @@
 ]]--
 
 local Blitbuffer = require("ffi/blitbuffer")
-local Font       = require("ui/font")
+local Font       = require("ps_font")   -- como el de KOReader, pero respeta Text size > Automatic
 local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 local logger     = require("logger")
@@ -222,13 +222,24 @@ function SplitLandscapeView.paint(scrubber, bb)
     local r_tab = math.floor(tab_h / 2)
 
     -- Sort
-    local active_sort = (scrubber._sort_order == "asc") and scrubber.icon_sort_asc or scrubber.icon_sort_desc
+    local active_sort = scrubber.icon_filter_btn or ((scrubber._sort_order == "asc") and scrubber.icon_sort_asc or scrubber.icon_sort_desc)
     local sort_sz = active_sort and active_sort:getSize() or { w = S(16), h = S(16) }
     local sort_w = sort_sz.w + S(14)
+    local filt_on = scrubber:_filterButtonActive()
     paintRoundRect(bb, cur_tab_x, tab_draw_y, sort_w, tab_h, r_tab, Blitbuffer.COLOR_BLACK)
-    paintRoundRect(bb, cur_tab_x + b_thick, tab_draw_y + b_thick, sort_w - b_thick*2, tab_h - b_thick*2, math.max(1, r_tab - b_thick), Blitbuffer.COLOR_WHITE)
+    if not filt_on then
+        paintRoundRect(bb, cur_tab_x + b_thick, tab_draw_y + b_thick, sort_w - b_thick*2, tab_h - b_thick*2, math.max(1, r_tab - b_thick), Blitbuffer.COLOR_WHITE)
+    end
     if active_sort then
-        active_sort:paintTo(bb, cur_tab_x + math.floor((sort_w - sort_sz.w)/2), tab_draw_y + math.floor((tab_h - sort_sz.h)/2))
+        local sx = cur_tab_x + math.floor((sort_w - sort_sz.w)/2)
+        local sy = tab_draw_y + math.floor((tab_h - sort_sz.h)/2)
+        if filt_on then
+            bb:paintRect(sx, sy, sort_sz.w, sort_sz.h, Blitbuffer.COLOR_WHITE)
+            active_sort:paintTo(bb, sx, sy)
+            bb:invertRect(sx, sy, sort_sz.w, sort_sz.h)
+        else
+            active_sort:paintTo(bb, sx, sy)
+        end
     end
     scrubber._tab_sort_dimen = Geom:new{ x = cur_tab_x, y = tab_draw_y, w = sort_w, h = tab_h }
     cur_tab_x = cur_tab_x + sort_w + S(6)
@@ -236,6 +247,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     -- Tabs
     local function drawTab(id, icon, count)
         local is_act = (scrubber._active_tab == id)
+        local lit = scrubber:_tabIsLit(id)   -- negro: tab activo o listas elegidas en el filtro
         local isz_t = icon and icon:getSize() or { w = S(18), h = S(18) }
 
         -- Con un color elegido, la pestaña muestra el círculo de ese color y su cantidad
@@ -247,12 +259,17 @@ function SplitLandscapeView.paint(scrubber, bb)
             isz_t = { w = dot_d, h = dot_d }
         end
 
+        -- Pestaña inactiva y sin nada: se ve apagada y no responde al toque
+        local is_off = (not lit) and count ~= nil and count == 0
+        scrubber._tab_disabled = scrubber._tab_disabled or {}
+        scrubber._tab_disabled[id] = is_off or nil
+
         if not scrubber._tw_tab_count_normal then
             scrubber._tw_tab_count_normal = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), fgcolor = Blitbuffer.COLOR_BLACK }
             scrubber._tw_tab_count_bold   = TextWidget:new{ text = "", face = Font:getFace("cfont", font_sz_chiquito), bold = true, fgcolor = Blitbuffer.COLOR_WHITE }
         end
-        local tw_cnt = is_act and scrubber._tw_tab_count_bold or scrubber._tw_tab_count_normal
-        tw_cnt.fgcolor = is_act and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+        local tw_cnt = lit and scrubber._tw_tab_count_bold or scrubber._tw_tab_count_normal
+        tw_cnt.fgcolor = lit and Blitbuffer.COLOR_WHITE or (is_off and Blitbuffer.COLOR_GRAY or Blitbuffer.COLOR_BLACK)
         -- count == nil (imagenes sin escanear): solo el icono, sin parentesis
         local has_count = (count ~= nil)
         tw_cnt:setText(has_count and ("(" .. tostring(count) .. ")") or "")
@@ -266,11 +283,12 @@ function SplitLandscapeView.paint(scrubber, bb)
 
         local w = arrow_extra + isz_t.w + cnt_gap + csz.w + S(16)
 
-        if is_act then
+        if lit then
             paintRoundRect(bb, cur_tab_x, tab_draw_y, w, tab_h, r_tab, Blitbuffer.COLOR_BLACK)
         else
             -- Pestaña inactiva: gris, sin contorno
-            paintRoundRect(bb, cur_tab_x, tab_draw_y, w, tab_h, r_tab, Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
+            paintRoundRect(bb, cur_tab_x, tab_draw_y, w, tab_h, r_tab,
+                is_off and Blitbuffer.Color8(0xF6) or Blitbuffer.COLOR_GRAY_E or Blitbuffer.COLOR_GRAY_D or Blitbuffer.COLOR_LIGHT_GRAY)
         end
 
         local tix = cur_tab_x + S(6)
@@ -297,12 +315,13 @@ function SplitLandscapeView.paint(scrubber, bb)
         if sel_key then
             scrubber:_paintColorDot(bb, tix, tiy, isz_t.w, sel_key, Blitbuffer.COLOR_WHITE)
         elseif icon then
-            if is_act then
+            if lit then
                 bb:paintRect(tix, tiy, isz_t.w, isz_t.h, Blitbuffer.COLOR_WHITE)
                 icon:paintTo(bb, tix, tiy)
                 bb:invertRect(tix, tiy, isz_t.w, isz_t.h)
             else
                 icon:paintTo(bb, tix, tiy)
+                if is_off then pcall(bb.lightenRect, bb, tix, tiy, isz_t.w, isz_t.h, 0.6) end
             end
         end
 
@@ -316,6 +335,7 @@ function SplitLandscapeView.paint(scrubber, bb)
 
     scrubber._tab_arrow_dimen = nil
     scrubber._tab_arrow_tab_dimen = nil
+    scrubber._tab_disabled = {}
     scrubber._tab_bm_dimen = drawTab("bookmarks", scrubber.icon_tab_bm, #(scrubber:_getAllBookmarks() or {}))
     scrubber._tab_hl_dimen = drawTab("highlights", scrubber.icon_tab_hl, #(scrubber._cached_hl or {}))
     scrubber._tab_note_dimen = drawTab("notes", scrubber.icon_tab_note, #(scrubber._cached_notes or {}))
@@ -440,6 +460,23 @@ function SplitLandscapeView.paint(scrubber, bb)
         elseif pd and pd.note then
             text_str = safe_string(pd.note, 500)
         end
+    elseif scrubber._active_tab == "all" then
+        local sel = scrubber._split_selected_item
+        if sel and sel.is_bookmark then
+            active_pol_icon = scrubber.icon_pol_bm
+        elseif sel then
+            local pure_note = sel.annotation and sel.annotation.drawer == nil and type(sel.note) == "string" and sel.note ~= ""
+            active_pol_icon = pure_note and scrubber.icon_pol_note or get_specific_style_icon(scrubber.icon_pol_hl)
+            if sel.page == scrubber._cur_page then
+                if type(sel.text) == "string" and sel.text ~= "" then
+                    text_str = "“" .. safe_string(sel.text, 500) .. "”"
+                elseif type(sel.note) == "string" and sel.note ~= "" then
+                    text_str = safe_string(sel.note, 500)
+                end
+            end
+        else
+            active_pol_icon = scrubber.icon_pol_hl
+        end
     elseif scrubber._active_tab == "images" and scrubber._imgTabEnabled then
         active_pol_icon = scrubber:_imgChinIcon(scrubber._split_selected_item)
         text_str = scrubber:_imgChinText(scrubber._split_selected_item)
@@ -562,6 +599,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     scrubber._type_picker_dimens = nil
 
     local has_item_actions = (scrubber._active_tab ~= "bookmarks") and (scrubber._split_selected_item ~= nil)
+        and not scrubber._split_selected_item.is_bookmark
     if has_item_actions and not scrubber._hide_action_buttons then
         local bw, bh = S(38), S(38)
         local btn_x = card_x + S(12)
@@ -785,7 +823,7 @@ function SplitLandscapeView.paint(scrubber, bb)
     }
     local present_filters = {}
     local types_source = scrubber:_getTypesPresent()
-    if scrubber._active_tab == "highlights" or scrubber._active_tab == "notes" then
+    if scrubber._active_tab == "highlights" or scrubber._active_tab == "notes" or scrubber._active_tab == "all" then
         for _, fd in ipairs(filter_defs) do
             if types_source and types_source[fd.key] then table.insert(present_filters, fd) end
         end
@@ -818,7 +856,7 @@ function SplitLandscapeView.paint(scrubber, bb)
         local curr_f_y = list_card_y + math.floor((header_h - f_h) / 2)
 
         for _, fd in ipairs(present_filters) do
-            local is_active = ((scrubber._active_tab == "images" and scrubber._img_folder or scrubber._hl_filter) == fd.key)
+            local is_active = scrubber:_filterKeyOn(fd.key)
             local touch_w = math.max(S(8), f_w + f_gap)
             local f_dimen = Geom:new{ x = curr_f_x, y = list_card_y, w = touch_w, h = header_h }
             table.insert(scrubber._hl_filter_dimens, { key = fd.key, dimen = f_dimen })
@@ -945,7 +983,7 @@ function SplitLandscapeView.paint(scrubber, bb)
             end
 
             local row_icon
-            if scrubber._active_tab == "bookmarks" then
+            if scrubber._active_tab == "bookmarks" or (type(it) == "table" and it.is_bookmark) then
                 row_icon = scrubber.icon_box_minus
             elseif scrubber._active_tab == "images" then
                 row_icon = (type(it) == "table" and it.is_fav) and scrubber.icon_img_minus or scrubber.icon_img_plus
