@@ -1052,3 +1052,189 @@ msgstr "Multi-Grid"
 
 msgid "Some"
 msgstr "Algo"
+
+msgid "Auto (follows selection)"
+msgstr "Automático (sigue la selección)"
+
+msgid "Menu on highlight tap"
+msgstr "Menú al tocar un highlight"
+
+msgid "Notes menu"
+msgstr "Menú de notas"
+
+msgid "Menu notes"
+msgstr "Menú para escribir notas"
+
+msgid "KiKome keyboard"
+msgstr "Teclado de KiKome"
+
+msgid "space"
+msgstr "espacio"
+
+msgid "Parent folder"
+msgstr "Carpeta superior"
+
+msgid "No icons"
+msgstr "Sin íconos"
+
+msgid "1 icon"
+msgstr "1 ícono"
+
+msgid "%d icons"
+msgstr "%d íconos"
+
+msgid "%d+ icons"
+msgstr "%d+ íconos"
+
+msgid "1 image"
+msgstr "1 imagen"
+
+msgid "%d images"
+msgstr "%d imágenes"
+
+msgid "%d+ images"
+msgstr "%d+ imágenes"
+
+msgid "No images"
+msgstr "Sin imágenes"
+
+msgid "Use icon"
+msgstr "Usar ícono"
+
+msgid "Use image"
+msgstr "Usar imagen"
+
+msgid "Choose an icon"
+msgstr "Elegir un ícono"
+
+msgid "Choose an image"
+msgstr "Elegir una imagen"
+
+msgid "No folders or icons here."
+msgstr "No hay carpetas ni íconos acá."
+
+msgid "No folders or images here."
+msgstr "No hay carpetas ni imágenes acá."
+
+msgid "Choose from files"
+msgstr "Elegir desde archivos"
+
+msgid "Choose a wallpaper"
+msgstr "Elegir un wallpaper"
+
+msgid "Use wallpaper"
+msgstr "Usar wallpaper"
+
+msgid "Could not use that image: "
+msgstr "No se pudo usar esa imagen: "
+
+msgid "Add button"
+msgstr "Agregar botón"
+
+msgid "Added buttons"
+msgstr "Botones agregados"
+
+msgid "Edit"
+msgstr "Editar"
+
+msgid "Choose a button"
+msgstr "Elegir un botón"
+
+msgid "Choose an icon for %s"
+msgstr "Elegir un ícono para %s"
+
+msgid "No icon"
+msgstr "Sin ícono"
+
+msgid "Change icon"
+msgstr "Cambiar ícono"
+
+msgid "Remove button"
+msgstr "Quitar botón"
+
+msgid "Remove the button \"%s\" from the selection menu?"
+msgstr "¿Quitar el botón \"%s\" del selection menu?"
+
+msgid "No more buttons from other plugins to add. They are the ones that appear when you tap More in the selection menu."
+msgstr "No hay más botones de otros plugins para agregar. Son los que aparecen al tocar More en el selection menu."
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "Button added."
+msgstr "Botón agregado."
+
+msgid "Button removed."
+msgstr "Botón quitado."
+
+msgid "No more buttons from other plugins to add."
+msgstr "No hay más botones de otros plugins para agregar."
+
+msgid "Confirm"
+msgstr "Confirmar"
+
+msgid "Nothing here."
+msgstr "No hay nada acá."
+
+msgid "Working…"
+msgstr "Trabajando…"
+
+msgid "Add"
+msgstr "Agregar"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Filter"
+msgstr "Filtro"
+
+msgid "Order"
+msgstr "Orden"
+
+msgid "Ascending"
+msgstr "Ascendente"
+
+msgid "Descending"
+msgstr "Descendente"
+
+msgid "Show"
+msgstr "Mostrar"
+
+msgid "All"
+msgstr "Todo"
+
+msgid "Bookmarks"
+msgstr "Marcadores"
+
+msgid "Highlights"
+msgstr "Destacados"
+
+msgid "Highlight style"
+msgstr "Estilo del destacado"
+
+msgid "Color"
+msgstr "Color"
+
+msgid "Images"
+msgstr "Imágenes"
+
+msgid "Image folders"
+msgstr "Carpetas de imágenes"
+
+msgid "Favorites"
+msgstr "Favoritas"
+
+msgid "General"
+msgstr "Generales"
+
+msgid "Trash"
+msgstr "Basura"
+
+msgid "Gallery"
+msgstr "Galería"
+
+msgid "No folders here."
+msgstr "No hay carpetas acá."
+
+msgid "Use this folder"
+msgstr "Usar esta carpeta"
