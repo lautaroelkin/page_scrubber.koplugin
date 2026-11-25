@@ -116,7 +116,14 @@ local function face(size)
     local px = math.floor(Screen:scaleBySize(base + textOffset()) * factor + 0.5)
     return Font:getFace("cfont", math.max(Screen:scaleBySize(7), px))
 end
-local function secondaryFace(size) return Font:getFace("infofont", U(size)) end
+local function secondaryFace(size)
+    -- "Automatic": igual que face(), Font:getFace ya escala por la densidad de la pantalla, así que no se
+    -- escala antes con U() (el path de la carpeta, el conteo y el aviso de "no hay" salían más grandes).
+    if G_reader_settings and G_reader_settings:readSetting("page_scrubber_text_size") == "automatic" then
+        return Font:getFace("infofont", size)
+    end
+    return Font:getFace("infofont", U(size))
+end
 local function subtitleColor()
     local ok, c = pcall(function() return Blitbuffer.Color8(0x22) end)
     if ok and c then return c end
