@@ -20,36 +20,8 @@ local TextBoxWidget   = require("ui/widget/textboxwidget")
 local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
 
--- Lector de .po en vivo (Estilo Storefront)
-local _dict = {}
-local _lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then _lang = l:sub(1, 2) end
-end
-
-if _lang ~= "en" then
-    local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
-    local po_path = plugin_path .. "locales/" .. _lang .. ".po"
-    local f = io.open(po_path, "r")
-    if f then
-        local current_id
-        for line in f:lines() do
-            local id = line:match('^msgid%s+"(.*)"')
-            if id then current_id = id end
-            local str = line:match('^msgstr%s+"(.*)"')
-            if str and current_id then
-                _dict[current_id] = str
-                current_id = nil
-            end
-        end
-        f:close()
-    end
-end
-
-local function _(text)
-    return _dict[text] or text
-end
+local I18n = require("ps_i18n")
+local _ = I18n.gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 -- Colores de resaltado de KOReader, en el mismo orden que su menú
 local HL_COLOR_ORDER = { "red", "orange", "yellow", "green", "olive", "cyan", "blue", "purple", "gray" }
@@ -3586,8 +3558,6 @@ end
 -- El contenido sale SIEMPRE de la anotacion seleccionada en la lista de la derecha, asi que
 -- las flechas del panel, los taps en la lista y los botones de edicion quedan sincronizados.
 -- ============================================================================
-local DETAILS_MONTHS = nil  -- se arma una sola vez (los nombres pasan por el traductor)
-
 local function paintTriangle(bb, x, y, w, h, pointing_left, color)
     for c = 0, w - 1 do
         local frac = pointing_left and ((c + 1) / w) or ((w - c) / w)
@@ -3667,10 +3637,6 @@ end
 
 function PageScrubber:_formatDetailsDate(raw)
     if raw == nil or raw == "" then return nil end
-    if not DETAILS_MONTHS then
-        DETAILS_MONTHS = { _("January"), _("February"), _("March"), _("April"), _("May"), _("June"),
-                           _("July"), _("August"), _("September"), _("October"), _("November"), _("December") }
-    end
     local y, m, d, hh, mm
     if type(raw) == "number" then
         local t = os.date("*t", raw)
@@ -3684,8 +3650,8 @@ function PageScrubber:_formatDetailsDate(raw)
         hh, mm = s:match("[%sT_](%d%d):(%d%d)")
     end
     y, m, d = tonumber(y), tonumber(m), tonumber(d)
-    if not (y and m and d and DETAILS_MONTHS[m]) then return tostring(raw) end
-    local out = string.format("%s %d, %d", DETAILS_MONTHS[m], d, y)
+    local out = (y and m and d) and I18n.formatDate(y, m, d, false)
+    if not out then return tostring(raw) end
     if hh and mm then out = out .. string.format(" · %02d:%02d", tonumber(hh), tonumber(mm)) end
     return out
 end
@@ -4591,8 +4557,9 @@ function PageScrubber:_paintDetailsPanelInner(bb, x, y, w, h, radius, thick, ful
                 local cd = self._details_close_dimen
                 local bsz = close_sz - S(6)
                 local bx, by = cd.x + S(3), top_y + S(4)
+                -- Contorno fino (1 x thin): con 2 x thin se veia muy grueso en Kindle (pantallas de alta densidad)
                 paintRoundRect(bb, bx, by, bsz, bsz, S(8), BLACK)
-                paintRoundRect(bb, bx + thin * 2, by + thin * 2, bsz - thin * 4, bsz - thin * 4, S(6), WHITE)
+                paintRoundRect(bb, bx + thin, by + thin, bsz - thin * 2, bsz - thin * 2, math.max(0, S(8) - thin), WHITE)
                 if close_icon then
                     local csz = close_icon:getSize()
                     close_icon:paintTo(bb, bx + math.floor((bsz - csz.w) / 2), by + math.floor((bsz - csz.h) / 2))
@@ -5401,9 +5368,9 @@ function PageScrubber:_paintSplitView(bb, title_strip_y, title_strip_h)
                     y, m, d = raw_s:match("(%d%d%d%d)[%-%/%.%s_](%d%d)[%-%/%.%s_](%d%d)")
                     if not y then d, m, y = raw_s:match("(%d%d)[%-%/%.%s_](%d%d)[%-%/%.%s_](%d%d%d%d)") end
                 end
-                if y and m and d then
-                    local months = { _("Jan"), _("Feb"), _("Mar"), _("Apr"), _("May"), _("Jun"), _("Jul"), _("Aug"), _("Sep"), _("Oct"), _("Nov"), _("Dec") }
-                    text_str = _("Added on") .. " " .. (months[tonumber(m)] or m) .. " " .. tonumber(d) .. ", " .. y
+                local nice_date = (y and m and d) and I18n.formatDate(y, m, d, true)
+                if nice_date then
+                    text_str = _("Added on") .. " " .. nice_date
                 else
                     text_str = _("Added on") .. " " .. tostring(raw_date)
                 end

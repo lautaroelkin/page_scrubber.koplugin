@@ -3272,7 +3272,7 @@ local function invokeAction(self_obj, action_name)
                 end
                 local ok_notif, Notification = pcall(function() return require("ps_dialogs").Notification end)
                 if ok_notif and Notification then
-                    local _ = require("gettext")
+                    local _ = require("ps_i18n").gettext
                     UIManager:show(Notification:new{ text = _("Copied to clipboard") })
                 end
                 if hl and hl.clear then pcall(function() hl:clear() end) end
@@ -3564,7 +3564,7 @@ end
 -- No usamos hl:getHighlightColorList(): en algunas versiones devuelve entradas que no son tablas
 -- (ButtonSelector falla con "bad argument #1 to 'unpack' (table expected, got cdata)").
 local function buildColorValues(hl)
-    local gt = require("gettext")
+    local gt = require("ps_i18n").gettext
     local base = hl.highlight_colors
     if type(base) ~= "table" or #base == 0 then
         base = {
@@ -4179,7 +4179,7 @@ function HighlightTapMenu:doCopy()
     end
     local ok_notif, Notification = pcall(function() return require("ps_dialogs").Notification end)
     if ok_notif and Notification then
-        local gt = require("gettext")
+        local gt = require("ps_i18n").gettext
         UIManager:show(Notification:new({ text = gt("Copied to clipboard") }))
     end
 end
@@ -4242,7 +4242,7 @@ function HighlightNoteMenu:getLines()
 end
 
 function HighlightNoteMenu:build()
-    local gt = require("gettext")
+    local gt = require("ps_i18n").gettext
     local ui_instance = (self.hl and self.hl.ui) or (self.plugin and self.plugin.ui)
     local item = self:getItem()
     local sw, sh = Screen:getWidth(), Screen:getHeight()
@@ -4927,7 +4927,7 @@ function FloatingDict:patchSystem()
                     return require("ps_dialogs").Notification
                 end)
                 if ok_notif and Notification then
-                    local _ = require("gettext")
+                    local _ = require("ps_i18n").gettext
                     UIManager:show(Notification:new({ text = _("Not available"), timeout = 2 }))
                     if highlight and highlight.clear then pcall(function() highlight:clear() end) end
                     return true

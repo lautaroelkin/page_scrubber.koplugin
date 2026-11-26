@@ -16,7 +16,7 @@ local InfoMessage = require("ps_dialogs").InfoMessage
 local UIManager   = require("ui/uimanager")
 local lfs         = require("libs/libkoreader-lfs")
 local logger      = require("logger")
-local _           = require("gettext")
+local _           = require("ps_i18n").gettext
 
 local Updater = {}
 

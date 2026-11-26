@@ -129,34 +129,7 @@ local function clear_own_font_choice()
     G_reader_settings:flush()
 end
 
-local _dict = {}
-local _lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then _lang = l:sub(1, 2) end
-end
-
-if _lang ~= "en" then
-    local po_path = plugin_path .. "locales/" .. _lang .. ".po"
-    local f = io.open(po_path, "r")
-    if f then
-        local current_id
-        for line in f:lines() do
-            local id = line:match('^msgid%s+"(.*)"')
-            if id then current_id = id:gsub('\\"', '"') end
-            local str = line:match('^msgstr%s+"(.*)"')
-            if str and current_id then
-                _dict[current_id] = str:gsub('\\"', '"')
-                current_id = nil
-            end
-        end
-        f:close()
-    end
-end
-
-local function _(text)
-    return _dict[text] or text
-end
+local _ = require("ps_i18n").gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local function getTextOffset()
     if not G_reader_settings then return 0 end

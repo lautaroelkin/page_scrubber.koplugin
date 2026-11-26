@@ -13,13 +13,7 @@ local Font       = require("ps_font")   -- como el de KOReader, pero respeta Tex
 local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 
-local _dict = {}
-local _lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then _lang = l:sub(1, 2) end
-end
-local function _(text) return _dict[text] or text end
+local _ = require("ps_i18n").gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local GridSixLandscapeView = {}
 

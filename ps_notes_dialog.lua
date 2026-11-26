@@ -30,7 +30,7 @@ local InputContainer = require("ui/widget/container/inputcontainer")
 local InputText      = require("ui/widget/inputtext")
 local TextWidget     = require("ui/widget/textwidget")
 local UIManager      = require("ui/uimanager")
-local gettext        = require("gettext")
+local gettext        = require("ps_i18n").gettext
 local logger         = require("logger")
 local Kit            = require("svg_picker").kit
 

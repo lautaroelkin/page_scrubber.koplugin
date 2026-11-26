@@ -212,21 +212,25 @@ local ES = {
 
 local _dict_cache = nil
 
-local function load_po_dict(lang)
+local function load_po_dict(full_lang, short_lang)
     local dict = {}
     local DataStorage = require("datastorage")
-    local po_path = DataStorage:getDataDir() .. "/plugins/page_scrubber.koplugin/locales/" .. lang .. ".po"
-    
-    local f = io.open(po_path, "r")
+    local base = DataStorage:getDataDir() .. "/plugins/page_scrubber.koplugin/locales/"
+
+    -- Primero el idioma completo (pt_BR, zh_CN) y después el de 2 letras (pt)
+    local f = io.open(base .. full_lang .. ".po", "r")
+    if not f and short_lang ~= full_lang then
+        f = io.open(base .. short_lang .. ".po", "r")
+    end
     if not f then return nil end
-    
+
     local current_id
     for line in f:lines() do
         local id = line:match('^msgid%s+"(.*)"')
         if id then current_id = id:gsub('\\"', '"') end
         local str = line:match('^msgstr%s+"(.*)"')
         if str and current_id then
-            dict[current_id] = str:gsub('\\"', '"')
+            if str ~= "" then dict[current_id] = str:gsub('\\"', '"') end
             current_id = nil
         end
     end
@@ -236,12 +240,13 @@ end
 
 local function tr(text)
     local lang_setting = G_reader_settings and G_reader_settings:readSetting("language") or ""
-    local lang_code = type(lang_setting) == "string" and lang_setting:sub(1, 2) or "en"
-    
+    local full_lang = type(lang_setting) == "string" and lang_setting or ""
+    local lang_code = full_lang ~= "" and full_lang:sub(1, 2) or "en"
+
     if lang_code == "en" then return text end
 
     if _dict_cache == nil then
-        _dict_cache = load_po_dict(lang_code) or {}
+        _dict_cache = load_po_dict(full_lang, lang_code) or {}
     end
 
     if _dict_cache[text] then
@@ -251,7 +256,7 @@ local function tr(text)
     if lang_code == "es" and ES[text] then
         return ES[text]
     end
-    
+
     return require("gettext")(text)
 end
 

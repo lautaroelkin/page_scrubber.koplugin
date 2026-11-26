@@ -10,35 +10,8 @@ local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 local logger     = require("logger")
 
-local _dict = {}
-local _lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then _lang = l:sub(1, 2) end
-end
-
-if _lang ~= "en" then
-    local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
-    local po_path = plugin_path .. "locales/" .. _lang .. ".po"
-    local f = io.open(po_path, "r")
-    if f then
-        local current_id
-        for line in f:lines() do
-            local id = line:match('^msgid%s+"(.*)"')
-            if id then current_id = id end
-            local str = line:match('^msgstr%s+"(.*)"')
-            if str and current_id then
-                _dict[current_id] = str
-                current_id = nil
-            end
-        end
-        f:close()
-    end
-end
-
-local function _(text)
-    return _dict[text] or text
-end
+local I18n = require("ps_i18n")
+local _ = I18n.gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local SplitLandscapeView = {}
 
@@ -542,9 +515,9 @@ function SplitLandscapeView.paint(scrubber, bb)
                     y, m, d = raw_s:match("(%d%d%d%d)[%-%/%.%s_](%d%d)[%-%/%.%s_](%d%d)")
                     if not y then d, m, y = raw_s:match("(%d%d)[%-%/%.%s_](%d%d)[%-%/%.%s_](%d%d%d%d)") end
                 end
-                if y and m and d then
-                    local months = { _("Jan"), _("Feb"), _("Mar"), _("Apr"), _("May"), _("Jun"), _("Jul"), _("Aug"), _("Sep"), _("Oct"), _("Nov"), _("Dec") }
-                    text_str = _("Added on") .. " " .. (months[tonumber(m)] or m) .. " " .. tonumber(d) .. ", " .. y
+                local nice_date = (y and m and d) and I18n.formatDate(y, m, d, true)
+                if nice_date then
+                    text_str = _("Added on") .. " " .. nice_date
                 else
                     text_str = _("Added on") .. " " .. tostring(raw_date)
                 end

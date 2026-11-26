@@ -9,44 +9,7 @@ local UIManager       = require("ui/uimanager")
 local Device          = require("device")
 local ScrubberState   = require("scrubber_state")
 
--- Lector de .po en vivo
-local _dict = {}
-local _lang = "en"
-local full_lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then
-        full_lang = l
-        _lang = l:sub(1, 2)
-    end
-end
-
-if _lang ~= "en" then
-    local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
-    local po_path = plugin_path .. "locales/" .. full_lang .. ".po"
-    local f = io.open(po_path, "r")
-    if not f and _lang ~= full_lang then
-        po_path = plugin_path .. "locales/" .. _lang .. ".po"
-        f = io.open(po_path, "r")
-    end
-    if f then
-        local current_id
-        for line in f:lines() do
-            local id = line:match('^msgid%s+"(.*)"')
-            if id then current_id = id end
-            local str = line:match('^msgstr%s+"(.*)"')
-            if str and current_id then
-                _dict[current_id] = str
-                current_id = nil
-            end
-        end
-        f:close()
-    end
-end
-
-local function _(text)
-    return _dict[text] or text
-end
+local _ = require("ps_i18n").gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local PageScrubberPlugin = WidgetContainer:extend{
     name        = "page_scrubber",

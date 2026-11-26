@@ -12,13 +12,7 @@ local Geom       = require("ui/geometry")
 local TextWidget = require("ui/widget/textwidget")
 local os         = require("os")
 
-local _dict = {}
-local _lang = "en"
-if G_reader_settings then
-    local l = G_reader_settings:readSetting("language")
-    if type(l) == "string" then _lang = l:sub(1, 2) end
-end
-local function _(text) return _dict[text] or text end
+local _ = require("ps_i18n").gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local function paintCornerRect(bb, x, y, w, h, r, color, round_tl, round_tr, round_bl, round_br)
     if w <= 0 or h <= 0 then return end

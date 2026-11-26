@@ -54,32 +54,7 @@ local lfs             = require("libs/libkoreader-lfs")
 local Screen = Device.screen
 local plugin_path = debug.getinfo(1, "S").source:match("^@?(.*[/\\])") or "./"
 
--- ── Traducciones: mismo mecanismo que el resto del plugin (locales/<idioma>.po) ──
-local _dict = {}
-do
-    local lang = "en"
-    if G_reader_settings then
-        local l = G_reader_settings:readSetting("language")
-        if type(l) == "string" then lang = l:sub(1, 2) end
-    end
-    if lang ~= "en" then
-        local f = io.open(plugin_path .. "locales/" .. lang .. ".po", "r")
-        if f then
-            local current_id
-            for line in f:lines() do
-                local id = line:match('^msgid%s+"(.*)"')
-                if id then current_id = (id:gsub('\\"', '"')) end
-                local str = line:match('^msgstr%s+"(.*)"')
-                if str and current_id then
-                    _dict[current_id] = (str:gsub('\\"', '"'))
-                    current_id = nil
-                end
-            end
-            f:close()
-        end
-    end
-end
-local function _(text) return _dict[text] or text end
+local _ = require("ps_i18n").gettext   -- cargador único de traducciones (ver ps_i18n.lua)
 
 local BLACK, WHITE = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_WHITE
 local C_FIELD       = Blitbuffer.Color8(0xE8)   -- las baldosas, la píldora apagada
