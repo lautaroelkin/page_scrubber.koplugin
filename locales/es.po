@@ -17,7 +17,7 @@ msgid "Pages"
 msgstr "Páginas"
 
 msgid "Added on"
-msgstr "Añadido en"
+msgstr "Añadido el"
 
 msgid "Bookmarked"
 msgstr "Marcado"
@@ -26,40 +26,40 @@ msgid "Delete"
 msgstr "Eliminar"
 
 msgid "Jan"
-msgstr "Ene"
+msgstr "ene"
 
 msgid "Feb"
-msgstr "Feb"
+msgstr "feb"
 
 msgid "Mar"
-msgstr "Mar"
+msgstr "mar"
 
 msgid "Apr"
-msgstr "Abr"
+msgstr "abr"
 
 msgid "May"
-msgstr "May"
+msgstr "may"
 
 msgid "Jun"
-msgstr "Jun"
+msgstr "jun"
 
 msgid "Jul"
-msgstr "Jul"
+msgstr "jul"
 
 msgid "Aug"
-msgstr "Ago"
+msgstr "ago"
 
 msgid "Sep"
-msgstr "Sep"
+msgstr "sep"
 
 msgid "Oct"
-msgstr "Oct"
+msgstr "oct"
 
 msgid "Nov"
-msgstr "Nov"
+msgstr "nov"
 
 msgid "Dec"
-msgstr "Dic"
+msgstr "dic"
 
 msgid "No chapters found"
 msgstr "No se encontraron capítulos"
@@ -208,15 +208,6 @@ msgid "Center (Horizontal)"
 msgstr "Centro (Horizontal)"
 
 # Submenús y opciones de selección relacionadas
-msgid "Buttons in selection menu"
-msgstr "Botones en el menú de selección"
-
-msgid "Scrubber Selection Menu"
-msgstr "Menú de selección de Scrubber"
-
-msgid "Scrubber Dictionary"
-msgstr "Diccionario de Scrubber"
-
 msgid "Reverse selection buttons"
 msgstr "Invertir botones de selección"
 
@@ -1238,3 +1229,261 @@ msgstr "No hay carpetas acá."
 
 msgid "Use this folder"
 msgstr "Usar esta carpeta"
+
+# Meses completos (minúscula: van después de "de")
+msgid "January"
+msgstr "enero"
+
+msgid "February"
+msgstr "febrero"
+
+msgid "March"
+msgstr "marzo"
+
+msgid "April"
+msgstr "abril"
+
+msgid "June"
+msgstr "junio"
+
+msgid "July"
+msgstr "julio"
+
+msgid "August"
+msgstr "agosto"
+
+msgid "September"
+msgstr "septiembre"
+
+msgid "October"
+msgstr "octubre"
+
+msgid "November"
+msgstr "noviembre"
+
+msgid "December"
+msgstr "diciembre"
+
+# Textos agregados
+msgid "Copied to clipboard"
+msgstr "Copiado al portapapeles"
+
+msgid "Red"
+msgstr "Rojo"
+
+msgid "Orange"
+msgstr "Naranja"
+
+msgid "Yellow"
+msgstr "Amarillo"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Olive"
+msgstr "Oliva"
+
+msgid "Cyan"
+msgstr "Cian"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Purple"
+msgstr "Morado"
+
+msgid "Gray"
+msgstr "Gris"
+
+msgid "Delete note"
+msgstr "Eliminar nota"
+
+msgid "Delete highlight"
+msgstr "Eliminar subrayado"
+
+msgid "Highlight menu"
+msgstr "Menú de subrayado"
+
+msgid "Not available"
+msgstr "No disponible"
+
+msgid "No dictionaries available."
+msgstr "No hay diccionarios disponibles."
+
+msgid "Searching…"
+msgstr "Buscando…"
+
+msgid "Searching..."
+msgstr "Buscando..."
+
+msgid "Render quality"
+msgstr "Calidad de render"
+
+msgid "Uses the publisher's own styles included in the book."
+msgstr "Usa los estilos propios de la editorial incluidos en el libro."
+
+msgid "Uses the fonts included in the book instead of yours."
+msgstr "Usa las fuentes incluidas en el libro en lugar de las tuyas."
+
+msgid "How images are scaled: fast or best quality."
+msgstr "Cómo se escalan las imágenes: rápido o con la mejor calidad."
+
+msgid "Reflows the page text to fit the screen, like an ebook."
+msgstr "Aplica reflow al texto de la página para ajustarlo a la pantalla, como en un ebook."
+
+msgid "Black and white only: better contrast and faster. Good for scanned PDFs."
+msgstr "Solo blanco y negro: más contraste y más rápido. Ideal para PDFs escaneados."
+
+msgid "Tries to remove watermarks and stains from the page."
+msgstr "Intenta quitar marcas de agua y manchas de la página."
+
+msgid "Dithering smooths grays and gradients on e-ink."
+msgstr "El tramado suaviza los grises y los degradados en e-ink."
+
+msgid "Quality of the text and images when reflowing. Higher is sharper but slower."
+msgstr "Calidad del texto y de las imágenes al aplicar reflow. Más alta es más nítida, pero más lenta."
+
+msgid "You mark the area."
+msgstr "Marcas el área manualmente."
+
+msgid "The page keeps its original layout."
+msgstr "La página conserva su diseño original."
+
+msgid "The text is reflowed to fit the screen."
+msgstr "El texto se reacomoda para ajustarse a la pantalla."
+
+msgid "Keeps the original colors and grays."
+msgstr "Conserva los colores y grises originales."
+
+msgid "Black and white only. Faster, more contrast."
+msgstr "Solo blanco y negro. Más rápido y con más contraste."
+
+msgid "Ignores the book's styles; yours are used."
+msgstr "Ignora los estilos del libro; se usan los tuyos."
+
+msgid "Keeps the look the publisher designed."
+msgstr "Conserva el aspecto que diseñó la editorial."
+
+msgid "Uses your font for all the text."
+msgstr "Usa tu fuente para todo el texto."
+
+msgid "Uses the fonts the book brings."
+msgstr "Usa las fuentes que trae el libro."
+
+msgid "Fast: quick, but images look rougher."
+msgstr "Rápido: ágil, pero las imágenes se ven más toscas."
+
+msgid "Best: slower, smoother and more accurate."
+msgstr "Mejor: más lento, pero más suave y preciso."
+
+msgid "Faster, but less sharp."
+msgstr "Más rápido, pero menos nítido."
+
+msgid "Balanced."
+msgstr "Equilibrado."
+
+msgid "Sharpest, but the slowest."
+msgstr "El más nítido, pero el más lento."
+
+msgid "Keeps the original page without removing watermarks."
+msgstr "Conserva la página original sin quitar marcas de agua."
+
+msgid "Removes faint watermarks and background marks from the page."
+msgstr "Quita las marcas de agua tenues y las marcas de fondo de la página."
+
+msgid "Off."
+msgstr "Desactivado."
+
+msgid "On."
+msgstr "Activado."
+
+msgid "Options"
+msgstr "Opciones"
+
+msgid "Bookmark"
+msgstr "Marcador"
+
+msgid "Show in book"
+msgstr "Mostrar en el libro"
+
+msgid "Cannot find PageScrubber's folder. Please update manually."
+msgstr "No se encuentra la carpeta de PageScrubber. Actualiza manualmente."
+
+msgid "Downloading PageScrubber %s…"
+msgstr "Descargando PageScrubber %s…"
+
+msgid "Download failed: "
+msgstr "Error en la descarga: "
+
+msgid "Installing the update failed. Please update manually."
+msgstr "Falló la instalación de la actualización. Actualiza manualmente."
+
+msgid "Installing the update failed. The previous version was restored."
+msgstr "Falló la instalación de la actualización. Se restauró la versión anterior."
+
+msgid "PageScrubber %s is installed.\n\nRestart KOReader to use it?"
+msgstr "PageScrubber %s está instalado.\n\n¿Reiniciar KOReader para usarlo?"
+
+msgid "Restart now"
+msgstr "Reiniciar ahora"
+
+msgid "Later"
+msgstr "Más tarde"
+
+msgid "Please restart KOReader to use the new version."
+msgstr "Reinicia KOReader para usar la nueva versión."
+
+msgid "PageScrubber %s is available. You have %s."
+msgstr "PageScrubber %s está disponible. Tienes la %s."
+
+msgid "Download and install now?"
+msgstr "¿Descargar e instalar ahora?"
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Could not read the installed version. Add a version line to _meta.lua, for example: version = \"1.0.0\""
+msgstr "No se pudo leer la versión instalada. Agrega una línea de versión en _meta.lua, por ejemplo: version = \"1.0.0\""
+
+msgid "Checking for updates…"
+msgstr "Buscando actualizaciones…"
+
+msgid "Could not check for updates: "
+msgstr "Error al buscar actualizaciones: "
+
+msgid "PageScrubber is up to date (%s)."
+msgstr "PageScrubber está actualizado (%s)."
+
+msgid "PageScrubber %s is out, but its download is not ready yet."
+msgstr "PageScrubber %s ya salió, pero su descarga todavía no está lista."
+
+msgid "Page Scrubber: Study"
+msgstr "Page Scrubber: Estudiar"
+
+msgid "Page Scrubber: Quick Menu"
+msgstr "Page Scrubber: Menú rápido"
+
+msgid "Paste"
+msgstr "Pegar"
+
+msgid "EPUB only"
+msgstr "Solo EPUB"
+
+msgid "Scanning"
+msgstr "Escaneando"
+
+msgid "{month} {day}, {year}"
+msgstr "{day} de {month} de {year}"
+
+# Fechas con contexto ("May" es igual en inglés para mes completo y abreviado)
+msgctxt "full month"
+msgid "May"
+msgstr "mayo"
+
+msgctxt "abbreviated month"
+msgid "May"
+msgstr "may"
+
+msgctxt "abbreviated date"
+msgid "{month} {day}, {year}"
+msgstr "{day} {month} {year}"

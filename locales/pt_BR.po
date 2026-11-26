@@ -26,40 +26,40 @@ msgid "Delete"
 msgstr "Excluir"
 
 msgid "Jan"
-msgstr "Jan"
+msgstr "jan"
 
 msgid "Feb"
-msgstr "Fev"
+msgstr "fev"
 
 msgid "Mar"
-msgstr "Mar"
+msgstr "mar"
 
 msgid "Apr"
-msgstr "Abr"
+msgstr "abr"
 
 msgid "May"
-msgstr "Mai"
+msgstr "mai"
 
 msgid "Jun"
-msgstr "Jun"
+msgstr "jun"
 
 msgid "Jul"
-msgstr "Jul"
+msgstr "jul"
 
 msgid "Aug"
-msgstr "Ago"
+msgstr "ago"
 
 msgid "Sep"
-msgstr "Set"
+msgstr "set"
 
 msgid "Oct"
-msgstr "Out"
+msgstr "out"
 
 msgid "Nov"
-msgstr "Nov"
+msgstr "nov"
 
 msgid "Dec"
-msgstr "Dez"
+msgstr "dez"
 
 msgid "No chapters found"
 msgstr "Nenhum capítulo encontrado"
@@ -1201,37 +1201,37 @@ msgid "Filter"
 msgstr "Filtro"
 
 msgid "January"
-msgstr "Janeiro"
+msgstr "janeiro"
 
 msgid "February"
-msgstr "Fevereiro"
+msgstr "fevereiro"
 
 msgid "March"
-msgstr "Março"
+msgstr "março"
 
 msgid "April"
-msgstr "Abril"
+msgstr "abril"
 
 msgid "June"
-msgstr "Junho"
+msgstr "junho"
 
 msgid "July"
-msgstr "Julho"
+msgstr "julho"
 
 msgid "August"
-msgstr "Agosto"
+msgstr "agosto"
 
 msgid "September"
-msgstr "Setembro"
+msgstr "setembro"
 
 msgid "October"
-msgstr "Outubro"
+msgstr "outubro"
 
 msgid "November"
-msgstr "Novembro"
+msgstr "novembro"
 
 msgid "December"
-msgstr "Dezembro"
+msgstr "dezembro"
 
 msgid "Bookmark"
 msgstr "Marcador"
@@ -1328,3 +1328,68 @@ msgstr "Nenhuma pasta ou imagem aqui."
 
 msgid "No folders or icons here."
 msgstr "Nenhuma pasta ou ícone aqui."
+
+# Textos agregados
+msgid "Red"
+msgstr "Vermelho"
+
+msgid "Orange"
+msgstr "Laranja"
+
+msgid "Yellow"
+msgstr "Amarelo"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Olive"
+msgstr "Oliva"
+
+msgid "Cyan"
+msgstr "Ciano"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Purple"
+msgstr "Roxo"
+
+msgid "Gray"
+msgstr "Cinza"
+
+msgid "Delete note"
+msgstr "Excluir nota"
+
+msgid "Delete highlight"
+msgstr "Excluir destaque"
+
+msgid "Highlight menu"
+msgstr "Menu de destaque"
+
+msgid "No dictionaries available."
+msgstr "Nenhum dicionário disponível."
+
+msgid "Searching…"
+msgstr "Pesquisando…"
+
+msgid "Searching..."
+msgstr "Pesquisando..."
+
+msgid "Paste"
+msgstr "Colar"
+
+msgid "{month} {day}, {year}"
+msgstr "{day} de {month} de {year}"
+
+# Datas com contexto ("May": mês completo "maio" x abreviado "mai")
+msgctxt "full month"
+msgid "May"
+msgstr "maio"
+
+msgctxt "abbreviated month"
+msgid "May"
+msgstr "mai"
+
+msgctxt "abbreviated date"
+msgid "{month} {day}, {year}"
+msgstr "{day} {month} {year}"
