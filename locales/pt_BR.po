@@ -593,3 +593,738 @@ msgstr "Barra de progresso"
 
 msgid "Breadcrumb pins in slider"
 msgstr "Pins de percurso na barra"
+
+msgid "Copied to clipboard"
+msgstr "Copiado para a área de transferência"
+
+msgid "Not available"
+msgstr "Indisponível"
+
+msgid "EPUB only"
+msgstr "Apenas EPUB"
+
+msgid "Scanning"
+msgstr "Verificando"
+
+msgid "Page Scrubber: Study"
+msgstr "Page Scrubber: Estudar"
+
+msgid "Page Scrubber: Quick Menu"
+msgstr "Page Scrubber: Menu Rápido"
+
+msgid "space"
+msgstr "espaço"
+
+msgid "Add"
+msgstr "Adicionar"
+
+msgid "Nothing here."
+msgstr "Nada aqui."
+
+msgid "Options"
+msgstr "Opções"
+
+msgid "Confirm"
+msgstr "Confirmar"
+
+msgid "Working…"
+msgstr "Processando…"
+
+msgid "0°"
+msgstr "0°"
+
+msgid "90° CW"
+msgstr "90° horário"
+
+msgid "180°"
+msgstr "180°"
+
+msgid "90° CCW"
+msgstr "90° anti-horário"
+
+msgid "Some"
+msgstr "Alguma"
+
+msgid "More"
+msgstr "Mais"
+
+msgid "Reflow"
+msgstr "Refluxo"
+
+msgid "Font size"
+msgstr "Tamanho da fonte"
+
+msgid "Word gap"
+msgstr "Espaço entre palavras"
+
+msgid "Line spacing"
+msgstr "Espaço entre linhas"
+
+msgid "Alignment"
+msgstr "Alinhamento"
+
+msgid "Rotation"
+msgstr "Rotação"
+
+msgid "Page crop"
+msgstr "Recorte de página"
+
+msgid "Margin"
+msgstr "Margem"
+
+msgid "Auto straighten"
+msgstr "Endireitar automático"
+
+msgid "Fit zoom to"
+msgstr "Ajustar zoom a"
+
+msgid "Fit"
+msgstr "Ajuste"
+
+msgid "Rows"
+msgstr "Linhas"
+
+msgid "Zoom factor"
+msgstr "Nível de zoom"
+
+msgid "Direction"
+msgstr "Direção"
+
+msgid "Contrast"
+msgstr "Contraste"
+
+msgid "Saturation"
+msgstr "Saturação"
+
+msgid "White threshold"
+msgstr "Nível de branco"
+
+msgid "Dewatermark"
+msgstr "Remover marca d'água"
+
+msgid "Background cleanup"
+msgstr "Limpar fundo"
+
+msgid "Dithering"
+msgstr "Matização"
+
+msgid "Render quality"
+msgstr "Qualidade de renderização"
+
+msgid "On"
+msgstr "Ativado"
+
+msgid "Margin L/R"
+msgstr "Margem E/D"
+
+msgid "Margin T/B"
+msgstr "Margem sup./inf."
+
+msgid "View options"
+msgstr "Opções de exibição"
+
+msgid "Style options"
+msgstr "Opções de estilo"
+
+msgid "Render mode"
+msgstr "Modo de renderização"
+
+msgid "Zoom (dpi)"
+msgstr "Ampliação (DPI)"
+
+msgid "Word spacing"
+msgstr "Espaço entre palavras"
+
+msgid "Word expansion"
+msgstr "Expansão de palavras"
+
+msgid "Font weight"
+msgstr "Peso da fonte"
+
+msgid "Font hinting"
+msgstr "Hinting da fonte"
+
+msgid "Font kerning"
+msgstr "Kerning da fonte"
+
+msgid "Embedded style"
+msgstr "Estilo incorporado"
+
+msgid "Embedded fonts"
+msgstr "Fontes incorporadas"
+
+msgid "Image scaling"
+msgstr "Escala de imagens"
+
+msgid "Set as default"
+msgstr "Definir como padrão"
+
+msgid "Remove default"
+msgstr "Remover padrão"
+
+msgid "Brightness"
+msgstr "Brilho"
+
+msgid "Space around the page after crop and zoom."
+msgstr "Espaço ao redor da página após o recorte e o zoom."
+
+msgid "Straightens tilted scans, up to this angle."
+msgstr "Endireita digitalizações tortas, até este ângulo."
+
+msgid "Darker text and a cleaner background."
+msgstr "Texto mais escuro e fundo mais limpo."
+
+msgid "Lower fades the colors, higher intensifies them."
+msgstr "Mais baixo atenua as cores, mais alto as intensifica."
+
+msgid "Lighter pixels become white. Lower = whiter page."
+msgstr "Os pixels mais claros ficam brancos. Mais baixo = página mais branca."
+
+msgid "Fixed zoom used when Fit zoom to is manual."
+msgstr "Zoom fixo usado quando Ajustar zoom a está em manual."
+
+msgid "Columns or rows the page is split into."
+msgstr "Colunas ou linhas em que a página é dividida."
+
+msgid "Order in which the view moves across the page."
+msgstr "Ordem em que a visualização percorre a página."
+
+msgid "Cuts the blank margins of the page."
+msgstr "Corta as margens em branco da página."
+
+msgid "How the page is fitted to the screen."
+msgstr "Como a página se ajusta à tela."
+
+msgid "Which side of the page is fitted."
+msgstr "Qual lado da página é ajustado."
+
+msgid "Size of the book text."
+msgstr "Tamanho do texto do livro."
+
+msgid "Space between the lines of text."
+msgstr "Espaço entre as linhas do texto."
+
+msgid "Space at the left and right of the page."
+msgstr "Espaço à esquerda e à direita da página."
+
+msgid "Space above and below the text."
+msgstr "Espaço acima e abaixo do texto."
+
+msgid "Width of the spaces between words."
+msgstr "Largura dos espaços entre as palavras."
+
+msgid "How much words may stretch to fill a line."
+msgstr "Quanto as palavras podem se esticar para preencher uma linha."
+
+msgid "Scales CSS units and images. 96 = 1:1."
+msgstr "Escala as unidades CSS e as imagens. 96 = 1:1."
+
+msgid "How the book layout is rendered."
+msgstr "Como o layout do livro é renderizado."
+
+msgid "Makes the text lighter or bolder."
+msgstr "Deixa o texto mais fino ou mais grosso."
+
+msgid "Sharper or smoother font outlines."
+msgstr "Contornos das letras mais nítidos ou mais suaves."
+
+msgid "Adjusts the space between letter pairs."
+msgstr "Ajusta o espaço entre pares de letras."
+
+msgid "Uses the publisher's own styles included in the book."
+msgstr "Usa os estilos próprios da editora incluídos no livro."
+
+msgid "Uses the fonts included in the book instead of yours."
+msgstr "Usa as fontes incluídas no livro em vez das suas."
+
+msgid "How images are scaled: fast or best quality."
+msgstr "Como as imagens são redimensionadas: rápido ou melhor qualidade."
+
+msgid "Reflows the page text to fit the screen, like an ebook."
+msgstr "Reorganiza o texto da página para caber na tela, como um e-book."
+
+msgid "Black and white only: better contrast and faster. Good for scanned PDFs."
+msgstr "Apenas preto e branco: mais contraste e mais rápido. Bom para PDFs digitalizados."
+
+msgid "Tries to remove watermarks and stains from the page."
+msgstr "Tenta remover marcas d'água e manchas da página."
+
+msgid "Dithering smooths grays and gradients on e-ink."
+msgstr "A matização suaviza cinzas e degradês no e-ink."
+
+msgid "Quality of the text and images when reflowing. Higher is sharper but slower."
+msgstr "Qualidade do texto e das imagens no refluxo. Mais alta é mais nítida, porém mais lenta."
+
+msgid "Screen orientation."
+msgstr "Orientação da tela."
+
+msgid "Keeps the original margins."
+msgstr "Mantém as margens originais."
+
+msgid "Finds the content and trims the blank margins."
+msgstr "Encontra o conteúdo e corta as margens em branco."
+
+msgid "Auto-detects inside an area you mark once."
+msgstr "Detecta automaticamente dentro de uma área que você marca uma vez."
+
+msgid "You mark the area."
+msgstr "Você marca a área."
+
+msgid "Fits the whole page."
+msgstr "Ajusta a página inteira."
+
+msgid "Fits the content, ignoring blank margins."
+msgstr "Ajusta o conteúdo, ignorando as margens em branco."
+
+msgid "Shows one column at a time."
+msgstr "Mostra uma coluna por vez."
+
+msgid "Shows one row at a time."
+msgstr "Mostra uma linha por vez."
+
+msgid "Uses the fixed zoom factor."
+msgstr "Usa o nível de zoom fixo."
+
+msgid "Original CR3 block rendering."
+msgstr "Renderização de blocos original do CR3."
+
+msgid "Flat layout with accurate page breaks."
+msgstr "Layout plano com quebras de página precisas."
+
+msgid "Adds floats, avoids overflows."
+msgstr "Adiciona elementos flutuantes, evita transbordamentos."
+
+msgid "Like a web browser; may overflow."
+msgstr "Como um navegador web; pode transbordar."
+
+msgid "No hinting."
+msgstr "Sem hinting."
+
+msgid "Uses the hinting of the font."
+msgstr "Usa o hinting da própria fonte."
+
+msgid "Automatic hinting."
+msgstr "Hinting automático."
+
+msgid "No kerning."
+msgstr "Sem kerning."
+
+msgid "Fast kerning."
+msgstr "Kerning rápido."
+
+msgid "Good quality kerning."
+msgstr "Kerning de boa qualidade."
+
+msgid "Best quality kerning."
+msgstr "Kerning da melhor qualidade."
+
+msgid "The page keeps its original layout."
+msgstr "A página mantém o layout original."
+
+msgid "The text is reflowed to fit the screen."
+msgstr "O texto é reorganizado para caber na tela."
+
+msgid "Keeps the original colors and grays."
+msgstr "Mantém as cores e os cinzas originais."
+
+msgid "Black and white only. Faster, more contrast."
+msgstr "Apenas preto e branco. Mais rápido, mais contraste."
+
+msgid "Ignores the book's styles; yours are used."
+msgstr "Ignora os estilos do livro; usa os seus."
+
+msgid "Keeps the look the publisher designed."
+msgstr "Mantém o visual criado pela editora."
+
+msgid "Uses your font for all the text."
+msgstr "Usa a sua fonte em todo o texto."
+
+msgid "Uses the fonts the book brings."
+msgstr "Usa as fontes que vêm com o livro."
+
+msgid "Fast: quick, but images look rougher."
+msgstr "Rápido: mais veloz, mas as imagens ficam mais ásperas."
+
+msgid "Best: slower, smoother and more accurate."
+msgstr "Melhor: mais lento, mais suave e mais preciso."
+
+msgid "Faster, but less sharp."
+msgstr "Mais rápido, mas menos nítido."
+
+msgid "Balanced."
+msgstr "Equilibrado."
+
+msgid "Sharpest, but the slowest."
+msgstr "O mais nítido, porém o mais lento."
+
+msgid "Keeps the original page without removing watermarks."
+msgstr "Mantém a página original sem remover marcas d'água."
+
+msgid "Removes faint watermarks and background marks from the page."
+msgstr "Remove marcas d'água fracas e marcas de fundo da página."
+
+msgid "Off."
+msgstr "Desativado."
+
+msgid "On."
+msgstr "Ativado."
+
+msgid "Whole page visible."
+msgstr "Página inteira visível."
+
+msgid "Fits the width; scroll vertically."
+msgstr "Ajusta a largura; role na vertical."
+
+msgid "Fits the height; scroll horizontally."
+msgstr "Ajusta a altura; role na horizontal."
+
+msgid "Left"
+msgstr "Esquerda"
+
+msgid "Right"
+msgstr "Direita"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Visual"
+msgstr "Visual"
+
+msgid "Font"
+msgstr "Fonte"
+
+msgid "No more options"
+msgstr "Sem mais opções"
+
+msgid "Restore default order"
+msgstr "Restaurar ordem padrão"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Grid"
+msgstr "Grade"
+
+msgid "Simple Grid"
+msgstr "Grade simples"
+
+msgid "Index"
+msgstr "Índice"
+
+msgid "Index (Table of Content)"
+msgstr "Índice (Sumário)"
+
+msgid "Multi-Grid"
+msgstr "Multigrade"
+
+msgid "Quick Actions"
+msgstr "Ações rápidas"
+
+msgid "System Font (Disabled by ZenOS)"
+msgstr "Fonte do sistema (desativada pelo ZenOS)"
+
+msgid "System Font (Managed by SimpleUI)"
+msgstr "Fonte do sistema (gerenciada pelo SimpleUI)"
+
+msgid "System Font"
+msgstr "Fonte do sistema"
+
+msgid "Rounded style"
+msgstr "Estilo arredondado"
+
+msgid "Notes menu"
+msgstr "Menu de notas"
+
+msgid "Swipe up"
+msgstr "Deslizar para cima"
+
+msgid "Swipe up to"
+msgstr "Deslizar para cima abre"
+
+msgid "Auto (follows selection)"
+msgstr "Automático (segue a seleção)"
+
+msgid "Menu on highlight tap"
+msgstr "Menu ao tocar no destaque"
+
+msgid "Menu notes"
+msgstr "Menu para escrever notas"
+
+msgid "KiKome keyboard"
+msgstr "Teclado KiKome"
+
+msgid "Added buttons"
+msgstr "Botões adicionados"
+
+msgid "Edit"
+msgstr "Editar"
+
+msgid "Add button"
+msgstr "Adicionar botão"
+
+msgid "Choose from files"
+msgstr "Escolher dos arquivos"
+
+msgid "Multi Grid"
+msgstr "Multigrade"
+
+msgid "Split menu"
+msgstr "Menu dividido"
+
+msgid "For the changes to apply, KOReader needs to be restarted."
+msgstr "Para que as alterações sejam aplicadas, o KOReader precisa ser reiniciado."
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "bold italic only"
+msgstr "apenas negrito e itálico"
+
+msgid "italic only"
+msgstr "apenas itálico"
+
+msgid "no bold"
+msgstr "sem negrito"
+
+msgid "The system font is managed by SimpleUI. Restart KOReader to apply it."
+msgstr "A fonte do sistema é gerenciada pelo SimpleUI. Reinicie o KOReader para aplicá-la."
+
+msgid "The system font is managed by SimpleUI. Change it from SimpleUI's settings."
+msgstr "A fonte do sistema é gerenciada pelo SimpleUI. Altere nas configurações do SimpleUI."
+
+msgid "Choose a wallpaper"
+msgstr "Escolher um papel de parede"
+
+msgid "Use wallpaper"
+msgstr "Usar papel de parede"
+
+msgid "Could not use that image: "
+msgstr "Não foi possível usar essa imagem: "
+
+msgid "Choose an icon for %s"
+msgstr "Escolher um ícone para %s"
+
+msgid "Use icon"
+msgstr "Usar ícone"
+
+msgid "No icon"
+msgstr "Sem ícone"
+
+msgid "Button added."
+msgstr "Botão adicionado."
+
+msgid "No more buttons from other plugins to add. They are the ones that appear when you tap More in the selection menu."
+msgstr "Não há mais botões de outros plugins para adicionar. São os que aparecem ao tocar em Mais no menu de seleção."
+
+msgid "Choose a button"
+msgstr "Escolher um botão"
+
+msgid "Next"
+msgstr "Avançar"
+
+msgid "No more buttons from other plugins to add."
+msgstr "Não há mais botões de outros plugins para adicionar."
+
+msgid "Change icon"
+msgstr "Alterar ícone"
+
+msgid "Remove button"
+msgstr "Remover botão"
+
+msgid "Remove the button \"%s\" from the selection menu?"
+msgstr "Remover o botão \"%s\" do menu de seleção?"
+
+msgid "Button removed."
+msgstr "Botão removido."
+
+msgid "Use this folder"
+msgstr "Usar esta pasta"
+
+msgid "No folders here."
+msgstr "Nenhuma pasta aqui."
+
+msgid "Parent folder"
+msgstr "Pasta superior"
+
+msgid "Capítulo"
+msgstr "Capítulo"
+
+msgid "—"
+msgstr "—"
+
+msgid "left"
+msgstr "restantes"
+
+msgid "Order"
+msgstr "Ordem"
+
+msgid "Ascending"
+msgstr "Crescente"
+
+msgid "Descending"
+msgstr "Decrescente"
+
+msgid "Gallery"
+msgstr "Galeria"
+
+msgid "Images"
+msgstr "Imagens"
+
+msgid "Bookmarks"
+msgstr "Marcadores"
+
+msgid "Highlights"
+msgstr "Destaques"
+
+msgid "Show"
+msgstr "Mostrar"
+
+msgid "Favorites"
+msgstr "Favoritas"
+
+msgid "General"
+msgstr "Gerais"
+
+msgid "Trash"
+msgstr "Lixeira"
+
+msgid "Image folders"
+msgstr "Pastas de imagens"
+
+msgid "Highlight style"
+msgstr "Estilo do destaque"
+
+msgid "Color"
+msgstr "Cor"
+
+msgid "Filter"
+msgstr "Filtro"
+
+msgid "January"
+msgstr "Janeiro"
+
+msgid "February"
+msgstr "Fevereiro"
+
+msgid "March"
+msgstr "Março"
+
+msgid "April"
+msgstr "Abril"
+
+msgid "June"
+msgstr "Junho"
+
+msgid "July"
+msgstr "Julho"
+
+msgid "August"
+msgstr "Agosto"
+
+msgid "September"
+msgstr "Setembro"
+
+msgid "October"
+msgstr "Outubro"
+
+msgid "November"
+msgstr "Novembro"
+
+msgid "December"
+msgstr "Dezembro"
+
+msgid "Bookmark"
+msgstr "Marcador"
+
+msgid "Show in book"
+msgstr "Mostrar no livro"
+
+msgid "Cannot find PageScrubber's folder. Please update manually."
+msgstr "Não foi possível encontrar a pasta do PageScrubber. Atualize manualmente."
+
+msgid "Downloading PageScrubber %s…"
+msgstr "Baixando PageScrubber %s…"
+
+msgid "Download failed: "
+msgstr "Falha no download: "
+
+msgid "Installing the update failed. Please update manually."
+msgstr "Falha ao instalar a atualização. Atualize manualmente."
+
+msgid "Installing the update failed. The previous version was restored."
+msgstr "Falha ao instalar a atualização. A versão anterior foi restaurada."
+
+msgid "PageScrubber %s is installed.\n\nRestart KOReader to use it?"
+msgstr "PageScrubber %s foi instalado.\n\nReiniciar o KOReader para usá-lo?"
+
+msgid "Restart now"
+msgstr "Reiniciar agora"
+
+msgid "Later"
+msgstr "Depois"
+
+msgid "Please restart KOReader to use the new version."
+msgstr "Reinicie o KOReader para usar a nova versão."
+
+msgid "PageScrubber %s is available. You have %s."
+msgstr "PageScrubber %s está disponível. Você tem a versão %s."
+
+msgid "Download and install now?"
+msgstr "Baixar e instalar agora?"
+
+msgid "Install"
+msgstr "Instalar"
+
+msgid "Could not read the installed version. Add a version line to _meta.lua, for example: version = \"1.0.0\""
+msgstr "Não foi possível ler a versão instalada. Adicione uma linha de versão ao _meta.lua, por exemplo: version = \"1.0.0\""
+
+msgid "Checking for updates…"
+msgstr "Verificando atualizações…"
+
+msgid "Could not check for updates: "
+msgstr "Não foi possível verificar atualizações: "
+
+msgid "PageScrubber is up to date (%s)."
+msgstr "PageScrubber está atualizado (%s)."
+
+msgid "PageScrubber %s is out, but its download is not ready yet."
+msgstr "PageScrubber %s foi lançado, mas o download ainda não está pronto."
+
+msgid "1 image"
+msgstr "1 imagem"
+
+msgid "%d images"
+msgstr "%d imagens"
+
+msgid "%d+ images"
+msgstr "%d+ imagens"
+
+msgid "No images"
+msgstr "Nenhuma imagem"
+
+msgid "1 icon"
+msgstr "1 ícone"
+
+msgid "%d icons"
+msgstr "%d ícones"
+
+msgid "%d+ icons"
+msgstr "%d+ ícones"
+
+msgid "No icons"
+msgstr "Nenhum ícone"
+
+msgid "Use image"
+msgstr "Usar imagem"
+
+msgid "Choose an image"
+msgstr "Escolher uma imagem"
+
+msgid "Choose an icon"
+msgstr "Escolher um ícone"
+
+msgid "No folders or images here."
+msgstr "Nenhuma pasta ou imagem aqui."
+
+msgid "No folders or icons here."
+msgstr "Nenhuma pasta ou ícone aqui."
